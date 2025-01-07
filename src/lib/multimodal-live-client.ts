@@ -94,6 +94,7 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
 
   connect(config: LiveConfig): Promise<boolean> {
     this.config = config;
+    console.log("config", config);
 
     const ws = new WebSocket(this.url);
 
