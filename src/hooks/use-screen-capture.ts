@@ -16,6 +16,8 @@
 
 import { useState, useEffect } from "react";
 import { UseMediaStreamResult } from "./use-media-stream-mux";
+import { DesktopCapturerSource } from 'electron';
+const { ipcRenderer } = window.require('electron');
 
 export function useScreenCapture(): UseMediaStreamResult {
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -41,20 +43,109 @@ export function useScreenCapture(): UseMediaStreamResult {
   }, [stream]);
 
   const start = async () => {
-    // const controller = new CaptureController();
-    // controller.setFocusBehavior("no-focus-change");
-    const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      // controller
-    });
-    setStream(mediaStream);
-    setIsStreaming(true);
-    return mediaStream;
+    try {
+      const sources = await ipcRenderer.invoke('get-sources');
+
+      // Create source selection dialog
+      const selectedSource = await new Promise<string>((resolve, reject) => {
+        const picker = document.createElement('div');
+        picker.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.8);
+          z-index: 99999;
+          display: flex;
+          flex-wrap: wrap;
+          padding: 20px;
+          overflow: auto;
+          justify-content: center;
+          align-items: flex-start;
+        `;
+
+        sources.forEach((source: DesktopCapturerSource) => {
+          const button = document.createElement('div');
+          button.style.cssText = `
+            margin: 10px;
+            cursor: pointer;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.2s;
+          `;
+          button.innerHTML = `
+            <img src="${source.thumbnail.toDataURL()}" style="width: 150px; height: 150px; object-fit: contain; margin-bottom: 10px;"><br>
+            <span style="color: black; font-weight: bold;">${source.name}</span>
+          `;
+          button.onmouseover = () => {
+            button.style.transform = 'scale(1.05)';
+          };
+          button.onmouseout = () => {
+            button.style.transform = 'scale(1)';
+          };
+          button.onclick = () => {
+            document.body.removeChild(picker);
+            resolve(source.id);
+          };
+          picker.appendChild(button);
+        });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = `
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          padding: 10px 20px;
+          background: #ff4444;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+        `;
+        cancelBtn.onclick = () => {
+          document.body.removeChild(picker);
+          reject(new Error('Selection cancelled'));
+        };
+        picker.appendChild(cancelBtn);
+
+        document.body.appendChild(picker);
+      });
+
+      const constraints = {
+        audio: false,  // Start with just video to avoid audio issues
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: selectedSource
+          }
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints as any);
+      setStream(stream);
+      setIsStreaming(true);
+      return stream;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Selection cancelled') {
+        setStream(null);
+        setIsStreaming(false);
+        throw error;
+      }
+      console.error('Error starting screen capture:', error);
+      throw error;
+    }
   };
 
   const stop = () => {
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach(track => {
+        track.stop();
+      });
       setStream(null);
       setIsStreaming(false);
     }

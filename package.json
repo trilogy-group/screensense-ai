@@ -1,6 +1,7 @@
 {
   "name": "multimodal-live-api-web-console",
   "version": "0.1.0",
+  "main": "build/electron/main.js",
   "dependencies": {
     "classnames": "^2.5.1",
     "dotenv-flow": "^4.1.0",
@@ -20,11 +21,24 @@
     "zustand": "^5.0.1"
   },
   "scripts": {
-    "start-https": "HTTPS=true react-scripts start",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "electron:tsc": "tsc -p electron/tsconfig.json",
+    "electron-dev": "npm run electron:tsc && concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "electron-build": "npm run build && npm run electron:tsc && electron-builder",
+    "electron-pack": "electron-builder -c.extraMetadata.main=build/electron/main.js"
+  },
+  "build": {
+    "appId": "com.multimodal.live.api.console",
+    "files": [
+      "build/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    }
   },
   "eslintConfig": {
     "extends": [
@@ -51,12 +65,17 @@
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
     "@types/lodash": "^4.17.13",
-    "@types/node": "^16.18.119",
+    "@types/node": "^16.18.123",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "wait-on": "^8.0.1"
   },
   "overrides": {
     "typescript": "^5.6.3"
