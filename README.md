@@ -157,3 +157,4 @@ npm run electron-build
 - [ ] When new subtitles are smaller, you can see the previous subtitles
 - [ ] Developer tools should be hidden when using the installable app
 - [ ] Detect when no api key is set
+- [ ] Audio gets laggy over time
