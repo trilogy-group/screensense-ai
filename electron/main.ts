@@ -97,8 +97,9 @@ async function createWindow() {
       logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
     });
 
-    // Always open DevTools in production for now to help debug
-    mainWindow.webContents.openDevTools();
+    if (isDev) {
+      mainWindow.webContents.openDevTools();
+    }
   }
 
   createOverlayWindow();
