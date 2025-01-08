@@ -151,5 +151,8 @@ npm run electron-build
 
 ## TODO
 
-- [ ] Allow users to specify their api key in the app
+- [x] Allow users to specify their api key in the app
 - [ ] Check if .env.production can be safely removed
+- [ ] Cannot change mode without pausing first
+- [ ] When new subtitles are smaller, you can see the previous subtitles
+- [ ] Developer tools should be hidden when using the installable app

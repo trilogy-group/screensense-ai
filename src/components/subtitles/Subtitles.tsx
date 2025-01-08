@@ -5,8 +5,13 @@ import { ToolCall } from "../../multimodal-live-types";
 import vegaEmbed from "vega-embed";
 const { ipcRenderer } = window.require('electron');
 
-// Tools configuration
-const toolObject: Tool[] = [
+interface SubtitlesProps {
+  tools?: Tool[];
+  systemInstruction?: string;
+}
+
+// Default tool configuration
+const defaultToolObject: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -45,15 +50,10 @@ const toolObject: Tool[] = [
   },
 ];
 
-const systemInstructionObject = {
-  parts: [
-    {
-      text: 'You are a helpful assistant with two main capabilities:\n1. Translation: When asked to translate text, use "render_subtitles" to show the translation and "remove_subtitles" when done.\n2. Graphing: When asked to create a graph or visualization, use the "render_graph" function with a Vega-Lite specification. Make your best judgment about the visualization type.',
-    },
-  ],
-};
+// Default system instruction
+const defaultSystemInstructionText = 'You are a helpful assistant with two main capabilities:\n1. Translation: When asked to translate text, use "render_subtitles" to show the translation and "remove_subtitles" when done.\n2. Graphing: When asked to create a graph or visualization, use the "render_graph" function with a Vega-Lite specification. Make your best judgment about the visualization type.';
 
-function SubtitlesComponent() {
+function SubtitlesComponent({ tools = defaultToolObject, systemInstruction = defaultSystemInstructionText }: SubtitlesProps) {
   const [subtitles, setSubtitles] = useState<string>("");
   const [graphJson, setGraphJson] = useState<string>("");
   const { client, setConfig } = useLiveAPIContext();
@@ -68,10 +68,12 @@ function SubtitlesComponent() {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
         },
       },
-      systemInstruction: systemInstructionObject,
-      tools: toolObject,
+      systemInstruction: {
+        parts: [{ text: systemInstruction }]
+      },
+      tools: tools,
     });
-  }, [setConfig]);
+  }, [setConfig, systemInstruction, tools]);
 
   useEffect(() => {
     const onToolCall = (toolCall: ToolCall) => {

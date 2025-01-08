@@ -21,9 +21,20 @@ import SidePanel from "./components/side-panel/SidePanel";
 import { Subtitles } from "./components/subtitles/Subtitles";
 import ControlTray from "./components/control-tray/ControlTray";
 import cn from "classnames";
+import { assistantConfigs, type AssistantConfigMode } from "./configs/assistant-configs";
 
 const host = "generativelanguage.googleapis.com";
 const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
+
+type ModeOption = {
+  value: AssistantConfigMode;
+  label: string;
+};
+
+const modes: ModeOption[] = [
+  { value: 'general', label: 'Daily Helper' },
+  { value: 'subtitle', label: 'Transcriber' }
+];
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -33,6 +44,8 @@ function App() {
   });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
+
+  const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
   useEffect(() => {
     if (apiKey) {
@@ -101,7 +114,10 @@ function App() {
           <SidePanel />
           <main>
             <div className="main-app-area">
-              <Subtitles />
+              <Subtitles 
+                tools={[...assistantConfigs[selectedOption.value].tools]}
+                systemInstruction={assistantConfigs[selectedOption.value].systemInstruction}
+              />
               <video
                 className={cn("stream", {
                   hidden: !videoRef.current || !videoStream,
@@ -116,6 +132,9 @@ function App() {
               videoRef={videoRef}
               supportsVideo={true}
               onVideoStreamChange={setVideoStream}
+              modes={modes}
+              selectedOption={selectedOption}
+              setSelectedOption={setSelectedOption as (option: { value: string; label: string }) => void}
             >
               {/* put your own buttons here */}
             </ControlTray>
