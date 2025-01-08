@@ -67,14 +67,55 @@ export function useLiveAPI({
   }, [audioStreamerRef]);
 
   useEffect(() => {
-    const onClose = () => {
+    let isReconnecting = false;
+    let reconnectTimeout: NodeJS.Timeout;
+
+    const onClose = async () => {
+      if (isReconnecting) return;
+      
+      isReconnecting = true;
       setConnected(false);
+      
+      // Clean up existing connection
+      client.disconnect();
+      audioStreamerRef.current?.stop();
+
+      const maxAttempts = 5;
+      const retryDelay = 2000;
+      let attempts = 0;
+
+      const attemptReconnect = async () => {
+        if (attempts >= maxAttempts) {
+          console.error('Failed to reconnect after several attempts');
+          isReconnecting = false;
+          return;
+        }
+
+        try {
+          console.log(`Reconnecting... Attempt ${attempts + 1}`);
+          await client.connect(config);
+          console.log('Reconnected successfully');
+          setConnected(true);
+          isReconnecting = false;
+        } catch (error) {
+          console.error('Reconnection failed:', error);
+          attempts++;
+          reconnectTimeout = setTimeout(attemptReconnect, retryDelay);
+        }
+      };
+
+      await attemptReconnect();
     };
 
-    const stopAudioStreamer = () => audioStreamerRef.current?.stop();
+    const stopAudioStreamer = () => {
+      audioStreamerRef.current?.stop();
+    };
 
-    const onAudio = (data: ArrayBuffer) =>
-      audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+    const onAudio = (data: ArrayBuffer) => {
+      if (!isReconnecting && audioStreamerRef.current) {
+        audioStreamerRef.current.addPCM16(new Uint8Array(data));
+      }
+    };
 
     client
       .on("close", onClose)
@@ -82,12 +123,15 @@ export function useLiveAPI({
       .on("audio", onAudio);
 
     return () => {
+      clearTimeout(reconnectTimeout);
       client
         .off("close", onClose)
         .off("interrupted", stopAudioStreamer)
         .off("audio", onAudio);
+      stopAudioStreamer();
+      client.disconnect();
     };
-  }, [client]);
+  }, [client, config]);
 
   const connect = useCallback(async () => {
     console.log(config);
