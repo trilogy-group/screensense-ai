@@ -12,7 +12,7 @@ function logToFile(message: string) {
 }
 
 async function createWindow() {
-  const isDev = !app.isPackaged;
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
   mainWindow = new BrowserWindow({
