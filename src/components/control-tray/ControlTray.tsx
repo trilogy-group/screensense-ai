@@ -145,9 +145,18 @@ function ControlTray({
   //handler for swapping from one video-stream to the next
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
     if (next) {
-      const mediaStream = await next.start();
-      setActiveVideoStream(mediaStream);
-      onVideoStreamChange(mediaStream);
+      try {
+        const mediaStream = await next.start();
+        setActiveVideoStream(mediaStream);
+        onVideoStreamChange(mediaStream);
+      } catch (error) {
+        // Silently handle cancellation, but still log other errors
+        if (!(error instanceof Error && error.message === 'Selection cancelled')) {
+          console.error('Error changing streams:', error);
+        }
+        setActiveVideoStream(null);
+        onVideoStreamChange(null);
+      }
     } else {
       setActiveVideoStream(null);
       onVideoStreamChange(null);

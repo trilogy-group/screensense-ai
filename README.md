@@ -139,3 +139,10 @@ Run the following commands to run the electron app:
 npm install
 npm run electron-dev
 ```
+
+## Building the electron app
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install setuptools
+npm run electron-build
+```

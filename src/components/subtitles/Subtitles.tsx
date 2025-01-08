@@ -63,7 +63,7 @@ function SubtitlesComponent() {
     setConfig({
       model: "models/gemini-2.0-flash-exp",
       generationConfig: {
-        responseModalities: ["audio"],
+        responseModalities: "audio",
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
         },
@@ -80,7 +80,6 @@ function SubtitlesComponent() {
         if (fc.name === "render_subtitles") {
           const text = (fc.args as any).subtitles;
           setSubtitles(text);
-          ipcRenderer.send('update-subtitles', text);
         } else if (fc.name === "remove_subtitles") {
           setSubtitles("");
           ipcRenderer.send('remove-subtitles');
@@ -108,6 +107,13 @@ function SubtitlesComponent() {
       client.off("toolcall", onToolCall);
     };
   }, [client]);
+
+  // Separate useEffect to handle IPC communication when subtitles change
+  useEffect(() => {
+    if (subtitles) {
+      ipcRenderer.send('update-subtitles', subtitles);
+    }
+  }, [subtitles]);
 
   useEffect(() => {
     if (graphRef.current && graphJson) {

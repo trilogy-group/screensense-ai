@@ -1,6 +1,10 @@
 {
   "name": "multimodal-live-api-web-console",
   "version": "0.1.0",
+  "description": "A multimodal live API web console application",
+  "author": {
+    "name": "Sahil Marwaha"
+  },
   "main": "build/electron/main.js",
   "dependencies": {
     "classnames": "^2.5.1",
@@ -37,7 +41,13 @@
       "node_modules/**/*"
     ],
     "directories": {
-      "buildResources": "assets"
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "buildDependenciesFromSource": true,
+    "npmRebuild": false,
+    "extraMetadata": {
+      "main": "build/electron/main.js"
     }
   },
   "eslintConfig": {
@@ -59,6 +69,7 @@
     ]
   },
   "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@google/generative-ai": "^0.21.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -74,10 +85,10 @@
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3",
+    "typescript": "5.1.6",
     "wait-on": "^8.0.1"
   },
   "overrides": {
-    "typescript": "^5.6.3"
+    "typescript": "5.1.6"
   }
 }
