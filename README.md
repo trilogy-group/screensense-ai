@@ -148,3 +148,8 @@ _Note: I had to install `xcode` to get this to work, since it required cpp files
 python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install setuptools
 npm run electron-build
 ```
+
+## TODO
+
+- [ ] Allow users to specify their api key in the app
+- [ ] Check if .env.production can be safely removed
