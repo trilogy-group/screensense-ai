@@ -142,6 +142,8 @@ npm run electron-dev
 
 ## Building the electron app
 
+_Note: I had to install `xcode` to get this to work, the xcode-select cli tool was not enough._
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install setuptools
 npm run electron-build

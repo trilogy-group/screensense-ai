@@ -11,7 +11,7 @@ const toolObject: Tool[] = [
     functionDeclarations: [
       {
         name: "render_subtitles",
-        description: "Displays subtitles in an overlay window.",
+        description: "Displays subtitles in an overlay window. Use this whenever translating text.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -25,7 +25,7 @@ const toolObject: Tool[] = [
       },
       {
         name: "remove_subtitles",
-        description: "Removes the subtitles overlay window.",
+        description: "Removes the subtitles overlay window. Use this when the user is done translating text.",
       },
       {
         name: "render_graph",

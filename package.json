@@ -5,8 +5,9 @@
   "author": {
     "name": "Sahil Marwaha"
   },
-  "main": "build/electron/main.js",
+  "main": "./build/electron/main.js",
   "dependencies": {
+    "@parcel/watcher": "^2.1.0",
     "classnames": "^2.5.1",
     "dotenv-flow": "^4.1.0",
     "eventemitter3": "^5.0.1",
@@ -29,25 +30,53 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
+    "build:react": "react-scripts build",
     "electron:tsc": "tsc -p electron/tsconfig.json",
     "electron-dev": "npm run electron:tsc && concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
     "electron-build": "npm run build && npm run electron:tsc && electron-builder",
-    "electron-pack": "electron-builder -c.extraMetadata.main=build/electron/main.js"
+    "electron-pack": "electron-builder"
   },
   "build": {
     "appId": "com.multimodal.live.api.console",
+    "productName": "Multimodal Live API Web Console",
     "files": [
       "build/**/*",
-      "node_modules/**/*"
+      "electron/**/*",
+      "package.json"
     ],
     "directories": {
       "buildResources": "assets",
       "output": "dist"
     },
-    "buildDependenciesFromSource": true,
-    "npmRebuild": false,
     "extraMetadata": {
-      "main": "build/electron/main.js"
+      "main": "./build/electron/main.js"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     }
   },
   "eslintConfig": {
