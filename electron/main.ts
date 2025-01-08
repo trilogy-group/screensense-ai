@@ -1,11 +1,19 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 
+function logToFile(message: string) {
+  const logPath = app.getPath('userData') + '/app.log';
+  const timestamp = new Date().toISOString();
+  fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
+}
+
 async function createWindow() {
   const isDev = !app.isPackaged;
+  logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -13,7 +21,8 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: true,
+      webSecurity: false,  // Temporarily disable for debugging
+      devTools: true
     },
   });
 
@@ -38,15 +47,58 @@ async function createWindow() {
       callback({}); // Let the renderer handle source selection
     });
 
-    await mainWindow.loadURL(
-      isDev
-        ? 'http://localhost:3000'
-        : `file://${path.join(__dirname, '../build/index.html')}`
-    );
-
+    let loadUrl: string;
     if (isDev) {
-      mainWindow.webContents.openDevTools();
+      loadUrl = 'http://localhost:3000';
+    } else {
+      // In production, use the app.getAppPath() to get the correct base path
+      const appPath = app.getAppPath();
+      // Remove .asar from the path to access unpacked resources
+      const basePath = appPath.replace('.asar', '.asar.unpacked');
+      const indexPath = path.join(basePath, 'build', 'index.html');
+      
+      // Log more details about the paths
+      logToFile(`Base path: ${basePath}`);
+      logToFile(`Index path: ${indexPath}`);
+      logToFile(`Directory contents of build:`);
+      try {
+        const buildContents = fs.readdirSync(path.join(basePath, 'build'));
+        logToFile(JSON.stringify(buildContents, null, 2));
+      } catch (error) {
+        logToFile(`Error reading build directory: ${error}`);
+      }
+      
+      loadUrl = `file://${indexPath}`;
     }
+    
+    logToFile(`App path: ${app.getAppPath()}`);
+    logToFile(`Attempting to load URL: ${loadUrl}`);
+    logToFile(`Build path exists: ${fs.existsSync(loadUrl.replace('file://', ''))}`);
+
+    try {
+      await mainWindow.loadURL(loadUrl);
+      logToFile('Successfully loaded the window URL');
+    } catch (error) {
+      logToFile(`Error loading URL: ${error}`);
+    }
+
+    // Log when the page finishes loading
+    mainWindow.webContents.on('did-finish-load', () => {
+      logToFile('Page finished loading');
+    });
+
+    // Log any errors that occur during page load
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      logToFile(`Failed to load: ${errorDescription} (${errorCode})`);
+    });
+
+    // Add console logging from the renderer process
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
+    });
+
+    // Always open DevTools in production for now to help debug
+    mainWindow.webContents.openDevTools();
   }
 
   createOverlayWindow();

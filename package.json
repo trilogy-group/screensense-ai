@@ -30,10 +30,10 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "build:react": "react-scripts build",
+    "build:react": "cross-env PUBLIC_URL=./ react-scripts build",
     "electron:tsc": "tsc -p electron/tsconfig.json",
     "electron-dev": "npm run electron:tsc && concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
-    "electron-build": "npm run build && npm run electron:tsc && electron-builder",
+    "electron-build": "npm run build:react && npm run electron:tsc && electron-builder",
     "electron-pack": "electron-builder"
   },
   "build": {
@@ -51,6 +51,10 @@
     "extraMetadata": {
       "main": "./build/electron/main.js"
     },
+    "asar": true,
+    "asarUnpack": [
+      "build/**/*"
+    ],
     "mac": {
       "target": [
         {
