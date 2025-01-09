@@ -154,7 +154,7 @@ npm run electron-build
 - [x] Allow users to specify their api key in the app
 - [ ] Check if .env.production can be safely removed
 - [ ] Cannot change mode without pausing first
-- [ ] When new subtitles are smaller, you can see the previous subtitles
-- [ ] Developer tools should be hidden when using the installable app
-- [ ] Detect when no api key is set
+- [x] When new subtitles are smaller, you can see the previous subtitles
+- [x] Developer tools should be hidden when using the installable app
+- [x] Detect when no api key is set
 - [ ] Audio gets laggy over time

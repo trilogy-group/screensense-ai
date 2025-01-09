@@ -147,7 +147,14 @@ function createOverlayWindow() {
             font-weight: 500;
             text-align: center;
             max-width: 80%;
-            display: none;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            position: relative;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+          }
+          #subtitles.visible {
+            opacity: 1;
           }
         </style>
       </head>
@@ -159,10 +166,23 @@ function createOverlayWindow() {
           
           ipcRenderer.on('update-subtitles', (event, text) => {
             if (text) {
-              subtitles.textContent = text;
-              subtitles.style.display = 'block';
+              // First remove the visible class to trigger fade out
+              subtitles.classList.remove('visible');
+              
+              // Wait for the fade out transition to complete
+              setTimeout(() => {
+                subtitles.textContent = text;
+                subtitles.style.display = 'block';
+                // Force a reflow to ensure the transition works
+                subtitles.offsetHeight;
+                subtitles.classList.add('visible');
+              }, 200);
             } else {
-              subtitles.style.display = 'none';
+              subtitles.classList.remove('visible');
+              setTimeout(() => {
+                subtitles.style.display = 'none';
+                subtitles.textContent = '';
+              }, 200);
             }
           });
         </script>
