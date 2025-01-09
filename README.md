@@ -158,3 +158,5 @@ npm run electron-build
 - [x] Developer tools should be hidden when using the installable app
 - [x] Detect when no api key is set
 - [ ] Audio gets laggy over time
+- [ ] Reconnect only on session ending issues, not all issues
+- [ ] Set the assistant name from the config itself, not in the app file.
