@@ -16,8 +16,11 @@ async function createWindow() {
   logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 275,
+    height: 200,
+    resizable: false,
+    // frame: false,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -98,7 +101,7 @@ async function createWindow() {
     });
 
     if (isDev) {
-      mainWindow.webContents.openDevTools();
+      // mainWindow.webContents.openDevTools();
     }
   }
 

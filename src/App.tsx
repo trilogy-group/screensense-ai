@@ -65,31 +65,25 @@ function App() {
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={apiKey}>
         <div className="streaming-console">
-          <button
-            className="action-button api-key-button"
-            onClick={() => {
-              setTempApiKey(apiKey);
-              setShowApiKeyInput(!showApiKeyInput);
-            }}
-            title="Configure API Key"
-          >
-            <span className="material-symbols-outlined">key</span>
-          </button>
-
           {showApiKeyInput && (
             <>
               <div className="modal-backdrop" onClick={() => setShowApiKeyInput(false)} />
               <div className="api-key-modal">
-                <form onSubmit={handleApiKeySubmit}>
+                <form onSubmit={handleApiKeySubmit} style={{
+                  width: '300px'
+                }}>
                   <input
                     type="password"
                     placeholder="Enter your API key"
                     value={tempApiKey}
                     onChange={(e) => setTempApiKey(e.target.value)}
-                    style={{ 
+                    style={{
+                      display: 'block',
+                      margin: 'auto',
                       textAlign: 'center',
                       direction: 'ltr',
-                      padding: '12px 0'
+                      padding: '12px 0',
+                      width: '200px'
                     }}
                     className="api-key-input"
                   />
@@ -111,23 +105,20 @@ function App() {
             </>
           )}
 
-          <SidePanel />
+          {/* <SidePanel /> */}
           <main>
-            <div className="main-app-area">
-              <Subtitles 
-                tools={[...assistantConfigs[selectedOption.value].tools]}
-                systemInstruction={assistantConfigs[selectedOption.value].systemInstruction}
-              />
-              <video
-                className={cn("stream", {
-                  hidden: !videoRef.current || !videoStream,
-                })}
-                ref={videoRef}
-                autoPlay
-                playsInline
-              />
-            </div>
-
+            <Subtitles
+              tools={[...assistantConfigs[selectedOption.value].tools]}
+              systemInstruction={assistantConfigs[selectedOption.value].systemInstruction}
+            />
+            <video
+              className={cn("stream", {
+                hidden: !videoRef.current || !videoStream,
+              })}
+              ref={videoRef}
+              autoPlay
+              playsInline
+            />
             <ControlTray
               videoRef={videoRef}
               supportsVideo={true}
@@ -135,6 +126,10 @@ function App() {
               modes={modes}
               selectedOption={selectedOption}
               setSelectedOption={setSelectedOption as (option: { value: string; label: string }) => void}
+              apiKey={apiKey}
+              onSetTempApiKey={setTempApiKey}
+              showApiKeyInput={showApiKeyInput}
+              onShowApiKeyInput={setShowApiKeyInput}
             >
               {/* put your own buttons here */}
             </ControlTray>

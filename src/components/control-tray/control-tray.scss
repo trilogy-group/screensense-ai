@@ -104,29 +104,46 @@
 }
 
 .control-tray {
+  
   position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translate(-50%, 0);
-  display: inline-flex;
+  height: 100px;
+  width: 250px;
+  // border: 2px solid red;
+  margin: 5px;
+  top:0;
+  left:0;
+  display: flex;
+  flex-wrap: wrap; 
   justify-content: center;
   align-items: flex-start;
   gap: 8px;
   padding-bottom: 18px;
-
+  .icons-carousel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
   .disabled .action-button,
   .action-button.disabled {
     background: rgba(0, 0, 0, 0);
     border: 1px solid var(--Neutral-30, #404547);
     color: var(--Neutral-30);
   }
-
+  .agents-carousel {
+    width: 200px;
+    // border: 2px solid blue;
+    margin-top: -20px;
+  }
   .connection-container {
+    height: 70px;
+    // border: 2px solid red;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 4px;
+    // gap: 4px;
 
     .connection-button-container {
       border-radius: 27px;
@@ -150,6 +167,7 @@
 }
 
 .actions-nav {
+  width: 220px;
   background: var(--Neutral-5);
   border: 1px solid var(--Neutral-30);
   border-radius: 27px;
@@ -160,13 +178,7 @@
   padding: 10px;
 
   transition: all 0.6s ease-in;
-
-  &>* {
-    display: flex;
-    align-items: center;
-    flex-direction: column;
-    gap: 1rem;
-  }
+  border: none
 }
 
 @keyframes opacity-pulse {

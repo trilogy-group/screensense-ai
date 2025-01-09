@@ -33,6 +33,10 @@ export type ControlTrayProps = {
   modes: { value: string; label: string }[];
   selectedOption: { value: string; label: string };
   setSelectedOption: (option: { value: string; label: string }) => void;
+  apiKey: string;
+  onSetTempApiKey: (apiKey: string) => void;
+  showApiKeyInput: boolean;
+  onShowApiKeyInput: (show: boolean) => void;
 };
 
 type MediaStreamButtonProps = {
@@ -62,11 +66,15 @@ const MediaStreamButton = memo(
 function ControlTray({
   videoRef,
   children,
-  onVideoStreamChange = () => {},
+  onVideoStreamChange = () => { },
   supportsVideo,
   modes,
   selectedOption,
   setSelectedOption,
+  apiKey,
+  onSetTempApiKey,
+  showApiKeyInput,
+  onShowApiKeyInput,
 }: ControlTrayProps) {
   const videoStreams = [useWebcam(), useScreenCapture()];
   const [activeVideoStream, setActiveVideoStream] =
@@ -78,6 +86,7 @@ function ControlTray({
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [iconCarouselIndex, setIconCarouselIndex] = useState(0);
 
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
@@ -210,17 +219,226 @@ function ControlTray({
   }, [carouselIndex, modes, setSelectedOption]);
   const handleCarouselChange = (direction: 'next' | 'prev') => {
     setCarouselIndex(prevIndex => {
-      const newIndex = direction === 'next' 
+      const newIndex = direction === 'next'
         ? (prevIndex + 1) % modes.length
         : (prevIndex - 1 + modes.length) % modes.length;
       return newIndex;
     });
   };
 
+  const slide1 = <div
+    style={{
+      display: 'flex',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '12px',
+      // border: '2px solid red',
+      height: '80px'
+    }}
+  >
+    <div className={cn("connection-container", { connected })}>
+      <div className="connection-button-container">
+        <div style={errorMessageStyle}>
+          Please add your API key by clicking the key icon ⚿ in the top right
+        </div>
+        <button
+          ref={connectButtonRef}
+          className={cn("action-button connect-toggle", { connected })}
+          onClick={() => {
+            const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
+            const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
+
+            if (!connected && !apiKey) {
+              setShowError(true);
+              return;
+            }
+            connected ? disconnect() : connect();
+          }}
+        >
+          <span className="material-symbols-outlined filled">
+            {connected ? "pause" : "play_arrow"}
+          </span>
+        </button>
+      </div>
+      <span className="text-indicator">Streaming</span>
+    </div>
+
+    <div className="connection-container">
+      <div className="connection-button-container">
+        <button
+          className="action-button connect-toggle"
+          onClick={() => {
+            onSetTempApiKey(apiKey);
+            onShowApiKeyInput(!showApiKeyInput);
+          }}
+        >
+          <span className="material-symbols-outlined filled">key</span>
+        </button>
+      </div>
+      <span className="text-indicator">Streaming</span>
+    </div>
+  </div>
+  const slide2 = <div
+    style={{
+      display: 'flex',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '12px',
+      // border: '2px solid red',
+      height: '80px'
+    }}
+  >
+    <div className="connection-container">
+      <div className="connection-button-container">
+        <button
+          className={cn("action-button mic-button")}
+          onClick={() => setMuted(!muted)}
+        >
+          {!muted ? (
+            <span className="material-symbols-outlined filled">mic</span>
+          ) : (
+            <span className="material-symbols-outlined filled">mic_off</span>
+          )}
+        </button>
+      </div>
+    </div>
+    <div className="connection-container">
+      <div className="connection-button-container">
+        <div className="action-button no-action outlined">
+          <AudioPulse volume={volume} active={connected} hover={false} />
+        </div>
+      </div>
+    </div>
+  </div>
+  const slide3 = <div
+    style={{
+      display: 'flex',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '12px',
+      // border: '2px solid red',
+      height: '80px'
+    }}
+  >
+    <div className="connection-container">
+      <div className="connection-button-container">
+        <MediaStreamButton
+          isStreaming={screenCapture.isStreaming}
+          start={changeStreams(screenCapture)}
+          stop={changeStreams()}
+          onIcon="cancel_presentation"
+          offIcon="present_to_all"
+        />
+      </div>
+    </div>
+    <div className="connection-container">
+      <div className="connection-button-container">
+        <MediaStreamButton
+          isStreaming={webcam.isStreaming}
+          start={changeStreams(webcam)}
+          stop={changeStreams()}
+          onIcon="videocam_off"
+          offIcon="videocam"
+        />
+      </div>
+    </div>
+  </div>
+  const icons = [
+    slide1, slide2, slide3
+  ]
   return (<>
     <section className="control-tray">
       <canvas style={{ display: "none" }} ref={renderCanvasRef} />
-      <div className="control-tray-container">
+      <div className="actions-nav">
+        <button
+          className="action-button"
+          onClick={() => setIconCarouselIndex((iconCarouselIndex - 1 + 3) % 3)}
+          style={{
+            width: '20px',
+            height: '32px',
+            background: 'transparent',
+          }}
+        >
+          <span className="material-symbols-outlined">
+            chevron_left
+          </span>
+        </button>
+
+        <div
+          className="carousel-content"
+          style={{
+            width: '300px',
+            // border: '2px solid red',
+            textAlign: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div className="carousel-item">
+            {icons[iconCarouselIndex]}
+          </div>
+        </div>
+
+        <button
+          className="action-button"
+          onClick={() => setIconCarouselIndex((iconCarouselIndex + 1) % 3)}
+          style={{
+            width: '20px',
+            height: '32px',
+            background: 'transparent',
+          }}
+        >
+          <span className="material-symbols-outlined">
+            chevron_right
+          </span>
+        </button>
+      </div>
+
+      <div className="carousel-container agents-carousel" style={{ display: 'flex', alignItems: 'center' }}>
+        <button
+          className="carousel-button action-button"
+          onClick={() => {
+            handleCarouselChange('prev');
+            disconnect();
+          }}
+          style={{
+            position: 'relative',
+            width: '15%',
+            height: '32px',
+            background: 'transparent',
+          }}
+        >
+          <span className="material-symbols-outlined">chevron_left</span>
+        </button>
+
+        <div className="carousel-content" style={{
+          width: '70%',
+          textAlign: 'center',
+          justifyContent: 'center'
+        }}>
+          <div className="carousel-slide">
+            <span className="carousel-text">{selectedOption.label}</span>
+          </div>
+        </div>
+
+        <button
+          className="carousel-button action-button"
+          onClick={() => {
+            handleCarouselChange('next');
+            disconnect();
+          }}
+          style={{
+            width: '15%',
+            height: '32px',
+            background: 'transparent',
+          }}
+        >
+          <span className="material-symbols-outlined">chevron_right</span>
+        </button>
+      </div>
+      {/* <div className="control-tray-container">
         <nav className={cn("actions-nav", { disabled: !connected })}>
           <button
             className={cn("action-button mic-button")}
@@ -257,72 +475,11 @@ function ControlTray({
           )}
           {children}
         </nav>
-        
-        <div className="carousel-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 'auto', width: '100%' }}>
-          <button
-            className="carousel-button action-button"
-            onClick={() => handleCarouselChange('prev')}
-            style={{ 
-              position: 'relative',
-              width: '15%',
-              height: '32px',
-              background: 'transparent',
-            }}
-          >
-            <span className="material-symbols-outlined">chevron_left</span>
-          </button>
-
-          <div className="carousel-content" style={{ width: '70%', textAlign: 'center', justifyContent: 'center' }}>
-            <div className="carousel-slide">
-              <span className="carousel-text">{selectedOption.label}</span>
-            </div>
-          </div>
-
-          <button
-            className="carousel-button action-button"
-            onClick={() => handleCarouselChange('next')}
-            style={{ 
-              width: '15%',
-              height: '32px',
-              background: 'transparent', 
-            }}
-          >
-            <span className="material-symbols-outlined">chevron_right</span>
-          </button>
-        </div>
-      </div>
-
-      <div className={cn("connection-container", { connected })}>
-        <div className="connection-button-container">
-        <div style={errorMessageStyle}>
-            Please add your API key by clicking the key icon ⚿ in the top right
-          </div>
-          <button
-            ref={connectButtonRef}
-            className={cn("action-button connect-toggle", { connected })}
-            onClick={() => {
-              const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
-              const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
-              
-              if (!connected && !apiKey) {
-                setShowError(true);
-                return;
-              }
-              connected ? disconnect() : connect();
-            }}
-          >
-            <span className="material-symbols-outlined filled">
-              {connected ? "pause" : "play_arrow"}
-            </span>
-          </button>
-        </div>
-        <span className="text-indicator">Streaming</span>
-      </div>
-
-
+      </div> */}
     </section>
   </>
   );
 }
 
 export default memo(ControlTray);
+
