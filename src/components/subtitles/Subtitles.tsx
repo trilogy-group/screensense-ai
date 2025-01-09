@@ -53,12 +53,13 @@ function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
         } else if (fc.name === "read_text") {
           const selectedText = await ipcRenderer.invoke('read-selection');
           console.log("selectedText received", selectedText);
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { output: selectedText },
-              id: fc.id,
-            }],
-          });
+          // client.sendToolResponse({
+          //   functionResponses: [{
+          //     response: { output: selectedText },
+          //     id: fc.id,
+          //   }],
+          // });
+          client.send([{ text: `Read the following text: ${selectedText}` }]);
           hasResponded = true;
         }
       }

@@ -88,7 +88,7 @@ export const assistantConfigs = {
   author: {
     display_name: "Author",
     tools: [...readWriteTools],
-    systemInstruction: 'You are an experienced author. Your task is to help the user with their writing. Use the "read_text" and "write_text" functions to interact with the user\'s text and writing.\nImportant Instructions:\n1. If the user asks you to rewrite something, you must first read the text they want you to rewrite, then use the "write_text" function to rewrite it.\n2. NEVER use the executable code, only use the function calls provided.'
+    systemInstruction: 'You are an experienced author. Your task is to help the user with their writing. Use the "read_text" and "write_text" functions to interact with the user\'s text and writing.\nImportant Instructions:\n1. If the user asks you to rewrite something, you must first read the text they want you to rewrite using the "read_text" function, then use the "write_text" function to rewrite it.\n2. NEVER use the executable code, only use the function calls provided.'
   }
 } as const;
 
