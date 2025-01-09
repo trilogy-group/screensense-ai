@@ -1,6 +1,9 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents } from 'electron';
+import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents, clipboard } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { keyboard, Key } from '@nut-tree-fork/nut-js';
+
+keyboard.config.autoDelayMs = 0;
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -202,6 +205,34 @@ ipcMain.handle('get-sources', async () => {
   return sources;
 });
 
+// Add this with other IPC handlers
+ipcMain.handle('read-selection', async () => {
+  return await getSelectedText();
+});
+
+// Add this after the other ipcMain handlers
+ipcMain.on('write-text', async (event, content) => {
+  try {
+    // Save the current clipboard content
+    const previousClipboard = clipboard.readText();
+    
+    // Set new content to clipboard
+    clipboard.writeText(content);
+    
+    // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.V);
+    await keyboard.releaseKey(modifier, Key.V);
+    
+    // Restore previous clipboard content after a short delay
+    setTimeout(() => {
+      clipboard.writeText(previousClipboard);
+    }, 100);
+  } catch (error) {
+    logToFile(`Error writing text: ${error}`);
+  }
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
@@ -231,4 +262,59 @@ ipcMain.on('remove-subtitles', () => {
   if (overlayWindow) {
     overlayWindow.hide();
   }
+});
+
+// Add this after the other ipcMain handlers
+ipcMain.on('paste-content', async (event, content) => {
+  try {
+    // Save the current clipboard content
+    const previousClipboard = clipboard.readText();
+    
+    // Set new content to clipboard
+    clipboard.writeText(content);
+    
+    // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.V);
+    await keyboard.releaseKey(modifier, Key.V);
+    
+    // Restore previous clipboard content after a short delay
+    setTimeout(() => {
+      clipboard.writeText(previousClipboard);
+    }, 100);
+  } catch (error) {
+    logToFile(`Error pasting content: ${error}`);
+  }
+});
+
+async function getSelectedText() {
+  try {
+    // Save current clipboard content
+    const previousClipboard = clipboard.readText();
+    
+    // Simulate Cmd+C (for macOS) or Ctrl+C (for other platforms)
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.C);
+    await keyboard.releaseKey(modifier, Key.C);
+    
+    // Wait a bit for the clipboard to update
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Get the selected text from clipboard
+    const selectedText = clipboard.readText();
+    console.log("selectedText", selectedText);
+    
+    // Restore previous clipboard content
+    clipboard.writeText(previousClipboard);
+    
+    return selectedText;
+  } catch (error) {
+    logToFile(`Error getting selected text: ${error}`);
+    return '';
+  }
+}
+
+// Add this with other IPC handlers
+ipcMain.handle('get-selected-text', async () => {
+  return await getSelectedText();
 }); 

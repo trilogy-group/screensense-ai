@@ -1,4 +1,4 @@
-import { type Tool, SchemaType } from "@google/generative-ai";
+import { type Tool } from "@google/generative-ai";
 import { useEffect, useState, useRef, memo } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { ToolCall } from "../../multimodal-live-types";
@@ -6,54 +6,12 @@ import vegaEmbed from "vega-embed";
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
-  tools?: Tool[];
-  systemInstruction?: string;
+  tools: Tool[];
+  systemInstruction: string;
 }
 
 // Default tool configuration
-const defaultToolObject: Tool[] = [
-  {
-    functionDeclarations: [
-      {
-        name: "render_subtitles",
-        description: "Displays subtitles in an overlay window. Use this whenever translating text.",
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            subtitles: {
-              type: SchemaType.STRING,
-              description: "The text to display as subtitles",
-            },
-          },
-          required: ["subtitles"],
-        },
-      },
-      {
-        name: "remove_subtitles",
-        description: "Removes the subtitles overlay window. Use this when the user is done translating text.",
-      },
-      {
-        name: "render_graph",
-        description: "Displays a graph using Vega-Lite/Altair JSON specification.",
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            json_graph: {
-              type: SchemaType.STRING,
-              description: "JSON STRING representation of the graph to render. Must be a string, not a json object",
-            },
-          },
-          required: ["json_graph"],
-        },
-      }
-    ],
-  },
-];
-
-// Default system instruction
-const defaultSystemInstructionText = 'You are a helpful assistant with two main capabilities:\n1. Translation: When asked to translate text, use "render_subtitles" to show the translation and "remove_subtitles" when done.\n2. Graphing: When asked to create a graph or visualization, use the "render_graph" function with a Vega-Lite specification. Make your best judgment about the visualization type.';
-
-function SubtitlesComponent({ tools = defaultToolObject, systemInstruction = defaultSystemInstructionText }: SubtitlesProps) {
+function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
   const [subtitles, setSubtitles] = useState<string>("");
   const [graphJson, setGraphJson] = useState<string>("");
   const { client, setConfig } = useLiveAPIContext();
@@ -76,9 +34,10 @@ function SubtitlesComponent({ tools = defaultToolObject, systemInstruction = def
   }, [setConfig, systemInstruction, tools]);
 
   useEffect(() => {
-    const onToolCall = (toolCall: ToolCall) => {
+    const onToolCall = async (toolCall: ToolCall) => {
       console.log(`got toolcall`, toolCall);
-      toolCall.functionCalls.forEach(fc => {
+      let hasResponded = false;
+      for (const fc of toolCall.functionCalls) {
         if (fc.name === "render_subtitles") {
           const text = (fc.args as any).subtitles;
           setSubtitles(text);
@@ -88,20 +47,30 @@ function SubtitlesComponent({ tools = defaultToolObject, systemInstruction = def
         } else if (fc.name === "render_graph") {
           const json = (fc.args as any).json_graph;
           setGraphJson(json);
+        } else if (fc.name === "write_text") {
+          const content = (fc.args as any).content;
+          ipcRenderer.send('write-text', content);
+        } else if (fc.name === "read_text") {
+          const selectedText = await ipcRenderer.invoke('read-selection');
+          console.log("selectedText received", selectedText);
+          // client.sendToolResponse({
+          //   functionResponses: [{
+          //     response: { output: selectedText },
+          //     id: fc.id,
+          //   }],
+          // });
+          client.send([{ text: `Read the following text: ${selectedText}` }]);
+          hasResponded = true;
         }
-      });
+      }
 
-      if (toolCall.functionCalls.length) {
-        setTimeout(
-          () =>
-            client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map((fc) => ({
-                response: { output: { success: true } },
-                id: fc.id,
-              })),
-            }),
-          200,
-        );
+      if (toolCall.functionCalls.length && !hasResponded) {
+        client.sendToolResponse({
+          functionResponses: toolCall.functionCalls.map((fc) => ({
+            response: { output: { success: true } },
+            id: fc.id,
+          })),
+        });
       }
     };
     client.on("toolcall", onToolCall);

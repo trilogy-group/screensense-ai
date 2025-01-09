@@ -24,15 +24,16 @@ import { useWebcam } from "../../hooks/use-webcam";
 import { AudioRecorder } from "../../lib/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
+import { assistantConfigs } from "../../configs/assistant-configs";
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
   children?: ReactNode;
   supportsVideo: boolean;
   onVideoStreamChange?: (stream: MediaStream | null) => void;
-  modes: { value: string; label: string }[];
-  selectedOption: { value: string; label: string };
-  setSelectedOption: (option: { value: string; label: string }) => void;
+  modes: { value: string }[];
+  selectedOption: { value: string };
+  setSelectedOption: (option: { value: string }) => void;
 };
 
 type MediaStreamButtonProps = {
@@ -274,7 +275,7 @@ function ControlTray({
 
           <div className="carousel-content" style={{ width: '70%', textAlign: 'center', justifyContent: 'center' }}>
             <div className="carousel-slide">
-              <span className="carousel-text">{selectedOption.label}</span>
+              <span className="carousel-text">{assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name}</span>
             </div>
           </div>
 
