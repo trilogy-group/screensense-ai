@@ -18,9 +18,24 @@ async function createWindow() {
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
+  // Resolve icon path differently for dev mode
+  const iconPath = isDev 
+    ? path.resolve(__dirname, '..', 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico')
+    : path.join(__dirname, '../public/icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+  
+  logToFile(`Using icon path: ${iconPath}`);
+  logToFile(`Icon file exists: ${fs.existsSync(iconPath)}`);
+  logToFile(`Icon path contents: ${fs.readdirSync(path.dirname(iconPath))}`);
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: iconPath,
+    // For macOS, set the app icon explicitly
+    ...(process.platform === 'darwin' ? {
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 10, y: 10 }
+    } : {}),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -28,6 +43,11 @@ async function createWindow() {
       devTools: true
     },
   });
+
+  // Set dock icon explicitly for macOS
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(iconPath);
+  }
 
   // Set permissions for media access
   if (mainWindow) {

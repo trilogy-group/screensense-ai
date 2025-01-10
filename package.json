@@ -1,7 +1,7 @@
 {
-  "name": "multimodal-live-api-web-console",
+  "name": "scrensense-ai",
   "version": "0.1.0",
-  "description": "A multimodal live API web console application",
+  "description": "An AI assistant that lives in your computer, helping you with daily tasks through screen interaction, translation, and other capabilities.",
   "author": {
     "name": "Sahil Marwaha"
   },
@@ -38,8 +38,8 @@
     "electron-pack": "cross-env NODE_ENV=production electron-builder"
   },
   "build": {
-    "appId": "com.multimodal.live.api.console",
-    "productName": "Multimodal Live API Web Console",
+    "appId": "com.screensense.ai",
+    "productName": "ScreenSense AI",
     "files": [
       "build/**/*",
       "electron/**/*",
@@ -65,7 +65,8 @@
             "arm64"
           ]
         }
-      ]
+      ],
+      "icon": "./public/icons/icon.icns"
     },
     "win": {
       "target": [
@@ -81,7 +82,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "./public/icons/icon.ico"
     },
     "linux": {
       "target": [
@@ -98,7 +100,8 @@
           ]
         }
       ],
-      "category": "Development"
+      "category": "Development",
+      "icon": "./public/icons/icon.png"
     }
   },
   "eslintConfig": {
