@@ -160,3 +160,28 @@ npm run electron-build
 - [ ] Audio gets laggy over time
 - [ ] Reconnect only on session ending issues, not all issues
 - [ ] Set the assistant name from the config itself, not in the app file.
+
+## Sign and Notarize
+
+0. You need to have an Apple Developer account.
+
+1. You need to install the following certificates:
+
+a. From Apple's [Certificate Authority](https://www.apple.com/certificateauthority/), download the following - Apple Root CA - G2 - Apple Worldwide Developer Relations CA - G2 - Apple Worldwide Developer Relations Certificate Authority - Developer ID Certification Authority
+b. A developer ID Application certificate from [here](https://developer.apple.com/account/resources/certificates/add)
+
+2. Create an App Specific Password from [here](https://appleid.apple.com/account/manage)
+
+3. Set the following environment variables:
+
+```bash
+export APPLE_ID="sahil.marwaha@trilogy.com" # Your Apple email
+export APPLE_APP_SPECIFIC_PASSWORD="YOUR_APP_SPECIFIC_PASSWORD"  # Generate this at appleid.apple.com
+export APPLE_TEAM_ID="KRY77A2RML" # Your Apple Team ID
+```
+
+4. Run the following command to build the app, it will sign and notarize the app as well:
+
+```bash
+source .venv/bin/activate && npm run electron-build
+```

@@ -35,7 +35,8 @@
     "electron:tsc": "tsc -p electron/tsconfig.json",
     "electron-dev": "npm run electron:tsc && concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
     "electron-build": "cross-env NODE_ENV=production npm run build:react && npm run electron:tsc && electron-builder",
-    "electron-pack": "cross-env NODE_ENV=production electron-builder"
+    "electron-pack": "cross-env NODE_ENV=production electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.screensense.ai",
@@ -44,7 +45,8 @@
       "build/**/*",
       "electron/**/*",
       "package.json",
-      "public/icons/*"
+      "public/icons/*",
+      "node_modules"
     ],
     "directories": {
       "buildResources": "public",
@@ -58,16 +60,27 @@
       "build/**/*"
     ],
     "mac": {
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "We need access to your microphone for audio capture functionality.",
+        "NSCameraUsageDescription": "We need access to your camera for video capture functionality.",
+        "NSAppleEventsUsageDescription": "We need to control system events for keyboard shortcuts and automation.",
+        "NSScreenCaptureUsageDescription": "We need screen recording access to capture your screen for AI assistance."
+      },
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64",
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],
-      "icon": "./public/icons/icon.icns"
+      "identity": "G-DEV FZ-LLC (KRY77A2RML)",
+      "forceCodeSigning": true
     },
     "win": {
       "target": [
@@ -103,7 +116,8 @@
       ],
       "category": "Development",
       "icon": "./public/icons/icon.png"
-    }
+    },
+    "afterSign": "electron-builder-notarize"
   },
   "eslintConfig": {
     "extends": [
@@ -125,7 +139,6 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "@electron/rebuild": "^3.7.1",
     "@google/generative-ai": "^0.21.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -140,7 +153,7 @@
     "cross-env": "^7.0.3",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
-    "electron-rebuild": "^3.2.9",
+    "electron-builder-notarize": "^1.5.2",
     "ts-node": "^10.9.2",
     "typescript": "5.1.6",
     "wait-on": "^8.0.1"
