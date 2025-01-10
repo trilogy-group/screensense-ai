@@ -53,6 +53,8 @@ function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
         } else if (fc.name === "read_text") {
           const selectedText = await ipcRenderer.invoke('read-selection');
           console.log("selectedText received", selectedText);
+          // Send an empty response to the tool call, and then send the selected text to the client as a user message
+          // This is because Gemini often ignores the tool call response, or hallucinates the response
           client.sendToolResponse({
             functionResponses: toolCall.functionCalls.map((fc) => ({
               response: { output: { success: true } },
