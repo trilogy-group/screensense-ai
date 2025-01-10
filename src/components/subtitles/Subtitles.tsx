@@ -57,12 +57,12 @@ function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
           // This is because Gemini often ignores the tool call response, or hallucinates the response
           client.sendToolResponse({
             functionResponses: toolCall.functionCalls.map((fc) => ({
-              // response: { output: { success: true } },
-              response: { output: { success: true, text: selectedText } },
+              response: { output: { success: true } },
+              // response: { output: { success: true, text: selectedText } },
               id: fc.id,
             })),
           });
-          // client.send([{ text: `Read the following text: ${selectedText}` }]);
+          client.send([{ text: `Read the following text: ${selectedText}` }]);
           hasResponded = true;
         }
       }

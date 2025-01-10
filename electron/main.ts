@@ -22,48 +22,16 @@ async function createWindow() {
   let iconPath;
   if (isDev) {
     // In development, try multiple possible locations
-    const devPossiblePaths = [
-      path.resolve(__dirname, '..', 'icons'),
-      path.resolve(__dirname, '..', 'public', 'icons'),
-      path.resolve(process.cwd(), 'public', 'icons'),
-      path.resolve(process.cwd(), 'build', 'icons')
-    ];
-
-    for (const basePath of devPossiblePaths) {
-      const testPath = path.join(basePath, process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
-      logToFile(`Trying dev icon path: ${testPath}`);
-      if (fs.existsSync(testPath)) {
-        iconPath = testPath;
-        logToFile(`Found icon at: ${testPath}`);
-        break;
-      }
-    }
-
-    if (!iconPath) {
+    iconPath = path.resolve(__dirname, '..', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    logToFile(`Using dev icon path: ${iconPath}`);
+    if (!fs.existsSync(iconPath)) {
       logToFile('Warning: Could not find icon file in development mode');
-      // Fallback to a path that will be logged for debugging
-      iconPath = path.resolve(process.cwd(), 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
     }
   } else {
-    // Production path resolution (existing code)
-    const possiblePaths = [
-      path.join(process.resourcesPath, 'public', 'icons'),
-      path.join(app.getAppPath(), 'public', 'icons'),
-      path.join(__dirname, '..', 'public', 'icons')
-    ];
-
-    for (const basePath of possiblePaths) {
-      const testPath = path.join(basePath, process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
-      if (fs.existsSync(testPath)) {
-        iconPath = testPath;
-        break;
-      }
-      logToFile(`Tried icon path: ${testPath} - exists: ${fs.existsSync(testPath)}`);
-    }
-
-    if (!iconPath) {
-      logToFile('Warning: Could not find icon file in any expected location');
-      iconPath = path.join(__dirname, '..', 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    // Production path resolution
+    iconPath = path.join(app.getAppPath(), 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    if (!fs.existsSync(iconPath)) {
+      logToFile('Warning: Could not find icon file in expected location');
     }
   }
   
@@ -317,9 +285,9 @@ ipcMain.on('write-text', async (event, content) => {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // if (process.platform !== 'darwin') {
     app.quit();
-  }
+  // }
 });
 
 app.on('activate', () => {
