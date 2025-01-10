@@ -43,10 +43,11 @@
     "files": [
       "build/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "public/icons/*"
     ],
     "directories": {
-      "buildResources": "assets",
+      "buildResources": "public",
       "output": "dist"
     },
     "extraMetadata": {

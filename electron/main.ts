@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents, clipboard, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { keyboard, Key } from '@nut-tree-fork/nut-js';
@@ -19,18 +19,70 @@ async function createWindow() {
   logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
   // Resolve icon path differently for dev mode
-  const iconPath = isDev 
-    ? path.resolve(__dirname, '..', 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico')
-    : path.join(__dirname, '../public/icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+  let iconPath;
+  if (isDev) {
+    // In development, try multiple possible locations
+    const devPossiblePaths = [
+      path.resolve(__dirname, '..', 'icons'),
+      path.resolve(__dirname, '..', 'public', 'icons'),
+      path.resolve(process.cwd(), 'public', 'icons'),
+      path.resolve(process.cwd(), 'build', 'icons')
+    ];
+
+    for (const basePath of devPossiblePaths) {
+      const testPath = path.join(basePath, process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+      logToFile(`Trying dev icon path: ${testPath}`);
+      if (fs.existsSync(testPath)) {
+        iconPath = testPath;
+        logToFile(`Found icon at: ${testPath}`);
+        break;
+      }
+    }
+
+    if (!iconPath) {
+      logToFile('Warning: Could not find icon file in development mode');
+      // Fallback to a path that will be logged for debugging
+      iconPath = path.resolve(process.cwd(), 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    }
+  } else {
+    // Production path resolution (existing code)
+    const possiblePaths = [
+      path.join(process.resourcesPath, 'public', 'icons'),
+      path.join(app.getAppPath(), 'public', 'icons'),
+      path.join(__dirname, '..', 'public', 'icons')
+    ];
+
+    for (const basePath of possiblePaths) {
+      const testPath = path.join(basePath, process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+      if (fs.existsSync(testPath)) {
+        iconPath = testPath;
+        break;
+      }
+      logToFile(`Tried icon path: ${testPath} - exists: ${fs.existsSync(testPath)}`);
+    }
+
+    if (!iconPath) {
+      logToFile('Warning: Could not find icon file in any expected location');
+      iconPath = path.join(__dirname, '..', 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    }
+  }
   
   logToFile(`Using icon path: ${iconPath}`);
-  logToFile(`Icon file exists: ${fs.existsSync(iconPath)}`);
-  logToFile(`Icon path contents: ${fs.readdirSync(path.dirname(iconPath))}`);
+  try {
+    const iconDir = path.dirname(iconPath);
+    if (!fs.existsSync(iconDir)) {
+      logToFile(`Icon directory doesn't exist: ${iconDir}`);
+    } else {
+      logToFile(`Icon directory contents: ${fs.readdirSync(iconDir)}`);
+    }
+  } catch (error) {
+    logToFile(`Error checking icon path: ${error}`);
+  }
 
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: iconPath,
+    ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     // For macOS, set the app icon explicitly
     ...(process.platform === 'darwin' ? {
       titleBarStyle: 'hiddenInset',
@@ -45,8 +97,17 @@ async function createWindow() {
   });
 
   // Set dock icon explicitly for macOS
-  if (process.platform === 'darwin') {
-    app.dock.setIcon(iconPath);
+  if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
+    try {
+      const dockIcon = nativeImage.createFromPath(iconPath);
+      if (!dockIcon.isEmpty()) {
+        app.dock.setIcon(dockIcon);
+      } else {
+        logToFile('Warning: Dock icon image is empty');
+      }
+    } catch (error) {
+      logToFile(`Error setting dock icon: ${error}`);
+    }
   }
 
   // Set permissions for media access
