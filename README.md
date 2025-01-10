@@ -160,6 +160,7 @@ npm run electron-build
 - [ ] Audio gets laggy over time
 - [ ] Reconnect only on session ending issues, not all issues
 - [ ] Set the assistant name from the config itself, not in the app file.
+- [ ] Audio should stop playing when the session is disconnected.
 
 ## Sign and Notarize
 
