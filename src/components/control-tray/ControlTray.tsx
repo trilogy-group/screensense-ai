@@ -167,8 +167,11 @@ function ControlTray({
           ipcRenderer.send('screen-share-result', true);
         }
       } catch (error) {
-        // Silently handle cancellation, but still log other errors
-        if (!(error instanceof Error && error.message === 'Selection cancelled')) {
+        // Handle cancellation by hiding the main window
+        if (error instanceof Error && error.message === 'Selection cancelled') {
+          console.log('Screen selection was cancelled, hiding main window');
+          ipcRenderer.send('hide-main-window');
+        } else {
           console.error('Error changing streams:', error);
         }
         setActiveVideoStream(null);
