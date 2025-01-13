@@ -3,6 +3,13 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { keyboard, Key } from '@nut-tree-fork/nut-js';
 
+// Set environment variables for the packaged app
+if (!app.isPackaged) {
+  require('dotenv-flow').config();
+} else {
+  require('dotenv').config({ path: path.join(process.resourcesPath, '.env') });
+}
+
 keyboard.config.autoDelayMs = 0;
 
 let mainWindow: BrowserWindow | null = null;
@@ -830,7 +837,6 @@ async function getSelectedText() {
     
     // Get the selected text from clipboard
     const selectedText = clipboard.readText();
-    console.log("selectedText", selectedText);
     
     // Restore previous clipboard content
     clipboard.writeText(previousClipboard);

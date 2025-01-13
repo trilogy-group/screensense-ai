@@ -16,7 +16,7 @@
 
 import cn from "classnames";
 
-import { memo, ReactNode, RefObject, useEffect, useRef, useState } from "react";
+import { memo, ReactNode, RefObject, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
@@ -25,6 +25,7 @@ import { AudioRecorder } from "../../lib/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 import { assistantConfigs } from "../../configs/assistant-configs";
+import { trackEvent } from "../../configs/analytics";
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
@@ -70,7 +71,9 @@ function ControlTray({
   selectedOption,
   setSelectedOption,
 }: ControlTrayProps) {
-  const videoStreams = [useWebcam(), useScreenCapture()];
+  const webcamStream = useWebcam();
+  const screenCaptureStream = useScreenCapture();
+  const videoStreams = useMemo(() => [webcamStream, screenCaptureStream], [webcamStream, screenCaptureStream]);
   const [activeVideoStream, setActiveVideoStream] = useState<MediaStream | null>(null);
   const [webcam, screenCapture] = videoStreams;
   const [inVolume, setInVolume] = useState(0);
@@ -153,7 +156,7 @@ function ControlTray({
   }, [activeVideoStream, onVideoStreamChange, videoRef]);
 
   //handler for swapping from one video-stream to the next
-  const changeStreams = (next?: UseMediaStreamResult) => async () => {
+  const changeStreams = useCallback((next?: UseMediaStreamResult) => async () => {
     if (next) {
       try {
         const mediaStream = await next.start();
@@ -181,7 +184,7 @@ function ControlTray({
     }
 
     videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
-  };
+  }, [onVideoStreamChange, screenCapture, videoStreams]);
 
   useEffect(() => {
     setSelectedOption(modes[carouselIndex]);
@@ -191,13 +194,31 @@ function ControlTray({
     ipcRenderer.send('update-carousel', modeName);
   }, [carouselIndex, modes, setSelectedOption]);
 
-  const handleCarouselChange = (direction: 'next' | 'prev') => {
+  const handleCarouselChange = useCallback((direction: 'next' | 'prev') => {
     setCarouselIndex(prevIndex => {
       const newIndex = direction === 'next' 
         ? (prevIndex + 1) % modes.length
         : (prevIndex - 1 + modes.length) % modes.length;
       return newIndex;
     });
+  }, [modes.length]);
+
+  const handleConnect = () => {
+    const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
+    const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
+    
+    if (!connected && !apiKey) {
+      setShowError(true);
+      return;
+    }
+
+    if (!connected) {
+      trackEvent('chat_started', {
+        assistant_mode: selectedOption.value,
+      });
+    }
+    
+    connected ? disconnect() : connect();
   };
 
   // Handle carousel actions from control window
@@ -210,7 +231,7 @@ function ControlTray({
     return () => {
       ipcRenderer.removeListener('carousel-action', handleCarouselAction);
     };
-  }, []);
+  }, [handleCarouselChange]);
 
   // Handle control actions from video window
   useEffect(() => {
@@ -343,16 +364,7 @@ function ControlTray({
           <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
-            onClick={() => {
-              const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
-              const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
-              
-              if (!connected && !apiKey) {
-                setShowError(true);
-                return;
-              }
-              connected ? disconnect() : connect();
-            }}
+            onClick={handleConnect}
           >
             <span className="material-symbols-outlined filled">
               {connected ? "pause" : "play_arrow"}
