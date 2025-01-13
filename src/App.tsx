@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import "./App.scss";
-import { LiveAPIProvider } from "./contexts/LiveAPIContext";
+import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
 import SidePanel from "./components/side-panel/SidePanel";
 import { Subtitles } from "./components/subtitles/Subtitles";
 import ControlTray from "./components/control-tray/ControlTray";
@@ -18,6 +18,49 @@ const modes: ModeOption[] = Object.keys(assistantConfigs).map(key => ({
   value: key as AssistantConfigMode
 }));
 
+function VideoCanvas({ videoRef, videoStream }: { videoRef: React.RefObject<HTMLVideoElement>, videoStream: MediaStream | null }) {
+  const renderCanvasRef = useRef<HTMLCanvasElement>(null);
+  const { client, connected } = useLiveAPIContext();
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = videoStream;
+    }
+
+    let timeoutId = -1;
+
+    function sendVideoFrame() {
+      const video = videoRef.current;
+      const canvas = renderCanvasRef.current;
+
+      if (!video || !canvas) {
+        return;
+      }
+
+      const ctx = canvas.getContext("2d")!;
+      canvas.width = video.videoWidth * 0.25;
+      canvas.height = video.videoHeight * 0.25;
+      if (canvas.width + canvas.height > 0) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL("image/jpeg", 1.0);
+        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
+        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
+      }
+      if (connected) {
+        timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
+      }
+    }
+    if (videoStream !== null && connected) {
+      requestAnimationFrame(sendVideoFrame);
+    }
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [videoStream, connected, client, videoRef]);
+
+  return <canvas style={{ display: "none" }} ref={renderCanvasRef} />;
+}
+
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
@@ -26,7 +69,6 @@ function App() {
   });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
-
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
   useEffect(() => {
@@ -47,6 +89,7 @@ function App() {
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={apiKey}>
         <div className="streaming-console">
+          <VideoCanvas videoRef={videoRef} videoStream={videoStream} />
           <button
             className="action-button api-key-button"
             onClick={() => {
@@ -93,7 +136,6 @@ function App() {
             </>
           )}
 
-          <SidePanel />
           <main>
             <div className="main-app-area">
               <Subtitles 

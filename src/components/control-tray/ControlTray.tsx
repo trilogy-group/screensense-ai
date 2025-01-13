@@ -25,6 +25,7 @@ import { AudioRecorder } from "../../lib/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 import { assistantConfigs } from "../../configs/assistant-configs";
+const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -70,18 +71,15 @@ function ControlTray({
   setSelectedOption,
 }: ControlTrayProps) {
   const videoStreams = [useWebcam(), useScreenCapture()];
-  const [activeVideoStream, setActiveVideoStream] =
-    useState<MediaStream | null>(null);
+  const [activeVideoStream, setActiveVideoStream] = useState<MediaStream | null>(null);
   const [webcam, screenCapture] = videoStreams;
   const [inVolume, setInVolume] = useState(0);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const [muted, setMuted] = useState(false);
-  const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
-  const { client, connected, connect, disconnect, volume } =
-    useLiveAPIContext();
+  const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
@@ -151,37 +149,8 @@ function ControlTray({
     if (videoRef.current) {
       videoRef.current.srcObject = activeVideoStream;
     }
-
-    let timeoutId = -1;
-
-    function sendVideoFrame() {
-      const video = videoRef.current;
-      const canvas = renderCanvasRef.current;
-
-      if (!video || !canvas) {
-        return;
-      }
-
-      const ctx = canvas.getContext("2d")!;
-      canvas.width = video.videoWidth * 0.25;
-      canvas.height = video.videoHeight * 0.25;
-      if (canvas.width + canvas.height > 0) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL("image/jpeg", 1.0);
-        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
-        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
-      }
-      if (connected) {
-        timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
-      }
-    }
-    if (connected && activeVideoStream !== null) {
-      requestAnimationFrame(sendVideoFrame);
-    }
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [connected, activeVideoStream, client, videoRef]);
+    onVideoStreamChange(activeVideoStream);
+  }, [activeVideoStream, onVideoStreamChange, videoRef]);
 
   //handler for swapping from one video-stream to the next
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
@@ -218,9 +187,55 @@ function ControlTray({
     });
   };
 
+  // Handle control actions from video window
+  useEffect(() => {
+    const handleControlAction = (event: any, action: { type: string; value: boolean }) => {
+      switch (action.type) {
+        case 'mic':
+          setMuted(!action.value);
+          break;
+        case 'screen':
+          if (action.value) {
+            changeStreams(screenCapture)();
+          } else {
+            changeStreams()();
+          }
+          break;
+        case 'webcam':
+          if (action.value) {
+            changeStreams(webcam)();
+          } else {
+            changeStreams()();
+          }
+          break;
+        case 'connect':
+          if (action.value) {
+            connect();
+          } else {
+            disconnect();
+          }
+          break;
+      }
+    };
+
+    ipcRenderer.on('control-action', handleControlAction);
+    return () => {
+      ipcRenderer.removeListener('control-action', handleControlAction);
+    };
+  }, [connect, disconnect, webcam, screenCapture]);
+
+  // Send state updates to video window
+  useEffect(() => {
+    ipcRenderer.send('update-control-state', {
+      isMuted: muted,
+      isScreenSharing: screenCapture.isStreaming,
+      isWebcamOn: webcam.isStreaming,
+      isConnected: connected
+    });
+  }, [muted, screenCapture.isStreaming, webcam.isStreaming, connected]);
+
   return (<>
     <section className="control-tray">
-      <canvas style={{ display: "none" }} ref={renderCanvasRef} />
       <div className="control-tray-container">
         <nav className={cn("actions-nav", { disabled: !connected })}>
           <button

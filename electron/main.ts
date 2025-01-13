@@ -155,6 +155,191 @@ async function createWindow() {
   }
 
   createOverlayWindow();
+  videoWindow();
+}
+
+async function videoWindow() {
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
+  const videoWindow = new BrowserWindow({
+    width: 500,
+    height: 200,
+    frame: true,
+    transparent: false,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            background: rgb(23, 23, 23);
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          }
+          .control-tray {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+          }
+          .control-tray-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 400px;
+          }
+          .actions-nav {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+          }
+          .action-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+          }
+          .action-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+          .action-button.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-smoothing: antialiased;
+          }
+          .filled {
+            font-variation-settings: 'FILL' 1;
+          }
+        </style>
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+      </head>
+      <body>
+        <section class="control-tray">
+          <div class="control-tray-container">
+            <nav class="actions-nav">
+              <button class="action-button mic-button">
+                <span class="material-symbols-outlined filled">mic</span>
+              </button>
+
+              <button class="action-button screen-button">
+                <span class="material-symbols-outlined">present_to_all</span>
+              </button>
+
+              <button class="action-button webcam-button">
+                <span class="material-symbols-outlined">videocam</span>
+              </button>
+
+              <button class="action-button connect-button">
+                <span class="material-symbols-outlined">play_arrow</span>
+              </button>
+            </nav>
+          </div>
+        </section>
+
+        <script>
+          const { ipcRenderer } = require('electron');
+          
+          const micButton = document.querySelector('.mic-button');
+          const screenButton = document.querySelector('.screen-button');
+          const webcamButton = document.querySelector('.webcam-button');
+          const connectButton = document.querySelector('.connect-button');
+          
+          let isMuted = false;
+          let isScreenSharing = false;
+          let isWebcamOn = false;
+          let isConnected = false;
+
+          micButton.addEventListener('click', () => {
+            isMuted = !isMuted;
+            micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
+            ipcRenderer.send('control-action', { type: 'mic', value: !isMuted });
+          });
+
+          screenButton.addEventListener('click', () => {
+            isScreenSharing = !isScreenSharing;
+            screenButton.querySelector('span').textContent = isScreenSharing ? 'cancel_presentation' : 'present_to_all';
+            ipcRenderer.send('control-action', { type: 'screen', value: isScreenSharing });
+          });
+
+          webcamButton.addEventListener('click', () => {
+            isWebcamOn = !isWebcamOn;
+            webcamButton.querySelector('span').textContent = isWebcamOn ? 'videocam_off' : 'videocam';
+            ipcRenderer.send('control-action', { type: 'webcam', value: isWebcamOn });
+          });
+
+          connectButton.addEventListener('click', () => {
+            isConnected = !isConnected;
+            connectButton.querySelector('span').textContent = isConnected ? 'pause' : 'play_arrow';
+            ipcRenderer.send('control-action', { type: 'connect', value: isConnected });
+          });
+
+          // Handle state updates from main process
+          ipcRenderer.on('update-controls', (event, state) => {
+            isMuted = state.isMuted;
+            isScreenSharing = state.isScreenSharing;
+            isWebcamOn = state.isWebcamOn;
+            isConnected = state.isConnected;
+
+            // Update button states
+            micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
+            screenButton.querySelector('span').textContent = isScreenSharing ? 'cancel_presentation' : 'present_to_all';
+            webcamButton.querySelector('span').textContent = isWebcamOn ? 'videocam_off' : 'videocam';
+            connectButton.querySelector('span').textContent = isConnected ? 'pause' : 'play_arrow';
+
+            // Update filled states
+            micButton.querySelector('span').classList.toggle('filled', !isMuted);
+            screenButton.querySelector('span').classList.toggle('filled', isScreenSharing);
+            webcamButton.querySelector('span').classList.toggle('filled', isWebcamOn);
+            connectButton.querySelector('span').classList.toggle('filled', isConnected);
+
+            // Update disabled state of the nav
+            document.querySelector('.actions-nav').classList.toggle('disabled', !isConnected);
+          });
+        </script>
+      </body>
+    </html>
+  `;
+
+  videoWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  
+  if (isDev) {
+    videoWindow.webContents.openDevTools();
+  }
+
+  return videoWindow;
 }
 
 function createOverlayWindow() {
@@ -279,6 +464,24 @@ ipcMain.on('write-text', async (event, content) => {
     }, 100);
   } catch (error) {
     logToFile(`Error writing text: ${error}`);
+  }
+});
+
+// Add this after the other ipcMain handlers
+ipcMain.on('control-action', (event, action) => {
+  // Forward the control action to the main window
+  if (mainWindow) {
+    mainWindow.webContents.send('control-action', action);
+  }
+});
+
+// Add this to handle state updates from the main window
+ipcMain.on('update-control-state', (event, state) => {
+  // Forward the state update to the video window
+  const windows = BrowserWindow.getAllWindows();
+  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
+  if (videoWindow) {
+    videoWindow.webContents.send('update-controls', state);
   }
 });
 
