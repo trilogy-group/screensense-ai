@@ -63,6 +63,7 @@ async function createMainWindow() {
     width: 1200,
     height: 800,
     frame: true,
+    show: false,
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     // For macOS, set the app icon explicitly
     ...(process.platform === 'darwin' ? {
@@ -388,11 +389,45 @@ async function createControlWindow() {
             opacity: 1;
             pointer-events: auto;
           }
+          .key-button {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            font-size: 18px;
+            -webkit-app-region: no-drag;
+            transition: all 0.2s ease;
+            opacity: 0.6;
+          }
+          .window-content:hover .key-button {
+            opacity: 1;
+          }
+          .key-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+          }
+          .key-button .material-symbols-outlined {
+            font-size: 16px;
+          }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
       <body>
         <div class="window-content">
+          <button class="key-button" title="Settings">
+            <span class="material-symbols-outlined">settings</span>
+          </button>
+
           <button class="close-button" title="Close window">
             <span class="material-symbols-outlined">close</span>
           </button>
@@ -455,6 +490,7 @@ async function createControlWindow() {
           const prevButton = document.querySelector('.prev-button');
           const nextButton = document.querySelector('.next-button');
           const carouselText = document.querySelector('.carousel-text');
+          const settingsButton = document.querySelector('.key-button');
           
           let isMuted = false;
           let isScreenSharing = false;
@@ -581,6 +617,11 @@ async function createControlWindow() {
           // Add close button handler
           closeButton.addEventListener('click', () => {
             ipcRenderer.send('close-control-window');
+          });
+
+          // Add settings button handler
+          settingsButton.addEventListener('click', () => {
+            ipcRenderer.send('show-settings');
           });
         </script>
       </body>
@@ -926,4 +967,39 @@ async function getSelectedText() {
 // Add this with other IPC handlers
 ipcMain.handle('get-selected-text', async () => {
   return await getSelectedText();
+});
+
+// Add this with other IPC handlers
+ipcMain.on('show-settings', () => {
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('show-settings');
+  }
+});
+
+// Add this with other IPC handlers
+ipcMain.on('show-main-window', () => {
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
+ipcMain.on('hide-main-window', () => {
+  if (mainWindow) {
+    mainWindow.hide();
+  }
+});
+
+// Update the control-action handler to show window for screen/webcam
+ipcMain.on('control-action', (event, action) => {
+  if (mainWindow) {
+    // Show window if screen sharing or webcam is being activated
+    if ((action.type === 'screen' || action.type === 'webcam') && action.value === true) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    mainWindow.webContents.send('control-action', action);
+  }
 }); 

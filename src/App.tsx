@@ -7,6 +7,7 @@ import ControlTray from "./components/control-tray/ControlTray";
 import cn from "classnames";
 import { assistantConfigs, type AssistantConfigMode } from "./configs/assistant-configs";
 import { initAnalytics, trackEvent } from "./configs/analytics";
+const { ipcRenderer } = window.require('electron');
 
 const host = "generativelanguage.googleapis.com";
 const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
@@ -84,12 +85,34 @@ function App() {
     initAnalytics();
   }, []);
 
+  useEffect(() => {
+    const handleShowSettings = () => {
+      setGeminiApiKey(apiKey);
+      setShowSettings(true);
+    };
+
+    ipcRenderer.on('show-settings', handleShowSettings);
+
+    return () => {
+      ipcRenderer.removeListener('show-settings', handleShowSettings);
+    };
+  }, [apiKey]);
+
+  useEffect(() => {
+    if (showSettings) {
+      ipcRenderer.send('show-main-window');
+    } else {
+      ipcRenderer.send('hide-main-window');
+    }
+  }, [showSettings]);
+
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (geminiApiKey.trim() || true) {
       setApiKey(geminiApiKey.trim());
       setShowSettings(false);
       trackEvent('api_key_updated');
+      ipcRenderer.send('hide-main-window');
     }
   };
 
@@ -145,7 +168,6 @@ function App() {
             </>
           )}
 
-          <SidePanel />
 
           <main>
             <div className="main-app-area">

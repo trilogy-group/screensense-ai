@@ -297,7 +297,24 @@ function ControlTray({
       isWebcamOn: webcam.isStreaming,
       isConnected: connected
     });
+
+    // Show/hide main window based on active streams
+    if (screenCapture.isStreaming || webcam.isStreaming) {
+      ipcRenderer.send('show-main-window');
+    } else {
+      ipcRenderer.send('hide-main-window');
+    }
   }, [muted, screenCapture.isStreaming, webcam.isStreaming, connected]);
+
+  // Add effect to handle stopping streams when switching modes
+  useEffect(() => {
+    if (!assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].requiresDisplay) {
+      if (screenCapture.isStreaming || webcam.isStreaming) {
+        changeStreams()();
+        ipcRenderer.send('hide-main-window');
+      }
+    }
+  }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams]);
 
   return (<>
     <section className="control-tray">
