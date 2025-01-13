@@ -70,7 +70,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
               id: fc.id,
             })),
           });
-          client.send([{ text: `Read the following text: ${selectedText}` }]);
+          client.send([{ text: `Found the following text: ${selectedText}` }]);
           hasResponded = true;
         }
       }
