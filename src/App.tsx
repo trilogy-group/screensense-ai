@@ -16,9 +16,13 @@ type ModeOption = {
   value: AssistantConfigMode;
 };
 
-const modes: ModeOption[] = Object.keys(assistantConfigs).map(key => ({
-  value: key as AssistantConfigMode
-}));
+// Ensure daily_helper is first in the modes array
+const modes: ModeOption[] = [
+  { value: 'daily_helper' },
+  ...Object.keys(assistantConfigs)
+    .filter(key => key !== 'daily_helper')
+    .map(key => ({ value: key as AssistantConfigMode }))
+];
 
 function VideoCanvas({ videoRef, videoStream }: { videoRef: React.RefObject<HTMLVideoElement>, videoStream: MediaStream | null }) {
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
