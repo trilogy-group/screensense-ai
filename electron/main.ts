@@ -410,7 +410,7 @@ async function createControlWindow() {
                   <span class="material-symbols-outlined filled">mic</span>
                 </button>
 
-                <button class="action-button screen-button">
+                <button class="action-button screen-button" style="display: none;">
                   <span class="material-symbols-outlined">present_to_all</span>
                 </button>
 
@@ -498,8 +498,10 @@ async function createControlWindow() {
           });
 
           // Handle carousel updates
-          ipcRenderer.on('update-carousel', (event, modeName) => {
+          ipcRenderer.on('update-carousel', (event, { modeName, requiresDisplay }) => {
             carouselText.textContent = modeName;
+            screenButton.style.display = requiresDisplay ? '' : 'none';
+            webcamButton.style.display = requiresDisplay ? '' : 'none';
           });
 
           micButton.addEventListener('click', () => {

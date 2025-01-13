@@ -191,8 +191,17 @@ function ControlTray({
     // Send carousel update to control window
     const mode = modes[carouselIndex].value as keyof typeof assistantConfigs;
     const modeName = assistantConfigs[mode].display_name;
-    ipcRenderer.send('update-carousel', modeName);
+    const requiresDisplay = assistantConfigs[mode].requiresDisplay;
+    ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
   }, [carouselIndex, modes, setSelectedOption]);
+
+  // Send initial mode's requiresDisplay setting
+  useEffect(() => {
+    const initialMode = modes[0].value as keyof typeof assistantConfigs;
+    const modeName = assistantConfigs[initialMode].display_name;
+    const requiresDisplay = assistantConfigs[initialMode].requiresDisplay;
+    ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
+  }, [modes]);
 
   const handleCarouselChange = useCallback((direction: 'next' | 'prev') => {
     setCarouselIndex(prevIndex => {
@@ -301,7 +310,7 @@ function ControlTray({
             <AudioPulse volume={volume} active={connected} hover={false} />
           </div>
 
-          {supportsVideo && (
+          {supportsVideo && assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].requiresDisplay && (
             <>
               <MediaStreamButton
                 isStreaming={screenCapture.isStreaming}

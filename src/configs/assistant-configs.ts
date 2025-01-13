@@ -78,6 +78,7 @@ export const assistantConfigs = {
   daily_helper: {
     display_name: "Daily Helper",
     tools: [({googleSearch: {}} as Tool)],
+    requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Daily Assistant Mode.  
 
 Your role:  
@@ -105,6 +106,7 @@ Your mission: Provide the best possible assistance for the user’s daily tasks 
   translator: {
     display_name: "Transcriber", 
     tools: translationTools,
+    requiresDisplay: false,
     systemInstruction: `You are ScreenSense AI, operating in Translator Mode.
 
 Primary Purpose: Convert everything you hear into English subtitles in real time.
@@ -141,6 +143,7 @@ Your mission: Provide accurate, real-time English subtitles from spoken content 
   author: {
     display_name: "Author",
     tools: [...readWriteTools],
+    requiresDisplay: false,
     systemInstruction: `
 You are ScreenSense AI, operating in Author Mode.
 
