@@ -149,19 +149,6 @@ python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install set
 npm run electron-build
 ```
 
-## TODO
-
-- [x] Allow users to specify their api key in the app
-- [ ] Check if .env.production can be safely removed
-- [ ] Cannot change mode without pausing first
-- [x] When new subtitles are smaller, you can see the previous subtitles
-- [x] Developer tools should be hidden when using the installable app
-- [x] Detect when no api key is set
-- [ ] Audio gets laggy over time
-- [ ] Reconnect only on session ending issues, not all issues
-- [ ] Set the assistant name from the config itself, not in the app file.
-- [ ] Audio should stop playing when the session is disconnected.
-
 ## Sign and Notarize
 
 0. You need to have an Apple Developer account.

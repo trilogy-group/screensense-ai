@@ -24,8 +24,8 @@ function App() {
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem("gemini_api_key") || "";
   });
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState(apiKey);
+  const [showSettings, setShowSettings] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState(apiKey);
 
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
@@ -37,9 +37,9 @@ function App() {
 
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (tempApiKey.trim()) {
-      setApiKey(tempApiKey.trim());
-      setShowApiKeyInput(false);
+    if (geminiApiKey.trim()) {
+      setApiKey(geminiApiKey.trim());
+      setShowSettings(false);
     }
   };
 
@@ -48,47 +48,48 @@ function App() {
       <LiveAPIProvider url={uri} apiKey={apiKey}>
         <div className="streaming-console">
           <button
-            className="action-button api-key-button"
+            className="action-button settings-button"
             onClick={() => {
-              setTempApiKey(apiKey);
-              setShowApiKeyInput(!showApiKeyInput);
+              setGeminiApiKey(apiKey);
+              setShowSettings(!showSettings);
             }}
-            title="Configure API Key"
+            title="Settings"
           >
-            <span className="material-symbols-outlined">key</span>
+            <span className="material-symbols-outlined">settings</span>
           </button>
 
-          {showApiKeyInput && (
+          {showSettings && (
             <>
-              <div className="modal-backdrop" onClick={() => setShowApiKeyInput(false)} />
-              <div className="api-key-modal">
+              <div className="modal-backdrop" onClick={() => setShowSettings(false)} />
+              <div className="settings-modal">
+                <h2>Settings</h2>
                 <form onSubmit={handleApiKeySubmit}>
-                  <input
-                    type="password"
-                    placeholder="Enter your API key"
-                    value={tempApiKey}
-                    onChange={(e) => setTempApiKey(e.target.value)}
-                    style={{ 
-                      textAlign: 'center',
-                      direction: 'ltr',
-                      padding: '12px 0'
-                    }}
-                    className="api-key-input"
-                  />
-                  <div className="api-key-actions">
-                    <button type="button" onClick={() => setShowApiKeyInput(false)}>
+                  <div className="settings-content">
+                    <div className="settings-row">
+                      <label>Gemini API Key</label>
+                      <div className="settings-input-group">
+                        <input
+                          type="password"
+                          placeholder="Enter your API key"
+                          value={geminiApiKey}
+                          onChange={(e) => setGeminiApiKey(e.target.value)}
+                          className="api-key-input"
+                        />
+                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="settings-help-link">
+                          Get API key
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="settings-actions">
+                    <button type="button" onClick={() => setShowSettings(false)}>
                       Cancel
                     </button>
-                    <button type="submit" disabled={!tempApiKey.trim()}>
+                    <button type="submit" disabled={!geminiApiKey.trim()}>
                       Save
                     </button>
                   </div>
                 </form>
-                <p>
-                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">
-                    Get API key
-                  </a>
-                </p>
               </div>
             </>
           )}
