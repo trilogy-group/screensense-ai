@@ -14,6 +14,7 @@ keyboard.config.autoDelayMs = 0;
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
+let controlWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -21,7 +22,11 @@ function logToFile(message: string) {
   fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
 }
 
-async function createWindow() {
+async function createMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;  // Return existing window if it's still valid
+  }
+
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
@@ -166,19 +171,17 @@ async function createWindow() {
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
       logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
     });
-
-    // if (isDev) {
-    //   mainWindow.webContents.openDevTools();
-    // }
   }
-
-  createOverlayWindow();
-  videoWindow();
+  return mainWindow;
 }
 
-async function videoWindow() {
+async function createControlWindow() {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    return controlWindow;
+  }
+
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-  const videoWindow = new BrowserWindow({
+  controlWindow = new BrowserWindow({
     width: 250,
     height: 100,
     frame: false,
@@ -192,7 +195,7 @@ async function videoWindow() {
   });
 
   // Ensure it stays on top even when other windows request always on top
-  videoWindow.setAlwaysOnTop(true, 'screen-saver');
+  controlWindow.setAlwaysOnTop(true, 'screen-saver');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -582,16 +585,21 @@ async function videoWindow() {
     </html>
   `;
 
-  videoWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  controlWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-  //   if (isDev) {
-  //   videoWindow.webContents.openDevTools();
-  // }
+  // Handle window close
+  controlWindow.on('closed', () => {
+    controlWindow = null;
+  });
 
-  return videoWindow;
+  return controlWindow;
 }
 
 function createOverlayWindow() {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    return overlayWindow;  // Return existing window if it's still valid
+  }
+
   overlayWindow = new BrowserWindow({
     width: 800,
     height: 100,
@@ -677,7 +685,66 @@ function createOverlayWindow() {
   `;
 
   overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+  // Handle window close
+  overlayWindow.on('closed', () => {
+    overlayWindow = null;
+  });
+
+  return overlayWindow;
 }
+
+// Initialize all windows on app ready
+async function initializeApp() {
+  await createMainWindow();
+  createOverlayWindow();
+  createControlWindow();
+}
+
+// Single app initialization point
+app.whenReady().then(initializeApp);
+
+app.on('window-all-closed', () => {
+  app.quit();
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    initializeApp();
+  }
+});
+
+// Update main window close handler to clean up other windows
+ipcMain.on('close-main-window', () => {
+  if (mainWindow) {
+    // Clean up all windows when main window is closed
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      controlWindow.close();
+    }
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.close();
+    }
+    mainWindow.close();
+  }
+});
+
+// Update subtitle handlers to check for destroyed windows
+ipcMain.on('update-subtitles', (event, text) => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('update-subtitles', text);
+    if (text) {
+      overlayWindow.showInactive();
+    } else {
+      overlayWindow.hide();
+    }
+  }
+});
+
+ipcMain.on('remove-subtitles', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.hide();
+  }
+});
 
 // Handle IPC for screen sharing
 ipcMain.handle('get-sources', async () => {
@@ -717,68 +784,74 @@ ipcMain.on('write-text', async (event, content) => {
 });
 
 // Add this after the other ipcMain handlers
-ipcMain.on('control-action', (event, action) => {
-  // Forward all control actions to the main window
-  if (mainWindow) {
-    mainWindow.webContents.send('control-action', action);
+ipcMain.on('control-action', async (event, action) => {
+  try {
+    // Create main window if it doesn't exist for any control action
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      await createMainWindow();
+    }
+    // Check if mainWindow exists and is not destroyed before sending message
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('control-action', action);
+    }
+  } catch (error) {
+    logToFile(`Error handling control action: ${error}`);
+    // If there was an error creating or accessing the window, let the renderer know
+    event.reply('control-action-error', { error: 'Failed to process control action' });
   }
 });
 
 // Add this to handle state updates from the main window
 ipcMain.on('update-control-state', (event, state) => {
-  // Forward the state update to the video window
-  const windows = BrowserWindow.getAllWindows();
-  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
-  if (videoWindow) {
-    videoWindow.webContents.send('update-controls', state);
+  try {
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      controlWindow.webContents.send('update-controls', state);
+    }
+  } catch (error) {
+    logToFile(`Error updating control state: ${error}`);
   }
 });
 
 // Add this to handle screen selection result
 ipcMain.on('screen-share-result', (event, success) => {
-  const windows = BrowserWindow.getAllWindows();
-  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
-  if (videoWindow) {
-    videoWindow.webContents.send('screen-share-result', success);
+  try {
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      controlWindow.webContents.send('screen-share-result', success);
+    }
+  } catch (error) {
+    logToFile(`Error handling screen share result: ${error}`);
   }
 });
 
 // Add this to handle carousel actions
-ipcMain.on('carousel-action', (event, direction) => {
-  if (mainWindow) {
-    mainWindow.webContents.send('carousel-action', direction);
+ipcMain.on('carousel-action', async (event, direction) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      await createMainWindow();
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('carousel-action', direction);
+    }
+  } catch (error) {
+    logToFile(`Error handling carousel action: ${error}`);
   }
 });
 
 // Add this to handle carousel updates
 ipcMain.on('update-carousel', (event, modeName) => {
-  const windows = BrowserWindow.getAllWindows();
-  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
-  if (videoWindow) {
-    videoWindow.webContents.send('update-carousel', modeName);
+  try {
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      controlWindow.webContents.send('update-carousel', modeName);
+    }
+  } catch (error) {
+    logToFile(`Error updating carousel: ${error}`);
   }
 });
 
 // Add this to handle control window close
 ipcMain.on('close-control-window', (event) => {
-  const windows = BrowserWindow.getAllWindows();
-  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
-  if (videoWindow) {
-    videoWindow.close();
-  }
-});
-
-app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  // if (process.platform !== 'darwin') {
-    app.quit();
-  // }
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.close();
   }
 });
 
