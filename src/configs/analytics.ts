@@ -15,7 +15,7 @@ declare global {
 // Initialize PostHog
 export const initAnalytics = () => {
     // Only initialize in production
-    if (process.env.NODE_ENV === 'production' || true) {
+    if (process.env.NODE_ENV === 'production') {
         console.log("initializing analytics");
         posthog.init(
             process.env.REACT_APP_POSTHOG_KEY || 'your-project-key',
