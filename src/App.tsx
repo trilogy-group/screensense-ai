@@ -152,16 +152,18 @@ function App() {
               />
             </div>
 
-            <ControlTray
-              videoRef={videoRef}
-              supportsVideo={true}
-              onVideoStreamChange={setVideoStream}
-              modes={modes}
-              selectedOption={selectedOption}
-              setSelectedOption={setSelectedOption as (option: { value: string }) => void}
-            >
-              {/* put your own buttons here */}
-            </ControlTray>
+            <div style={{ display: 'none' }}>
+              <ControlTray
+                videoRef={videoRef}
+                supportsVideo={true}
+                onVideoStreamChange={setVideoStream}
+                modes={modes}
+                selectedOption={selectedOption}
+                setSelectedOption={setSelectedOption as (option: { value: string }) => void}
+              >
+                {/* put your own buttons here */}
+              </ControlTray>
+            </div>
           </main>
         </div>
       </LiveAPIProvider>

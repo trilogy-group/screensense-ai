@@ -50,6 +50,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    frame: true,
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     // For macOS, set the app icon explicitly
     ...(process.platform === 'darwin' ? {
@@ -62,6 +63,16 @@ async function createWindow() {
       webSecurity: false,  // Temporarily disable for debugging
       devTools: true
     },
+  });
+
+  // Remove menu from the window
+  mainWindow.setMenu(null);
+
+  // Add IPC handler for closing main window
+  ipcMain.on('close-main-window', () => {
+    if (mainWindow) {
+      mainWindow.close();
+    }
   });
 
   // Set dock icon explicitly for macOS
@@ -149,9 +160,9 @@ async function createWindow() {
       logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
     });
 
-    if (isDev) {
-      mainWindow.webContents.openDevTools();
-    }
+    // if (isDev) {
+    //   mainWindow.webContents.openDevTools();
+    // }
   }
 
   createOverlayWindow();
@@ -161,47 +172,96 @@ async function createWindow() {
 async function videoWindow() {
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   const videoWindow = new BrowserWindow({
-    width: 500,
-    height: 200,
-    frame: true,
-    transparent: false,
+    width: 250,
+    height: 100,
+    frame: false,
+    transparent: true,
     resizable: false,
+    alwaysOnTop: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
 
+  // Ensure it stays on top even when other windows request always on top
+  videoWindow.setAlwaysOnTop(true, 'screen-saver');
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
         <style>
-          body {
+          html, body {
             margin: 0;
             padding: 0;
-            background: rgb(23, 23, 23);
+            background: transparent;
             color: white;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100%;
+            overflow: hidden;
+            -webkit-app-region: drag;
           }
-          .control-tray {
+          body {
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            padding: 20px;
+          }
+          .window-content {
+            background: rgba(23, 23, 23, 0.6);
+            width: 100%;
+            height: 100%;
+            transition: background-color 0.3s ease;
+          }
+          .window-content:hover {
+            background: rgba(23, 23, 23, 0.95);
+          }
+          button, .action-button, .carousel-button {
+            -webkit-app-region: no-drag;
+          }
+          .close-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            font-size: 18px;
+            -webkit-app-region: no-drag;
+            transition: all 0.2s ease;
+            opacity: 0.6;
+          }
+          .window-content:hover .close-button {
+            opacity: 1;
+          }
+          .close-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+          }
+          .close-button .material-symbols-outlined {
+            font-size: 16px;
+          }
+          .control-tray {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
           }
           .control-tray-container {
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            width: 100%;
-            max-width: 400px;
+            gap: 8px;
           }
           .actions-nav {
             display: flex;
-            gap: 8px;
+            gap: 4px;
             justify-content: center;
             align-items: center;
           }
@@ -215,14 +275,14 @@ async function videoWindow() {
             border: none;
             color: white;
             cursor: pointer;
-            padding: 8px;
+            padding: 4px;
             border-radius: 50%;
             transition: all 0.2s ease-in-out;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
           }
           .action-button:not(.disabled):hover {
             background-color: rgba(255, 255, 255, 0.1);
@@ -231,7 +291,7 @@ async function videoWindow() {
             font-family: 'Material Symbols Outlined';
             font-weight: normal;
             font-style: normal;
-            font-size: 24px;
+            font-size: 20px;
             line-height: 1;
             letter-spacing: normal;
             text-transform: none;
@@ -243,6 +303,51 @@ async function videoWindow() {
           }
           .filled {
             font-variation-settings: 'FILL' 1;
+          }
+          .carousel-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            width: 100%;
+            padding: 0;
+          }
+          .carousel-button {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+            border-radius: 4px;
+            padding: 0;
+          }
+          .carousel-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+          .carousel-content {
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+            display: flex;
+            align-items: center;
+          }
+          .carousel-text {
+            color: white;
+            font-size: 14px;
+            opacity: 0.9;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 4px;
+          }
+          .window-content:hover .carousel-text {
+            opacity: 1;
           }
           .message-overlay {
             position: fixed;
@@ -259,110 +364,73 @@ async function videoWindow() {
             transition: opacity 0.2s ease-in-out;
             z-index: 1000;
           }
+          .message-content {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+            max-width: 90%;
+            backdrop-filter: blur(8px);
+          }
           .message-overlay.visible {
             opacity: 1;
             pointer-events: auto;
-          }
-          .message-content {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 16px 24px;
-            border-radius: 8px;
-            color: white;
-            font-size: 14px;
-            text-align: center;
-            max-width: 80%;
-            backdrop-filter: blur(8px);
-          }
-          .carousel-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: auto;
-            width: 100%;
-            padding: 10px 0;
-          }
-          .carousel-button {
-            position: relative;
-            width: 15%;
-            height: 32px;
-            background: transparent;
-            border: none;
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s;
-            border-radius: 4px;
-          }
-          .carousel-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-          }
-          .carousel-content {
-            width: 70%;
-            text-align: center;
-            justify-content: center;
-          }
-          .carousel-text {
-            color: white;
-            font-size: 14px;
-            opacity: 0.9;
-          }
-          .control-tray-container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            width: 100%;
-            max-width: 400px;
-            padding: 16px;
           }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
       <body>
-        <div class="message-overlay">
-          <div class="message-content">
-            Please select a screen to share from the main window
-          </div>
-        </div>
+        <div class="window-content">
+          <button class="close-button" title="Close window">
+            <span class="material-symbols-outlined">close</span>
+          </button>
 
-        <section class="control-tray">
-          <div class="control-tray-container">
-            <nav class="actions-nav disabled">
-              <button class="action-button mic-button">
-                <span class="material-symbols-outlined filled">mic</span>
-              </button>
-
-              <button class="action-button screen-button">
-                <span class="material-symbols-outlined">present_to_all</span>
-              </button>
-
-              <button class="action-button webcam-button">
-                <span class="material-symbols-outlined">videocam</span>
-              </button>
-
-              <button class="action-button connect-button">
-                <span class="material-symbols-outlined">play_arrow</span>
-              </button>
-            </nav>
-
-            <div class="carousel-container">
-              <button class="carousel-button prev-button">
-                <span class="material-symbols-outlined">chevron_left</span>
-              </button>
-
-              <div class="carousel-content">
-                <div class="carousel-slide">
-                  <span class="carousel-text">Default Mode</span>
-                </div>
-              </div>
-
-              <button class="carousel-button next-button">
-                <span class="material-symbols-outlined">chevron_right</span>
-              </button>
+          <div class="message-overlay">
+            <div class="message-content">
+              Please select a screen to share from the main window
             </div>
           </div>
-        </section>
+
+          <section class="control-tray">
+            <div class="control-tray-container">
+              <nav class="actions-nav disabled">
+                <button class="action-button mic-button">
+                  <span class="material-symbols-outlined filled">mic</span>
+                </button>
+
+                <button class="action-button screen-button">
+                  <span class="material-symbols-outlined">present_to_all</span>
+                </button>
+
+                <button class="action-button webcam-button">
+                  <span class="material-symbols-outlined">videocam</span>
+                </button>
+
+                <button class="action-button connect-button">
+                  <span class="material-symbols-outlined">play_arrow</span>
+                </button>
+              </nav>
+
+              <div class="carousel-container">
+                <button class="carousel-button prev-button">
+                  <span class="material-symbols-outlined">chevron_left</span>
+                </button>
+
+                <div class="carousel-content">
+                  <div class="carousel-slide">
+                    <span class="carousel-text">Default Mode</span>
+                  </div>
+                </div>
+
+                <button class="carousel-button next-button">
+                  <span class="material-symbols-outlined">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
 
         <script>
           const { ipcRenderer } = require('electron');
@@ -373,6 +441,7 @@ async function videoWindow() {
           const connectButton = document.querySelector('.connect-button');
           const actionsNav = document.querySelector('.actions-nav');
           const messageOverlay = document.querySelector('.message-overlay');
+          const closeButton = document.querySelector('.close-button');
           const prevButton = document.querySelector('.prev-button');
           const nextButton = document.querySelector('.next-button');
           const carouselText = document.querySelector('.carousel-text');
@@ -385,11 +454,37 @@ async function videoWindow() {
 
           // Carousel handlers
           prevButton.addEventListener('click', () => {
-            ipcRenderer.send('carousel-action', 'prev');
+            if (isConnected) {
+              // If connected, disconnect first
+              isConnected = false;
+              isConnecting = false;
+              connectButton.querySelector('span').textContent = 'play_arrow';
+              connectButton.querySelector('span').classList.remove('filled');
+              actionsNav.classList.add('disabled');
+              // Send disconnect action
+              ipcRenderer.send('control-action', { type: 'connect', value: false });
+              // Then change carousel
+              ipcRenderer.send('carousel-action', 'prev');
+            } else {
+              ipcRenderer.send('carousel-action', 'prev');
+            }
           });
 
           nextButton.addEventListener('click', () => {
-            ipcRenderer.send('carousel-action', 'next');
+            if (isConnected) {
+              // If connected, disconnect first
+              isConnected = false;
+              isConnecting = false;
+              connectButton.querySelector('span').textContent = 'play_arrow';
+              connectButton.querySelector('span').classList.remove('filled');
+              actionsNav.classList.add('disabled');
+              // Send disconnect action
+              ipcRenderer.send('control-action', { type: 'connect', value: false });
+              // Then change carousel
+              ipcRenderer.send('carousel-action', 'next');
+            } else {
+              ipcRenderer.send('carousel-action', 'next');
+            }
           });
 
           // Handle carousel updates
@@ -470,16 +565,21 @@ async function videoWindow() {
             // Update disabled state of the nav
             actionsNav.classList.toggle('disabled', !isConnected);
           });
+
+          // Add close button handler
+          closeButton.addEventListener('click', () => {
+            ipcRenderer.send('close-control-window');
+          });
         </script>
       </body>
     </html>
   `;
 
   videoWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-  
-  if (isDev) {
-    videoWindow.webContents.openDevTools();
-  }
+
+  //   if (isDev) {
+  //   videoWindow.webContents.openDevTools();
+  // }
 
   return videoWindow;
 }
@@ -649,6 +749,15 @@ ipcMain.on('update-carousel', (event, modeName) => {
   const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
   if (videoWindow) {
     videoWindow.webContents.send('update-carousel', modeName);
+  }
+});
+
+// Add this to handle control window close
+ipcMain.on('close-control-window', (event) => {
+  const windows = BrowserWindow.getAllWindows();
+  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
+  if (videoWindow) {
+    videoWindow.close();
   }
 });
 
