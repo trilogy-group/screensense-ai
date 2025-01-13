@@ -186,6 +186,14 @@ function ControlTray({
     videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
   }, [onVideoStreamChange, screenCapture, videoStreams]);
 
+  // Stop all streams and hide subtitles when connection is closed
+  useEffect(() => {
+    if (!connected) {
+      changeStreams()();
+      ipcRenderer.send('remove-subtitles');
+    }
+  }, [connected, changeStreams]);
+
   useEffect(() => {
     setSelectedOption(modes[carouselIndex]);
     // Send carousel update to control window
