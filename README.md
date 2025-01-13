@@ -156,7 +156,7 @@ npm run electron-build
 1. You need to install the following certificates:
 
 a. From Apple's [Certificate Authority](https://www.apple.com/certificateauthority/), download the following - Apple Root CA - G2 - Apple Worldwide Developer Relations CA - G2 - Apple Worldwide Developer Relations Certificate Authority - Developer ID Certification Authority
-b. A developer ID Application certificate from [here](https://developer.apple.com/account/resources/certificates/add)
+b. A developer ID Application certificate from [here](https://developer.apple.com/account/resources/certificates/add). You need to generate a Certificate Signing Request (CSR) from your mac to generate the certificate.
 
 2. Create an App Specific Password from [here](https://appleid.apple.com/account/manage)
 
@@ -168,7 +168,33 @@ export APPLE_APP_SPECIFIC_PASSWORD="YOUR_APP_SPECIFIC_PASSWORD"  # Generate this
 export APPLE_TEAM_ID="KRY77A2RML" # Your Apple Team ID
 ```
 
-4. Run the following command to build the app, it will sign and notarize the app as well:
+4. Add the following to your package.json:  
+   a. In your mac build
+
+   ```json
+   "mac": {
+     "hardenedRuntime": true,
+     "gatekeeperAssess": false,
+     "entitlements": "electron/entitlements.mac.plist",
+     "entitlementsInherit": "electron/entitlements.mac.plist",
+     "identity": "G-DEV FZ-LLC (KRY77A2RML)",
+     "forceCodeSigning": true
+   }
+   ```
+
+   b. For notarisation,
+
+   ```json
+   "afterSign": "electron-builder-notarize"
+   ```
+
+   And add this to your dev dependencies:
+
+   ```bash
+   npm install electron-builder-notarize --save-dev
+   ```
+
+5. Run the following command to build the app, it will sign and notarize the app as well:
 
 ```bash
 source .venv/bin/activate && npm run electron-build

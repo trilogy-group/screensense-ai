@@ -3,15 +3,17 @@ import { useEffect, useState, useRef, memo } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { ToolCall } from "../../multimodal-live-types";
 import vegaEmbed from "vega-embed";
+import { trackEvent } from "../../configs/analytics";
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
   tools: Tool[];
   systemInstruction: string;
+  assistantMode: string;
 }
 
 // Default tool configuration
-function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
+function SubtitlesComponent({ tools, systemInstruction, assistantMode }: SubtitlesProps) {
   const [subtitles, setSubtitles] = useState<string>("");
   const [graphJson, setGraphJson] = useState<string>("");
   const { client, setConfig } = useLiveAPIContext();
@@ -31,13 +33,20 @@ function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
       },
       tools: tools,
     });
-  }, [setConfig, systemInstruction, tools]);
+  }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
     const onToolCall = async (toolCall: ToolCall) => {
       console.log(`got toolcall`, toolCall);
       let hasResponded = false;
       for (const fc of toolCall.functionCalls) {
+        console.log(`got toolcall`, toolCall);
+        // Track the tool invocation
+        trackEvent('tool_used', {
+          tool_name: fc.name,
+          args: fc.args
+        });
+
         if (fc.name === "render_subtitles") {
           const text = (fc.args as any).subtitles;
           setSubtitles(text);
@@ -58,7 +67,6 @@ function SubtitlesComponent({ tools, systemInstruction }: SubtitlesProps) {
           client.sendToolResponse({
             functionResponses: toolCall.functionCalls.map((fc) => ({
               response: { output: { success: true } },
-              // response: { output: { success: true, text: selectedText } },
               id: fc.id,
             })),
           });

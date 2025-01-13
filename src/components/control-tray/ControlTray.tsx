@@ -25,6 +25,7 @@ import { AudioRecorder } from "../../lib/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 import { assistantConfigs } from "../../configs/assistant-configs";
+import { trackEvent } from "../../configs/analytics";
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -218,6 +219,24 @@ function ControlTray({
     });
   };
 
+  const handleConnect = () => {
+    const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
+    const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
+    
+    if (!connected && !apiKey) {
+      setShowError(true);
+      return;
+    }
+
+    if (!connected) {
+      trackEvent('chat_started', {
+        assistant_mode: selectedOption.value,
+      });
+    }
+    
+    connected ? disconnect() : connect();
+  };
+
   return (<>
     <section className="control-tray">
       <canvas style={{ display: "none" }} ref={renderCanvasRef} />
@@ -301,16 +320,7 @@ function ControlTray({
           <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
-            onClick={() => {
-              const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
-              const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
-              
-              if (!connected && !apiKey) {
-                setShowError(true);
-                return;
-              }
-              connected ? disconnect() : connect();
-            }}
+            onClick={handleConnect}
           >
             <span className="material-symbols-outlined filled">
               {connected ? "pause" : "play_arrow"}

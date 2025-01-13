@@ -6,6 +6,7 @@ import { Subtitles } from "./components/subtitles/Subtitles";
 import ControlTray from "./components/control-tray/ControlTray";
 import cn from "classnames";
 import { assistantConfigs, type AssistantConfigMode } from "./configs/assistant-configs";
+import { initAnalytics, trackEvent } from "./configs/analytics";
 
 const host = "generativelanguage.googleapis.com";
 const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
@@ -35,11 +36,17 @@ function App() {
     }
   }, [apiKey]);
 
+  // Initialize PostHog
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (geminiApiKey.trim()) {
       setApiKey(geminiApiKey.trim());
       setShowSettings(false);
+      trackEvent('api_key_updated');
     }
   };
 
@@ -100,6 +107,7 @@ function App() {
               <Subtitles 
                 tools={[...assistantConfigs[selectedOption.value].tools]}
                 systemInstruction={assistantConfigs[selectedOption.value].systemInstruction}
+                assistantMode={selectedOption.value}
               />
               <video
                 className={cn("stream", {
