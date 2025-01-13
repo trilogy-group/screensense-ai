@@ -205,6 +205,11 @@ async function videoWindow() {
             justify-content: center;
             align-items: center;
           }
+          .actions-nav.disabled .action-button:not(.connect-button) {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+          }
           .action-button {
             background: none;
             border: none;
@@ -212,19 +217,15 @@ async function videoWindow() {
             cursor: pointer;
             padding: 8px;
             border-radius: 50%;
-            transition: background-color 0.2s;
+            transition: all 0.2s ease-in-out;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 40px;
             height: 40px;
           }
-          .action-button:hover {
+          .action-button:not(.disabled):hover {
             background-color: rgba(255, 255, 255, 0.1);
-          }
-          .action-button.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
           }
           .material-symbols-outlined {
             font-family: 'Material Symbols Outlined';
@@ -243,13 +244,91 @@ async function videoWindow() {
           .filled {
             font-variation-settings: 'FILL' 1;
           }
+          .message-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out;
+            z-index: 1000;
+          }
+          .message-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+          }
+          .message-content {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 16px 24px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            text-align: center;
+            max-width: 80%;
+            backdrop-filter: blur(8px);
+          }
+          .carousel-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: auto;
+            width: 100%;
+            padding: 10px 0;
+          }
+          .carousel-button {
+            position: relative;
+            width: 15%;
+            height: 32px;
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+            border-radius: 4px;
+          }
+          .carousel-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+          .carousel-content {
+            width: 70%;
+            text-align: center;
+            justify-content: center;
+          }
+          .carousel-text {
+            color: white;
+            font-size: 14px;
+            opacity: 0.9;
+          }
+          .control-tray-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 400px;
+            padding: 16px;
+          }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
       <body>
+        <div class="message-overlay">
+          <div class="message-content">
+            Please select a screen to share from the main window
+          </div>
+        </div>
+
         <section class="control-tray">
           <div class="control-tray-container">
-            <nav class="actions-nav">
+            <nav class="actions-nav disabled">
               <button class="action-button mic-button">
                 <span class="material-symbols-outlined filled">mic</span>
               </button>
@@ -266,6 +345,22 @@ async function videoWindow() {
                 <span class="material-symbols-outlined">play_arrow</span>
               </button>
             </nav>
+
+            <div class="carousel-container">
+              <button class="carousel-button prev-button">
+                <span class="material-symbols-outlined">chevron_left</span>
+              </button>
+
+              <div class="carousel-content">
+                <div class="carousel-slide">
+                  <span class="carousel-text">Default Mode</span>
+                </div>
+              </div>
+
+              <button class="carousel-button next-button">
+                <span class="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -276,34 +371,75 @@ async function videoWindow() {
           const screenButton = document.querySelector('.screen-button');
           const webcamButton = document.querySelector('.webcam-button');
           const connectButton = document.querySelector('.connect-button');
+          const actionsNav = document.querySelector('.actions-nav');
+          const messageOverlay = document.querySelector('.message-overlay');
+          const prevButton = document.querySelector('.prev-button');
+          const nextButton = document.querySelector('.next-button');
+          const carouselText = document.querySelector('.carousel-text');
           
           let isMuted = false;
           let isScreenSharing = false;
           let isWebcamOn = false;
           let isConnected = false;
+          let isConnecting = false;
+
+          // Carousel handlers
+          prevButton.addEventListener('click', () => {
+            ipcRenderer.send('carousel-action', 'prev');
+          });
+
+          nextButton.addEventListener('click', () => {
+            ipcRenderer.send('carousel-action', 'next');
+          });
+
+          // Handle carousel updates
+          ipcRenderer.on('update-carousel', (event, modeName) => {
+            carouselText.textContent = modeName;
+          });
 
           micButton.addEventListener('click', () => {
+            if (!isConnected) return;
             isMuted = !isMuted;
             micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
             ipcRenderer.send('control-action', { type: 'mic', value: !isMuted });
           });
 
           screenButton.addEventListener('click', () => {
-            isScreenSharing = !isScreenSharing;
-            screenButton.querySelector('span').textContent = isScreenSharing ? 'cancel_presentation' : 'present_to_all';
-            ipcRenderer.send('control-action', { type: 'screen', value: isScreenSharing });
+            if (!isConnected) return;
+            if (isScreenSharing) {
+              isScreenSharing = false;
+              screenButton.querySelector('span').textContent = 'present_to_all';
+              screenButton.querySelector('span').classList.remove('filled');
+              ipcRenderer.send('control-action', { type: 'screen', value: false });
+              messageOverlay.classList.remove('visible');
+            } else {
+              ipcRenderer.send('control-action', { type: 'screen', value: true });
+              messageOverlay.classList.add('visible');
+            }
           });
 
           webcamButton.addEventListener('click', () => {
+            if (!isConnected) return;
             isWebcamOn = !isWebcamOn;
             webcamButton.querySelector('span').textContent = isWebcamOn ? 'videocam_off' : 'videocam';
             ipcRenderer.send('control-action', { type: 'webcam', value: isWebcamOn });
           });
 
           connectButton.addEventListener('click', () => {
-            isConnected = !isConnected;
-            connectButton.querySelector('span').textContent = isConnected ? 'pause' : 'play_arrow';
-            ipcRenderer.send('control-action', { type: 'connect', value: isConnected });
+            if (!isConnecting) {
+              isConnecting = true;
+              ipcRenderer.send('control-action', { type: 'connect', value: !isConnected });
+            }
+          });
+
+          // Handle screen share result
+          ipcRenderer.on('screen-share-result', (event, success) => {
+            messageOverlay.classList.remove('visible');
+            if (success) {
+              isScreenSharing = true;
+              screenButton.querySelector('span').textContent = 'cancel_presentation';
+              screenButton.querySelector('span').classList.add('filled');
+            }
           });
 
           // Handle state updates from main process
@@ -312,6 +448,12 @@ async function videoWindow() {
             isScreenSharing = state.isScreenSharing;
             isWebcamOn = state.isWebcamOn;
             isConnected = state.isConnected;
+            isConnecting = false;
+
+            // If screen sharing was stopped from main window, hide the message
+            if (!isScreenSharing) {
+              messageOverlay.classList.remove('visible');
+            }
 
             // Update button states
             micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
@@ -326,7 +468,7 @@ async function videoWindow() {
             connectButton.querySelector('span').classList.toggle('filled', isConnected);
 
             // Update disabled state of the nav
-            document.querySelector('.actions-nav').classList.toggle('disabled', !isConnected);
+            actionsNav.classList.toggle('disabled', !isConnected);
           });
         </script>
       </body>
@@ -469,7 +611,7 @@ ipcMain.on('write-text', async (event, content) => {
 
 // Add this after the other ipcMain handlers
 ipcMain.on('control-action', (event, action) => {
-  // Forward the control action to the main window
+  // Forward all control actions to the main window
   if (mainWindow) {
     mainWindow.webContents.send('control-action', action);
   }
@@ -482,6 +624,31 @@ ipcMain.on('update-control-state', (event, state) => {
   const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
   if (videoWindow) {
     videoWindow.webContents.send('update-controls', state);
+  }
+});
+
+// Add this to handle screen selection result
+ipcMain.on('screen-share-result', (event, success) => {
+  const windows = BrowserWindow.getAllWindows();
+  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
+  if (videoWindow) {
+    videoWindow.webContents.send('screen-share-result', success);
+  }
+});
+
+// Add this to handle carousel actions
+ipcMain.on('carousel-action', (event, direction) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('carousel-action', direction);
+  }
+});
+
+// Add this to handle carousel updates
+ipcMain.on('update-carousel', (event, modeName) => {
+  const windows = BrowserWindow.getAllWindows();
+  const videoWindow = windows.find(win => win !== mainWindow && win !== overlayWindow);
+  if (videoWindow) {
+    videoWindow.webContents.send('update-carousel', modeName);
   }
 });
 

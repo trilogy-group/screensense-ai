@@ -159,6 +159,10 @@ function ControlTray({
         const mediaStream = await next.start();
         setActiveVideoStream(mediaStream);
         onVideoStreamChange(mediaStream);
+        // Send success result for screen sharing
+        if (next === screenCapture) {
+          ipcRenderer.send('screen-share-result', true);
+        }
       } catch (error) {
         // Silently handle cancellation, but still log other errors
         if (!(error instanceof Error && error.message === 'Selection cancelled')) {
@@ -166,6 +170,10 @@ function ControlTray({
         }
         setActiveVideoStream(null);
         onVideoStreamChange(null);
+        // Send failure result for screen sharing
+        if (next === screenCapture) {
+          ipcRenderer.send('screen-share-result', false);
+        }
       }
     } else {
       setActiveVideoStream(null);
@@ -177,7 +185,12 @@ function ControlTray({
 
   useEffect(() => {
     setSelectedOption(modes[carouselIndex]);
+    // Send carousel update to control window
+    const mode = modes[carouselIndex].value as keyof typeof assistantConfigs;
+    const modeName = assistantConfigs[mode].display_name;
+    ipcRenderer.send('update-carousel', modeName);
   }, [carouselIndex, modes, setSelectedOption]);
+
   const handleCarouselChange = (direction: 'next' | 'prev') => {
     setCarouselIndex(prevIndex => {
       const newIndex = direction === 'next' 
@@ -186,6 +199,18 @@ function ControlTray({
       return newIndex;
     });
   };
+
+  // Handle carousel actions from control window
+  useEffect(() => {
+    const handleCarouselAction = (event: any, direction: 'next' | 'prev') => {
+      handleCarouselChange(direction);
+    };
+
+    ipcRenderer.on('carousel-action', handleCarouselAction);
+    return () => {
+      ipcRenderer.removeListener('carousel-action', handleCarouselAction);
+    };
+  }, []);
 
   // Handle control actions from video window
   useEffect(() => {
@@ -196,8 +221,10 @@ function ControlTray({
           break;
         case 'screen':
           if (action.value) {
+            // Start screen sharing
             changeStreams(screenCapture)();
           } else {
+            // Stop screen sharing
             changeStreams()();
           }
           break;
@@ -222,7 +249,7 @@ function ControlTray({
     return () => {
       ipcRenderer.removeListener('control-action', handleControlAction);
     };
-  }, [connect, disconnect, webcam, screenCapture]);
+  }, [connect, disconnect, webcam, screenCapture, changeStreams]);
 
   // Send state updates to video window
   useEffect(() => {
