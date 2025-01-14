@@ -97,38 +97,6 @@ function ControlTray({
     );
   }, [inVolume]);
 
-  // Add error message state
-  const [showError, setShowError] = useState(false);
-
-  useEffect(() => {
-    let timeoutId: number;
-    if (showError) {
-      timeoutId = window.setTimeout(() => setShowError(false), 3000);
-    }
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [showError]);
-
-  // Add error message styles
-  const errorMessageStyle = {
-    position: 'absolute',
-    bottom: '100%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'var(--Red-500)',
-    color: 'white',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    marginBottom: '8px',
-    whiteSpace: 'nowrap',
-    opacity: showError ? 1 : 0,
-    transition: 'opacity 0.2s ease-in-out',
-    pointerEvents: 'none',
-  } as const;
-
   useEffect(() => {
     const onData = (base64: string) => {
       client.sendRealtimeInput([
@@ -224,14 +192,6 @@ function ControlTray({
   }, [modes.length]);
 
   const handleConnect = () => {
-    const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
-    const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
-    
-    if (!connected && !apiKey) {
-      setShowError(true);
-      return;
-    }
-
     if (!connected) {
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
@@ -395,9 +355,6 @@ function ControlTray({
 
       <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
-        <div style={errorMessageStyle}>
-            Please add your API key by clicking the key icon ⚿ in the top right
-          </div>
           <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
@@ -410,8 +367,6 @@ function ControlTray({
         </div>
         <span className="text-indicator">Streaming</span>
       </div>
-
-
     </section>
   </>
   );
