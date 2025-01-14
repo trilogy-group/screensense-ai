@@ -78,8 +78,8 @@ async function createMainWindow() {
     },
   });
 
-  // Remove DevTools opening
-  // mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // Open DevTools in a new window
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Remove menu from the window
   mainWindow.setMenu(null);
@@ -199,8 +199,8 @@ async function createControlWindow() {
     },
   });
 
-  // Remove DevTools opening
-  // controlWindow.webContents.openDevTools({ mode: 'detach' });
+  // Open DevTools in a new window for control window
+  controlWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Ensure it stays on top even when other windows request always on top
   controlWindow.setAlwaysOnTop(true, 'screen-saver');

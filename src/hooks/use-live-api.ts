@@ -86,23 +86,19 @@ export function useLiveAPI({
     const onClose = (ev: CloseEvent) => {
       setConnected(false);
       
-      // Forward session errors to main process
-      if (ev.reason && ev.reason.toLowerCase().includes('error')) {
-        ipcRenderer.send('session-error', ev.reason || 'Session ended unexpectedly');
+      // Always send session end notification if not a normal disconnect
+      if (ev.code !== 1000) {
+        let errorMessage = 'Session ended unexpectedly';
+        
+        // Try to extract error message from reason
+        if (ev.reason) {
+          const errorMatch = ev.reason.match(/ERROR\](.*)/i);
+          errorMessage = errorMatch ? errorMatch[1].trim() : ev.reason;
+        }
+        
+        // Send error to main process
+        ipcRenderer.send('session-error', errorMessage);
       }
-
-      // TODO: Reconnect correctly
-      // Check if close was due to an error
-      // if (ev.reason && ev.reason.toLowerCase().includes('error')) {
-      //   // Wait a bit before attempting reconnect
-      //   setTimeout(async () => {
-      //     try {
-      //       await connect();
-      //     } catch (err) {
-      //       console.error('Failed to reconnect:', err);
-      //     }
-      //   }, 1000);
-      // }
     };
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();
