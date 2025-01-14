@@ -17,12 +17,9 @@ type ModeOption = {
 };
 
 // Ensure daily_helper is first in the modes array
-const modes: ModeOption[] = [
-  { value: 'daily_helper' },
-  ...Object.keys(assistantConfigs)
-    .filter(key => key !== 'daily_helper')
-    .map(key => ({ value: key as AssistantConfigMode }))
-];
+const modes: ModeOption[] = Object.keys(assistantConfigs).map(key => ({
+  value: key as AssistantConfigMode
+}));
 
 function VideoCanvas({ videoRef, videoStream }: { videoRef: React.RefObject<HTMLVideoElement>, videoStream: MediaStream | null }) {
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +75,17 @@ function App() {
 
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
+  // Send initial mode update
+  // useEffect(() => {
+  //   console.log('Initial mode update effect triggered');
+  //   const mode = selectedOption.value as keyof typeof assistantConfigs;
+  //   console.log('Selected mode:', mode);
+  //   const modeName = assistantConfigs[mode].display_name;
+  //   const requiresDisplay = assistantConfigs[mode].requiresDisplay;
+  //   console.log('Sending update-carousel with:', { modeName, requiresDisplay });
+  //   ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
+  // }, [selectedOption]);
+
   useEffect(() => {
     if (apiKey) {
       localStorage.setItem("gemini_api_key", apiKey);
@@ -88,6 +96,23 @@ function App() {
   useEffect(() => {
     initAnalytics();
   }, []);
+
+  // Handle mode update requests
+  useEffect(() => {
+    const handleModeUpdateRequest = () => {
+      console.log('Received mode update request');
+      const mode = selectedOption.value as keyof typeof assistantConfigs;
+      const modeName = assistantConfigs[mode].display_name;
+      const requiresDisplay = assistantConfigs[mode].requiresDisplay;
+      console.log('Sending update-carousel (from request) with:', { modeName, requiresDisplay });
+      ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
+    };
+
+    ipcRenderer.on('request-mode-update', handleModeUpdateRequest);
+    return () => {
+      ipcRenderer.removeListener('request-mode-update', handleModeUpdateRequest);
+    };
+  }, [selectedOption]);
 
   useEffect(() => {
     const handleShowSettings = () => {
@@ -110,7 +135,7 @@ function App() {
     }
   }, [showSettings]);
 
-  const handleApiKeySubmit = (e: React.FormEvent) => {
+  const handleSettingsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (geminiApiKey.trim() || true) {
       setApiKey(geminiApiKey.trim());
@@ -141,7 +166,7 @@ function App() {
               <div className="modal-backdrop" onClick={() => setShowSettings(false)} />
               <div className="settings-modal">
                 <h2>Settings</h2>
-                <form onSubmit={handleApiKeySubmit}>
+                <form onSubmit={handleSettingsSubmit}>
                   <div className="settings-content">
                     <div className="settings-row">
                       <label>Gemini API Key</label>

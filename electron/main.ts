@@ -630,6 +630,15 @@ async function createControlWindow() {
 
   controlWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
+  // Wait for window to be ready before showing
+  controlWindow.once('ready-to-show', () => {
+    // Send initial mode update
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Force a mode update from the main window
+      mainWindow.webContents.send('request-mode-update');
+    }
+  });
+
   // Handle window close
   controlWindow.on('closed', () => {
     controlWindow = null;
