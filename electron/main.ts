@@ -74,7 +74,7 @@ async function createMainWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: false,  // Temporarily disable for debugging
-      devTools: true
+      devTools: false
     },
   });
 
@@ -195,7 +195,7 @@ async function createControlWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      devTools: true,
+      devTools: false,
     },
   });
 
@@ -1075,20 +1075,24 @@ ipcMain.on('write-text', async (event, content) => {
   }
 });
 
-// Add this after the other ipcMain handlers
+// Update the control-action handler to handle all cases
 ipcMain.on('control-action', async (event, action) => {
   try {
     // Create main window if it doesn't exist for any control action
     if (!mainWindow || mainWindow.isDestroyed()) {
       await createMainWindow();
     }
-    // Check if mainWindow exists and is not destroyed before sending message
+    
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // Show window if screen sharing or webcam is being activated
+      if ((action.type === 'screen' || action.type === 'webcam') && action.value === true) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
       mainWindow.webContents.send('control-action', action);
     }
   } catch (error) {
     logToFile(`Error handling control action: ${error}`);
-    // If there was an error creating or accessing the window, let the renderer know
     event.reply('control-action-error', { error: 'Failed to process control action' });
   }
 });
@@ -1144,23 +1148,6 @@ ipcMain.on('update-carousel', (event, modeName) => {
 ipcMain.on('close-control-window', (event) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.close();
-  }
-});
-
-ipcMain.on('update-subtitles', (event, text) => {
-  if (overlayWindow) {
-    overlayWindow.webContents.send('update-subtitles', text);
-    if (text) {
-      overlayWindow.showInactive();
-    } else {
-      overlayWindow.hide();
-    }
-  }
-});
-
-ipcMain.on('remove-subtitles', () => {
-  if (overlayWindow) {
-    overlayWindow.hide();
   }
 });
 
@@ -1239,18 +1226,6 @@ ipcMain.on('show-main-window', () => {
 ipcMain.on('hide-main-window', () => {
   if (mainWindow) {
     mainWindow.hide();
-  }
-});
-
-// Update the control-action handler to show window for screen/webcam
-ipcMain.on('control-action', (event, action) => {
-  if (mainWindow) {
-    // Show window if screen sharing or webcam is being activated
-    if ((action.type === 'screen' || action.type === 'webcam') && action.value === true) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-    mainWindow.webContents.send('control-action', action);
   }
 });
 

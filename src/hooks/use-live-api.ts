@@ -68,6 +68,7 @@ export function useLiveAPI({
   }, [audioStreamerRef]);
 
   const connect = useCallback(async () => {
+    console.log('Going to connect')
     console.log(JSON.stringify(config));
     if (!config) {
       throw new Error("config has not been set");
@@ -84,6 +85,7 @@ export function useLiveAPI({
 
   useEffect(() => {
     const onClose = (ev: CloseEvent) => {
+      console.log('onClose', ev);
       setConnected(false);
       
       // Always send session end notification if not a normal disconnect
@@ -117,7 +119,7 @@ export function useLiveAPI({
         .off("interrupted", stopAudioStreamer)
         .off("audio", onAudio);
     };
-  }, [client, connect]);
+  }, [client]);
 
   return {
     client,
