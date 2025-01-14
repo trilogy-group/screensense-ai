@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { UseMediaStreamResult } from "./use-media-stream-mux";
 import { DesktopCapturerSource } from 'electron';
 const { ipcRenderer } = window.require('electron');
@@ -234,7 +234,7 @@ export function useScreenCapture(): UseMediaStreamResult {
     }
   };
 
-  const stop = () => {
+  const stop = useCallback(() => {
     // console.log('🛑 Stopping screen capture');
     cleanupPicker();
     if (stream) {
@@ -245,7 +245,7 @@ export function useScreenCapture(): UseMediaStreamResult {
       setStream(null);
       setIsStreaming(false);
     }
-  };
+  }, [stream]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -254,7 +254,7 @@ export function useScreenCapture(): UseMediaStreamResult {
       cleanupPicker();
       stop();
     };
-  }, []);
+  }, [stop]);
 
   const result: UseMediaStreamResult = {
     type: "screen",
