@@ -734,7 +734,7 @@ async function createControlWindow() {
             setTimeout(() => {
               modeText.textContent = modeName;
               modeText.style.opacity = '0.9';
-            }, 85);
+            }, 100);
             
             screenButton.style.display = requiresDisplay ? '' : 'none';
             webcamButton.style.display = requiresDisplay ? '' : 'none';
