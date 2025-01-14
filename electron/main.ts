@@ -1273,4 +1273,9 @@ ipcMain.on('session-error', (event, errorMessage) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.webContents.send('show-error-toast', errorMessage);
   }
+});
+
+// Add handler for logging to file
+ipcMain.on('log-to-file', (event, message) => {
+  logToFile(message);
 }); 
