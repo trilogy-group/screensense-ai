@@ -74,6 +74,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
             })),
           });
           client.send([{ text: `Found the following text: ${selectedText}` }]);
+          ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
           hasResponded = true;
         }
       }
