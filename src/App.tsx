@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import "./App.scss";
 import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
-import SidePanel from "./components/side-panel/SidePanel";
+// import SidePanel from "./components/side-panel/SidePanel";
 import { Subtitles } from "./components/subtitles/Subtitles";
 import ControlTray from "./components/control-tray/ControlTray";
 import cn from "classnames";
@@ -120,10 +120,16 @@ function App() {
       setShowSettings(true);
     };
 
+    const handleCheckApiKey = () => {
+      ipcRenderer.send('api-key-check-result', !!apiKey);
+    };
+
     ipcRenderer.on('show-settings', handleShowSettings);
+    ipcRenderer.on('check-api-key', handleCheckApiKey);
 
     return () => {
       ipcRenderer.removeListener('show-settings', handleShowSettings);
+      ipcRenderer.removeListener('check-api-key', handleCheckApiKey);
     };
   }, [apiKey]);
 
@@ -137,7 +143,7 @@ function App() {
 
   const handleSettingsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (geminiApiKey.trim() || true) {
+    if (geminiApiKey.trim()) {
       setApiKey(geminiApiKey.trim());
       setShowSettings(false);
       trackEvent('api_key_updated');

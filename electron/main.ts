@@ -419,6 +419,74 @@ async function createControlWindow() {
           .key-button .material-symbols-outlined {
             font-size: 16px;
           }
+          .toast {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(244, 67, 54, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 2000;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            min-width: 200px;
+          }
+          
+          .toast.visible {
+            opacity: 1;
+          }
+
+          body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            position: relative;
+          }
+
+          .error-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 2000;
+          }
+
+          .error-overlay.visible {
+            opacity: 1;
+          }
+
+          .error-message {
+            background: #f44336;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
@@ -477,6 +545,10 @@ async function createControlWindow() {
           </section>
         </div>
 
+        <div class="error-overlay">
+          <div class="error-message">API key is required to connect</div>
+        </div>
+
         <script>
           const { ipcRenderer } = require('electron');
           
@@ -491,6 +563,8 @@ async function createControlWindow() {
           const nextButton = document.querySelector('.next-button');
           const carouselText = document.querySelector('.carousel-text');
           const settingsButton = document.querySelector('.key-button');
+          const errorOverlay = document.querySelector('.error-overlay');
+          const errorMessage = errorOverlay.querySelector('.error-message');
           
           let isMuted = false;
           let isScreenSharing = false;
@@ -568,10 +642,30 @@ async function createControlWindow() {
             ipcRenderer.send('control-action', { type: 'webcam', value: isWebcamOn });
           });
 
+          // Function to show error message
+          function showError(message, duration = 2000) {
+            errorMessage.textContent = message;
+            errorOverlay.classList.add('visible');
+            setTimeout(() => {
+              errorOverlay.classList.remove('visible');
+            }, duration);
+          }
+
           connectButton.addEventListener('click', () => {
             if (!isConnecting) {
               isConnecting = true;
+              // Request API key check before connecting
+              ipcRenderer.send('check-api-key');
+            }
+          });
+
+          // Handle API key check response
+          ipcRenderer.on('api-key-check', (event, hasApiKey) => {
+            if (hasApiKey) {
               ipcRenderer.send('control-action', { type: 'connect', value: !isConnected });
+            } else {
+              isConnecting = false;
+              showError('API key is required to connect');
             }
           });
 
@@ -1011,5 +1105,19 @@ ipcMain.on('control-action', (event, action) => {
       mainWindow.focus();
     }
     mainWindow.webContents.send('control-action', action);
+  }
+});
+
+// Add this with other IPC handlers
+ipcMain.on('check-api-key', (event) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('check-api-key');
+  }
+});
+
+// Add this with other IPC handlers
+ipcMain.on('api-key-check-result', (event, hasApiKey) => {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('api-key-check', hasApiKey);
   }
 }); 
