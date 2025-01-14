@@ -10,5 +10,7 @@
     <string>We need to control system events for keyboard shortcuts and automation.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>We need screen recording access to capture your screen for AI assistance.</string>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>We need accessibility access for clipboard operations and keyboard control.</string>
 </dict>
 </plist> 

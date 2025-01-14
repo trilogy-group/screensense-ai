@@ -188,7 +188,7 @@ function App() {
                     <button type="button" onClick={() => setShowSettings(false)}>
                       Cancel
                     </button>
-                    <button type="submit" disabled={!geminiApiKey.trim() && false}>
+                    <button type="submit" disabled={!geminiApiKey.trim()}>
                       Save
                     </button>
                   </div>

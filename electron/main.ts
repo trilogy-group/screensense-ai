@@ -962,6 +962,7 @@ async function getSelectedText() {
     
     // Get the selected text from clipboard
     const selectedText = clipboard.readText();
+    logToFile(`Selected text: ${selectedText}`);
     
     // Restore previous clipboard content
     clipboard.writeText(previousClipboard);
