@@ -1,5 +1,5 @@
 {
-  "name": "scrensense-ai",
+  "name": "screensense-ai",
   "version": "0.1.0",
   "description": "An AI assistant that lives in your computer, helping you with daily tasks through screen interaction, translation, and other capabilities.",
   "author": {
@@ -28,9 +28,9 @@
     "zustand": "^5.0.1"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
     "eject": "react-scripts eject",
     "build:react": "cross-env PUBLIC_URL=./ NODE_ENV=production react-scripts build",
     "electron:tsc": "tsc -p electron/tsconfig.json",
@@ -161,6 +161,8 @@
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
     "electron-builder-notarize": "^1.5.2",
+    "path-browserify": "^1.0.1",
+    "react-app-rewired": "^2.2.1",
     "ts-node": "^10.9.2",
     "typescript": "5.1.6",
     "wait-on": "^8.0.1"

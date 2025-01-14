@@ -16,7 +16,7 @@
 
 import cn from "classnames";
 
-import { memo, ReactNode, RefObject, useEffect, useRef, useState } from "react";
+import { memo, ReactNode, RefObject, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
@@ -26,6 +26,8 @@ import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 import { assistantConfigs } from "../../configs/assistant-configs";
 import { trackEvent } from "../../configs/analytics";
+import Toast from "../toast/Toast";
+const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -70,19 +72,19 @@ function ControlTray({
   selectedOption,
   setSelectedOption,
 }: ControlTrayProps) {
-  const videoStreams = [useWebcam(), useScreenCapture()];
-  const [activeVideoStream, setActiveVideoStream] =
-    useState<MediaStream | null>(null);
+  const webcamStream = useWebcam();
+  const screenCaptureStream = useScreenCapture();
+  const videoStreams = useMemo(() => [webcamStream, screenCaptureStream], [webcamStream, screenCaptureStream]);
+  const [activeVideoStream, setActiveVideoStream] = useState<MediaStream | null>(null);
   const [webcam, screenCapture] = videoStreams;
   const [inVolume, setInVolume] = useState(0);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const [muted, setMuted] = useState(false);
-  const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const { client, connected, connect, disconnect, volume } =
-    useLiveAPIContext();
+  const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
@@ -96,38 +98,6 @@ function ControlTray({
       `${Math.max(5, Math.min(inVolume * 200, 8))}px`,
     );
   }, [inVolume]);
-
-  // Add error message state
-  const [showError, setShowError] = useState(false);
-
-  useEffect(() => {
-    let timeoutId: number;
-    if (showError) {
-      timeoutId = window.setTimeout(() => setShowError(false), 3000);
-    }
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [showError]);
-
-  // Add error message styles
-  const errorMessageStyle = {
-    position: 'absolute',
-    bottom: '100%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'var(--Red-500)',
-    color: 'white',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    marginBottom: '8px',
-    whiteSpace: 'nowrap',
-    opacity: showError ? 1 : 0,
-    transition: 'opacity 0.2s ease-in-out',
-    pointerEvents: 'none',
-  } as const;
 
   useEffect(() => {
     const onData = (base64: string) => {
@@ -152,52 +122,34 @@ function ControlTray({
     if (videoRef.current) {
       videoRef.current.srcObject = activeVideoStream;
     }
-
-    let timeoutId = -1;
-
-    function sendVideoFrame() {
-      const video = videoRef.current;
-      const canvas = renderCanvasRef.current;
-
-      if (!video || !canvas) {
-        return;
-      }
-
-      const ctx = canvas.getContext("2d")!;
-      canvas.width = video.videoWidth * 0.25;
-      canvas.height = video.videoHeight * 0.25;
-      if (canvas.width + canvas.height > 0) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL("image/jpeg", 1.0);
-        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
-        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
-      }
-      if (connected) {
-        timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
-      }
-    }
-    if (connected && activeVideoStream !== null) {
-      requestAnimationFrame(sendVideoFrame);
-    }
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [connected, activeVideoStream, client, videoRef]);
+    onVideoStreamChange(activeVideoStream);
+  }, [activeVideoStream, onVideoStreamChange, videoRef]);
 
   //handler for swapping from one video-stream to the next
-  const changeStreams = (next?: UseMediaStreamResult) => async () => {
+  const changeStreams = useCallback((next?: UseMediaStreamResult) => async () => {
     if (next) {
       try {
         const mediaStream = await next.start();
         setActiveVideoStream(mediaStream);
         onVideoStreamChange(mediaStream);
+        // Send success result for screen sharing
+        if (next === screenCapture) {
+          ipcRenderer.send('screen-share-result', true);
+        }
       } catch (error) {
-        // Silently handle cancellation, but still log other errors
-        if (!(error instanceof Error && error.message === 'Selection cancelled')) {
+        // Handle cancellation by hiding the main window
+        if (error instanceof Error && error.message === 'Selection cancelled') {
+          console.log('Screen selection was cancelled, hiding main window');
+          ipcRenderer.send('hide-main-window');
+        } else {
           console.error('Error changing streams:', error);
         }
         setActiveVideoStream(null);
         onVideoStreamChange(null);
+        // Send failure result for screen sharing
+        if (next === screenCapture) {
+          ipcRenderer.send('screen-share-result', false);
+        }
       }
     } else {
       setActiveVideoStream(null);
@@ -205,29 +157,43 @@ function ControlTray({
     }
 
     videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
-  };
+  }, [onVideoStreamChange, screenCapture, videoStreams]);
+
+  // Stop all streams and hide subtitles when connection is closed
+  useEffect(() => {
+    if (!connected) {
+      changeStreams()();
+      ipcRenderer.send('remove-subtitles');
+    }
+  }, [connected, changeStreams]);
 
   useEffect(() => {
     setSelectedOption(modes[carouselIndex]);
+    // Send carousel update to control window
+    const mode = modes[carouselIndex].value as keyof typeof assistantConfigs;
+    const modeName = assistantConfigs[mode].display_name;
+    const requiresDisplay = assistantConfigs[mode].requiresDisplay;
+    ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
   }, [carouselIndex, modes, setSelectedOption]);
-  const handleCarouselChange = (direction: 'next' | 'prev') => {
+
+  // Send initial mode's requiresDisplay setting
+  useEffect(() => {
+    const initialMode = modes[0].value as keyof typeof assistantConfigs;
+    const modeName = assistantConfigs[initialMode].display_name;
+    const requiresDisplay = assistantConfigs[initialMode].requiresDisplay;
+    ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
+  }, [modes]);
+
+  const handleCarouselChange = useCallback((direction: 'next' | 'prev') => {
     setCarouselIndex(prevIndex => {
       const newIndex = direction === 'next' 
         ? (prevIndex + 1) % modes.length
         : (prevIndex - 1 + modes.length) % modes.length;
       return newIndex;
     });
-  };
+  }, [modes.length]);
 
   const handleConnect = () => {
-    const apiKeyMatch = client.url.match(/[?&]key=([^&]*)/);
-    const apiKey = apiKeyMatch ? decodeURIComponent(apiKeyMatch[1]) : "";
-    
-    if (!connected && !apiKey) {
-      setShowError(true);
-      return;
-    }
-
     if (!connected) {
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
@@ -237,9 +203,97 @@ function ControlTray({
     connected ? disconnect() : connect();
   };
 
+  // Handle carousel actions from control window
+  useEffect(() => {
+    const handleCarouselAction = (event: any, direction: 'next' | 'prev') => {
+      handleCarouselChange(direction);
+    };
+
+    ipcRenderer.on('carousel-action', handleCarouselAction);
+    return () => {
+      ipcRenderer.removeListener('carousel-action', handleCarouselAction);
+    };
+  }, [handleCarouselChange]);
+
+  // Handle control actions from video window
+  useEffect(() => {
+    const handleControlAction = (event: any, action: { type: string; value: boolean }) => {
+      switch (action.type) {
+        case 'mic':
+          setMuted(!action.value);
+          break;
+        case 'screen':
+          if (action.value) {
+            // Start screen sharing
+            changeStreams(screenCapture)();
+          } else {
+            // Stop screen sharing
+            changeStreams()();
+          }
+          break;
+        case 'webcam':
+          if (action.value) {
+            changeStreams(webcam)();
+          } else {
+            changeStreams()();
+          }
+          break;
+        case 'connect':
+          if (action.value) {
+            connect();
+          } else {
+            disconnect();
+          }
+          break;
+      }
+    };
+
+    ipcRenderer.on('control-action', handleControlAction);
+    return () => {
+      ipcRenderer.removeListener('control-action', handleControlAction);
+    };
+  }, [connect, disconnect, webcam, screenCapture, changeStreams]);
+
+  // Send state updates to video window
+  useEffect(() => {
+    ipcRenderer.send('update-control-state', {
+      isMuted: muted,
+      isScreenSharing: screenCapture.isStreaming,
+      isWebcamOn: webcam.isStreaming,
+      isConnected: connected
+    });
+
+    // Show/hide main window based on active streams
+    if (screenCapture.isStreaming || webcam.isStreaming) {
+      ipcRenderer.send('show-main-window');
+    } else {
+      ipcRenderer.send('hide-main-window');
+    }
+  }, [muted, screenCapture.isStreaming, webcam.isStreaming, connected]);
+
+  // Add effect to handle stopping streams when switching modes
+  useEffect(() => {
+    if (!assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].requiresDisplay) {
+      if (screenCapture.isStreaming || webcam.isStreaming) {
+        changeStreams()();
+        ipcRenderer.send('hide-main-window');
+      }
+    }
+  }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams]);
+
+  useEffect(() => {
+    // Listen for error messages from main process
+    ipcRenderer.on('show-error-toast', (_, message) => {
+      setErrorMessage(message);
+    });
+
+    return () => {
+      ipcRenderer.removeAllListeners('show-error-toast');
+    };
+  }, []);
+
   return (<>
     <section className="control-tray">
-      <canvas style={{ display: "none" }} ref={renderCanvasRef} />
       <div className="control-tray-container">
         <nav className={cn("actions-nav", { disabled: !connected })}>
           <button
@@ -257,7 +311,7 @@ function ControlTray({
             <AudioPulse volume={volume} active={connected} hover={false} />
           </div>
 
-          {supportsVideo && (
+          {supportsVideo && assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].requiresDisplay && (
             <>
               <MediaStreamButton
                 isStreaming={screenCapture.isStreaming}
@@ -278,21 +332,15 @@ function ControlTray({
           {children}
         </nav>
         
-        <div className="carousel-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 'auto', width: '100%' }}>
+        <div className="carousel-container">
           <button
             className="carousel-button action-button"
             onClick={() => handleCarouselChange('prev')}
-            style={{ 
-              position: 'relative',
-              width: '15%',
-              height: '32px',
-              background: 'transparent',
-            }}
           >
             <span className="material-symbols-outlined">chevron_left</span>
           </button>
 
-          <div className="carousel-content" style={{ width: '70%', textAlign: 'center', justifyContent: 'center' }}>
+          <div className="carousel-content">
             <div className="carousel-slide">
               <span className="carousel-text">{assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name}</span>
             </div>
@@ -301,11 +349,6 @@ function ControlTray({
           <button
             className="carousel-button action-button"
             onClick={() => handleCarouselChange('next')}
-            style={{ 
-              width: '15%',
-              height: '32px',
-              background: 'transparent', 
-            }}
           >
             <span className="material-symbols-outlined">chevron_right</span>
           </button>
@@ -314,9 +357,6 @@ function ControlTray({
 
       <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
-        <div style={errorMessageStyle}>
-            Please add your API key by clicking the key icon ⚿ in the top right
-          </div>
           <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
@@ -329,9 +369,14 @@ function ControlTray({
         </div>
         <span className="text-indicator">Streaming</span>
       </div>
-
-
     </section>
+    {errorMessage && (
+      <Toast
+        message={errorMessage}
+        type="error"
+        onClose={() => setErrorMessage(null)}
+      />
+    )}
   </>
   );
 }

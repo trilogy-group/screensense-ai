@@ -46,6 +46,9 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
           tool_name: fc.name,
           args: fc.args
         });
+        
+        // Log tool usage to file
+        ipcRenderer.send('log-to-file', `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`);
 
         if (fc.name === "render_subtitles") {
           const text = (fc.args as any).subtitles;
@@ -71,6 +74,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
             })),
           });
           client.send([{ text: `Found the following text: ${selectedText}` }]);
+          ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
           hasResponded = true;
         }
       }
@@ -103,6 +107,8 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
         vegaEmbed(graphRef.current, JSON.parse(graphJson));
       } catch (error) {
         console.error('Failed to render graph:', error);
+        // Log graph rendering errors
+        ipcRenderer.send('log-to-file', `Error rendering graph: ${error}`);
       }
     }
   }, [graphRef, graphJson]);
