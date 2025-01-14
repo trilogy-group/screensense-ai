@@ -212,20 +212,105 @@ async function createControlWindow() {
             height: 100%;
             overflow: hidden;
             -webkit-app-region: drag;
+            isolation: isolate;
           }
           body {
             display: flex;
             align-items: center;
             justify-content: center;
+            backdrop-filter: blur(5px);
+            background: transparent;
           }
           .window-content {
+            position: relative;
             background: rgba(23, 23, 23, 0.6);
             width: 100%;
             height: 100%;
             transition: background-color 0.3s ease;
+            /* Clear any potential background content */
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+            isolation: isolate;
+            z-index: 1;
           }
           .window-content:hover {
             background: rgba(23, 23, 23, 0.95);
+          }
+          .control-tray {
+            position: relative;
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            z-index: 2;
+            background: transparent;
+          }
+          .control-tray-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 3;
+          }
+          .actions-nav {
+            position: relative;
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+            align-items: center;
+            z-index: 4;
+            background: transparent;
+          }
+          .carousel-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            width: 100%;
+            padding: 0;
+            z-index: 4;
+            background: transparent;
+          }
+          .carousel-content {
+            position: relative;
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+            display: flex;
+            align-items: center;
+            z-index: 5;
+            background: transparent;
+            isolation: isolate;
+            transform: translateZ(0);
+          }
+          .carousel-slide {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 6;
+            background: transparent;
+            transform: translateZ(0);
+            -webkit-font-smoothing: antialiased;
+          }
+          .carousel-text {
+            position: relative;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 4px;
+            z-index: 6;
+            opacity: 0.9;
+            background: transparent;
+            mix-blend-mode: normal;
+            transform: translateZ(0);
+            -webkit-font-smoothing: antialiased;
+            will-change: contents;
+            text-rendering: optimizeLegibility;
           }
           button, .action-button, .carousel-button {
             -webkit-app-region: no-drag;
@@ -249,6 +334,9 @@ async function createControlWindow() {
             -webkit-app-region: no-drag;
             transition: all 0.2s ease;
             opacity: 0.6;
+            z-index: 1000;
+            pointer-events: auto;
+            transform: translateZ(0);
           }
           .window-content:hover .close-button {
             opacity: 1;
@@ -259,44 +347,6 @@ async function createControlWindow() {
           }
           .close-button .material-symbols-outlined {
             font-size: 16px;
-          }
-          .control-tray {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-          }
-          .control-tray-container {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-          }
-          .actions-nav {
-            display: flex;
-            gap: 4px;
-            justify-content: center;
-            align-items: center;
-          }
-          .actions-nav.disabled .action-button:not(.connect-button) {
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-          }
-          .action-button {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 50%;
-            transition: all 0.2s ease-in-out;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 32px;
-          }
-          .action-button:not(.disabled):hover {
-            background-color: rgba(255, 255, 255, 0.1);
           }
           .material-symbols-outlined {
             font-family: 'Material Symbols Outlined';
@@ -315,13 +365,6 @@ async function createControlWindow() {
           .filled {
             font-variation-settings: 'FILL' 1;
           }
-          .carousel-container {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            width: 100%;
-            padding: 0;
-          }
           .carousel-button {
             position: relative;
             width: 24px;
@@ -339,23 +382,6 @@ async function createControlWindow() {
           }
           .carousel-button:hover {
             background-color: rgba(255, 255, 255, 0.1);
-          }
-          .carousel-content {
-            flex: 1;
-            text-align: center;
-            justify-content: center;
-            display: flex;
-            align-items: center;
-          }
-          .carousel-text {
-            color: white;
-            font-size: 14px;
-            opacity: 0.9;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding: 0 4px;
           }
           .window-content:hover .carousel-text {
             opacity: 1;
@@ -408,6 +434,9 @@ async function createControlWindow() {
             -webkit-app-region: no-drag;
             transition: all 0.2s ease;
             opacity: 0.6;
+            z-index: 1000;
+            pointer-events: auto;
+            transform: translateZ(0);
           }
           .window-content:hover .key-button {
             opacity: 1;
@@ -487,6 +516,52 @@ async function createControlWindow() {
             text-align: center;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
           }
+
+          .action-button {
+            position: relative;
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            z-index: 5;
+            mix-blend-mode: normal;
+            -webkit-font-smoothing: antialiased;
+          }
+          .action-button:not(.disabled):hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+          .actions-nav.disabled .action-button:not(.connect-button) {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+          }
+          .carousel-slide {
+            position: relative;
+            z-index: 6;
+            background: transparent;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translateZ(0);
+            -webkit-font-smoothing: antialiased;
+          }
+          /* Force hardware acceleration and prevent ghosting */
+          * {
+            transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            perspective: 1000;
+            transform-style: preserve-3d;
+          }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
@@ -532,8 +607,8 @@ async function createControlWindow() {
                 </button>
 
                 <div class="carousel-content">
-                  <div class="carousel-slide">
-                    <span class="carousel-text">Default Mode</span>
+                  <div id="carousel-text-container" class="carousel-slide">
+                    <span id="mode-text" class="carousel-text">Default Mode</span>
                   </div>
                 </div>
 
@@ -609,7 +684,23 @@ async function createControlWindow() {
 
           // Handle carousel updates
           ipcRenderer.on('update-carousel', (event, { modeName, requiresDisplay }) => {
-            carouselText.textContent = modeName;
+            const modeText = document.getElementById('mode-text');
+            const container = document.getElementById('carousel-text-container');
+            
+            // Create a new text element
+            const newText = document.createElement('span');
+            newText.className = 'carousel-text';
+            newText.textContent = modeName;
+            
+            // Fade out the old text
+            modeText.style.opacity = '0';
+            
+            // After fade out, update the text
+            setTimeout(() => {
+              modeText.textContent = modeName;
+              modeText.style.opacity = '0.9';
+            }, 85);
+            
             screenButton.style.display = requiresDisplay ? '' : 'none';
             webcamButton.style.display = requiresDisplay ? '' : 'none';
           });

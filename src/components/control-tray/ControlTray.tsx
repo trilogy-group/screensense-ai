@@ -319,21 +319,15 @@ function ControlTray({
           {children}
         </nav>
         
-        <div className="carousel-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 'auto', width: '100%' }}>
+        <div className="carousel-container">
           <button
             className="carousel-button action-button"
             onClick={() => handleCarouselChange('prev')}
-            style={{ 
-              position: 'relative',
-              width: '15%',
-              height: '32px',
-              background: 'transparent',
-            }}
           >
             <span className="material-symbols-outlined">chevron_left</span>
           </button>
 
-          <div className="carousel-content" style={{ width: '70%', textAlign: 'center', justifyContent: 'center' }}>
+          <div className="carousel-content">
             <div className="carousel-slide">
               <span className="carousel-text">{assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name}</span>
             </div>
@@ -342,11 +336,6 @@ function ControlTray({
           <button
             className="carousel-button action-button"
             onClick={() => handleCarouselChange('next')}
-            style={{ 
-              width: '15%',
-              height: '32px',
-              background: 'transparent', 
-            }}
           >
             <span className="material-symbols-outlined">chevron_right</span>
           </button>
