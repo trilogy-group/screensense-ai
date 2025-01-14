@@ -165,6 +165,7 @@ b. A developer ID Application certificate from [here](https://developer.apple.co
 ```bash
 export APPLE_ID="sahil.marwaha@trilogy.com" # Your Apple email
 export APPLE_APP_SPECIFIC_PASSWORD="YOUR_APP_SPECIFIC_PASSWORD"  # Generate this at appleid.apple.com
+export APPLE_ID_PASSWORD="YOUR_APP_SPECIFIC_PASSWORD"  # same as above
 export APPLE_TEAM_ID="KRY77A2RML" # Your Apple Team ID
 ```
 

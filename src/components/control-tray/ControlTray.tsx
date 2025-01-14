@@ -26,6 +26,7 @@ import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 import { assistantConfigs } from "../../configs/assistant-configs";
 import { trackEvent } from "../../configs/analytics";
+import Toast from "../toast/Toast";
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
@@ -81,6 +82,7 @@ function ControlTray({
   const [muted, setMuted] = useState(false);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
@@ -279,6 +281,17 @@ function ControlTray({
     }
   }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams]);
 
+  useEffect(() => {
+    // Listen for error messages from main process
+    ipcRenderer.on('show-error-toast', (_, message) => {
+      setErrorMessage(message);
+    });
+
+    return () => {
+      ipcRenderer.removeAllListeners('show-error-toast');
+    };
+  }, []);
+
   return (<>
     <section className="control-tray">
       <div className="control-tray-container">
@@ -357,6 +370,13 @@ function ControlTray({
         <span className="text-indicator">Streaming</span>
       </div>
     </section>
+    {errorMessage && (
+      <Toast
+        message={errorMessage}
+        type="error"
+        onClose={() => setErrorMessage(null)}
+      />
+    )}
   </>
   );
 }

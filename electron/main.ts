@@ -78,6 +78,9 @@ async function createMainWindow() {
     },
   });
 
+  // Remove DevTools opening
+  // mainWindow.webContents.openDevTools({ mode: 'detach' });
+
   // Remove menu from the window
   mainWindow.setMenu(null);
 
@@ -192,8 +195,12 @@ async function createControlWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
+      devTools: true,
     },
   });
+
+  // Remove DevTools opening
+  // controlWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Ensure it stays on top even when other windows request always on top
   controlWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -562,6 +569,32 @@ async function createControlWindow() {
             perspective: 1000;
             transform-style: preserve-3d;
           }
+
+          .error-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(244, 67, 54, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 2000;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            min-width: 200px;
+            backdrop-filter: blur(8px);
+          }
+          
+          .error-toast.visible {
+            opacity: 1;
+          }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
@@ -623,6 +656,8 @@ async function createControlWindow() {
         <div class="error-overlay">
           <div class="error-message">API key is required to connect</div>
         </div>
+
+        <div class="error-toast"></div>
 
         <script>
           const { ipcRenderer } = require('electron');
@@ -807,6 +842,26 @@ async function createControlWindow() {
           // Add settings button handler
           settingsButton.addEventListener('click', () => {
             ipcRenderer.send('show-settings');
+          });
+
+          // Add error toast handling
+          const errorToast = document.querySelector('.error-toast');
+          let errorToastTimeout;
+
+          ipcRenderer.on('show-error-toast', (_, message) => {
+            // Clear any existing timeout
+            if (errorToastTimeout) {
+              clearTimeout(errorToastTimeout);
+            }
+
+            // Show new error message
+            errorToast.textContent = message;
+            errorToast.classList.add('visible');
+
+            // Hide after 3 seconds
+            errorToastTimeout = setTimeout(() => {
+              errorToast.classList.remove('visible');
+            }, 3000);
           });
         </script>
       </body>
@@ -1210,5 +1265,12 @@ ipcMain.on('check-api-key', (event) => {
 ipcMain.on('api-key-check-result', (event, hasApiKey) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.webContents.send('api-key-check', hasApiKey);
+  }
+});
+
+// Add IPC handlers for session errors (add this before app.on('ready'))
+ipcMain.on('session-error', (event, errorMessage) => {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('show-error-toast', errorMessage);
   }
 }); 
