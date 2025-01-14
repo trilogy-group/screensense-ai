@@ -256,7 +256,7 @@ function createOverlayWindow() {
 ipcMain.handle('get-sources', async () => {
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
-    thumbnailSize: { width: 150, height: 150 }
+    thumbnailSize: { width: 1920, height: 1080 }
   });
   return sources;
 });
