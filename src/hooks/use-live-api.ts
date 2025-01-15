@@ -141,7 +141,7 @@ export function useLiveAPI({
         .off("interrupted", stopAudioStreamer)
         .off("audio", onAudio);
     };
-  }, [client]);
+  }, [client, connect]);
 
   return {
     client,
