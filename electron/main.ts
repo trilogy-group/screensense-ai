@@ -1270,9 +1270,10 @@ async function getMachineId(): Promise<string> {
             return output;
         } else if (process.platform === 'win32') {
             // Get Windows machine GUID
-            const output = execSync('wmic csproduct get uuid').toString();
-            const match = output.match(/[A-F0-9]{8}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{12}/i);
-            return match ? match[0] : '';
+            const output = execSync('get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID').toString().trim();
+            // const match = output.match(/[A-F0-9]{8}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{12}/i);
+            // return match ? match[0] : '';
+            return output;
         } else {
             // For Linux and others, try to get machine-id
             const machineId = fs.readFileSync('/etc/machine-id', 'utf8').trim();
