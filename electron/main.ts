@@ -74,12 +74,14 @@ async function createMainWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: false,  // Temporarily disable for debugging
-      devTools: false
+      devTools: true
     },
   });
 
   // Open DevTools in a new window
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (isDev) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 
   // Remove menu from the window
   mainWindow.setMenu(null);
@@ -195,12 +197,14 @@ async function createControlWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      devTools: false,
+      devTools: true,
     },
   });
 
   // Open DevTools in a new window for control window
-  controlWindow.webContents.openDevTools({ mode: 'detach' });
+  if (isDev) {
+    controlWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 
   // Ensure it stays on top even when other windows request always on top
   controlWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -1189,7 +1193,7 @@ async function getSelectedText() {
     
     // Get the selected text from clipboard
     const selectedText = clipboard.readText();
-    logToFile(`Selected text: ${selectedText}`);
+    // logToFile(`Selected text: ${selectedText}`);
     
     // Restore previous clipboard content
     clipboard.writeText(previousClipboard);
