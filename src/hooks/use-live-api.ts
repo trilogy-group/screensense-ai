@@ -69,7 +69,7 @@ export function useLiveAPI({
 
   const connect = useCallback(async () => {
     console.log('Going to connect')
-    console.log(JSON.stringify(config));
+    // console.log(JSON.stringify(config));
     if (!config) {
       throw new Error("config has not been set");
     }
@@ -85,8 +85,30 @@ export function useLiveAPI({
 
   useEffect(() => {
     const onClose = (ev: CloseEvent) => {
-      console.log('onClose', ev);
+      console.log('onClose event properties:', {
+        code: ev.code,
+        reason: ev.reason,
+        wasClean: ev.wasClean,
+        type: ev.type,
+        isTrusted: ev.isTrusted
+      });
       setConnected(false);
+      
+      // Handle deadline exceeded error (1011) with one retry
+      if (ev.code === 1011) {
+        console.log('Deadline exceeded error detected, attempting to reconnect once...');
+        // Attempt reconnection after a short delay
+        setTimeout(async () => {
+          try {
+            await connect();
+            console.log('Reconnection attempt successful');
+          } catch (err) {
+            console.error('Reconnection attempt failed:', err);
+            ipcRenderer.send('session-error', 'Reconnection failed after timeout');
+          }
+        }, 1000);
+        return;
+      }
       
       // Always send session end notification if not a normal disconnect
       if (ev.code !== 1000) {
