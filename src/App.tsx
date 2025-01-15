@@ -70,21 +70,12 @@ function App() {
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem("gemini_api_key") || "";
   });
-  const [showSettings, setShowSettings] = useState(false);
-  const [geminiApiKey, setGeminiApiKey] = useState(apiKey);
-
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
-  // Send initial mode update
-  // useEffect(() => {
-  //   console.log('Initial mode update effect triggered');
-  //   const mode = selectedOption.value as keyof typeof assistantConfigs;
-  //   console.log('Selected mode:', mode);
-  //   const modeName = assistantConfigs[mode].display_name;
-  //   const requiresDisplay = assistantConfigs[mode].requiresDisplay;
-  //   console.log('Sending update-carousel with:', { modeName, requiresDisplay });
-  //   ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
-  // }, [selectedOption]);
+  // Initialize PostHog
+  useEffect(() => {
+    initAnalytics();
+  }, []);
 
   useEffect(() => {
     if (apiKey) {
@@ -92,19 +83,34 @@ function App() {
     }
   }, [apiKey]);
 
-  // Initialize PostHog
+  // Handle settings-related IPC messages
   useEffect(() => {
-    initAnalytics();
-  }, []);
+    const handleGetSettings = () => {
+      ipcRenderer.send('settings-data', { apiKey });
+    };
+
+    const handleUpdateSettings = (event: any, settings: { apiKey: string }) => {
+      if (settings.apiKey) {
+        setApiKey(settings.apiKey);
+        trackEvent('api_key_updated');
+      }
+    };
+
+    ipcRenderer.on('get-settings', handleGetSettings);
+    ipcRenderer.on('update-settings', handleUpdateSettings);
+
+    return () => {
+      ipcRenderer.removeListener('get-settings', handleGetSettings);
+      ipcRenderer.removeListener('update-settings', handleUpdateSettings);
+    };
+  }, [apiKey]);
 
   // Handle mode update requests
   useEffect(() => {
     const handleModeUpdateRequest = () => {
-      console.log('Received mode update request');
       const mode = selectedOption.value as keyof typeof assistantConfigs;
       const modeName = assistantConfigs[mode].display_name;
       const requiresDisplay = assistantConfigs[mode].requiresDisplay;
-      console.log('Sending update-carousel (from request) with:', { modeName, requiresDisplay });
       ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
     };
 
@@ -114,42 +120,17 @@ function App() {
     };
   }, [selectedOption]);
 
+  // Handle API key check
   useEffect(() => {
-    const handleShowSettings = () => {
-      setGeminiApiKey(apiKey);
-      setShowSettings(true);
-    };
-
     const handleCheckApiKey = () => {
       ipcRenderer.send('api-key-check-result', !!apiKey);
     };
 
-    ipcRenderer.on('show-settings', handleShowSettings);
     ipcRenderer.on('check-api-key', handleCheckApiKey);
-
     return () => {
-      ipcRenderer.removeListener('show-settings', handleShowSettings);
       ipcRenderer.removeListener('check-api-key', handleCheckApiKey);
     };
   }, [apiKey]);
-
-  useEffect(() => {
-    if (showSettings) {
-      ipcRenderer.send('show-main-window');
-    } else {
-      ipcRenderer.send('hide-main-window');
-    }
-  }, [showSettings]);
-
-  const handleSettingsSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (geminiApiKey.trim()) {
-      setApiKey(geminiApiKey.trim());
-      setShowSettings(false);
-      trackEvent('api_key_updated');
-      ipcRenderer.send('hide-main-window');
-    }
-  };
 
   return (
     <div className="App">
@@ -159,56 +140,18 @@ function App() {
           <button
             className="action-button settings-button"
             onClick={() => {
-              setGeminiApiKey(apiKey);
-              setShowSettings(!showSettings);
+              ipcRenderer.send('show-settings');
             }}
             title="Settings"
           >
             <span className="material-symbols-outlined">settings</span>
           </button>
 
-          {showSettings && (
-            <>
-              <div className="modal-backdrop" onClick={() => setShowSettings(false)} />
-              <div className="settings-modal">
-                <h2>Settings</h2>
-                <form onSubmit={handleSettingsSubmit}>
-                  <div className="settings-content">
-                    <div className="settings-row">
-                      <label>Gemini API Key</label>
-                      <div className="settings-input-group">
-                        <input
-                          type="password"
-                          placeholder="Enter your API key"
-                          value={geminiApiKey}
-                          onChange={(e) => setGeminiApiKey(e.target.value)}
-                          className="api-key-input"
-                        />
-                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="settings-help-link">
-                          Get API key
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="settings-actions">
-                    <button type="button" onClick={() => setShowSettings(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" disabled={!geminiApiKey.trim()}>
-                      Save
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </>
-          )}
-
-
           <main>
             <div className="main-app-area">
               <Subtitles 
-                tools={[...assistantConfigs[selectedOption.value].tools]}
-                systemInstruction={assistantConfigs[selectedOption.value].systemInstruction}
+                tools={[...assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].tools]}
+                systemInstruction={assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].systemInstruction}
                 assistantMode={selectedOption.value}
               />
               <video
@@ -228,7 +171,8 @@ function App() {
                 onVideoStreamChange={setVideoStream}
                 modes={modes}
                 selectedOption={selectedOption}
-                setSelectedOption={setSelectedOption as (option: { value: string }) => void}
+                setSelectedOption={(option: { value: string }) => 
+                  setSelectedOption(option as ModeOption)}
               >
                 {/* put your own buttons here */}
               </ControlTray>

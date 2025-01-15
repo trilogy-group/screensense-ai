@@ -15,6 +15,7 @@ keyboard.config.autoDelayMs = 0;
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let controlWindow: BrowserWindow | null = null;
+let settingsWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -76,6 +77,12 @@ async function createMainWindow() {
       webSecurity: false,  // Temporarily disable for debugging
       devTools: false
     },
+  });
+
+  // Prevent window from being closed directly
+  mainWindow.on('close', (event) => {
+    event.preventDefault();
+    mainWindow?.hide();
   });
 
   // Open DevTools in a new window
@@ -197,6 +204,25 @@ async function createControlWindow() {
       contextIsolation: false,
       devTools: false,
     },
+  });
+
+  // When control window is closed, close all other windows and quit the app
+  controlWindow.on('closed', () => {
+    // Force close all windows by removing their close event listeners
+    if (mainWindow) {
+      mainWindow.removeAllListeners('close');
+      mainWindow.close();
+    }
+    if (settingsWindow) {
+      settingsWindow.removeAllListeners('close');
+      settingsWindow.close();
+    }
+    if (overlayWindow) {
+      overlayWindow.removeAllListeners('close');
+      overlayWindow.close();
+    }
+    controlWindow = null;
+    app.quit();
   });
 
   // Open DevTools in a new window for control window
@@ -791,7 +817,6 @@ async function createControlWindow() {
               ipcRenderer.send('control-action', { type: 'connect', value: !isConnected });
             } else {
               isConnecting = false;
-              showError('API key is required to connect');
             }
           });
 
@@ -905,6 +930,12 @@ function createOverlayWindow() {
     },
   });
 
+  // Prevent window from being closed directly
+  overlayWindow.on('close', (event) => {
+    event.preventDefault();
+    overlayWindow?.hide();
+  });
+
   overlayWindow.setIgnoreMouseEvents(true);
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   
@@ -985,6 +1016,409 @@ function createOverlayWindow() {
 
   return overlayWindow;
 }
+
+async function createSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show();
+    settingsWindow.focus();
+    return settingsWindow;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 600,
+    height: 400,
+    frame: true,
+    show: false,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  // Prevent window from being closed directly
+  settingsWindow.on('close', (event) => {
+    event.preventDefault();
+    settingsWindow?.hide();
+  });
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+        <style>
+          :root {
+            --primary-color: #2196F3;
+            --primary-hover: #1976D2;
+            --background: #1a1a1a;
+            --surface: #2d2d2d;
+            --text: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+          }
+
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          }
+
+          body {
+            background: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+            font-size: 14px;
+          }
+
+          .container {
+            height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr;
+          }
+
+          .header {
+            padding: var(--spacing-lg) var(--spacing-xl);
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            height: 50px;
+          }
+
+          .header h1 {
+            font-size: 20px;
+            /* font-weight: 600; */
+            color: var(--text);
+            margin: -10px;
+          }
+
+          .content {
+            padding: var(--spacing-xl);
+            overflow-y: auto;
+          }
+
+          .settings-section {
+            max-width: 100%;
+            margin: 0 auto;
+          }
+
+          .settings-group {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+          }
+
+          .settings-group-header {
+            margin-bottom: var(--spacing-md);
+          }
+
+          .settings-group-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: var(--spacing-xs);
+          }
+
+          .settings-group-description {
+            color: var(--text-secondary);
+            font-size: 14px;
+          }
+
+          .form-group {
+            margin-bottom: var(--spacing-lg);
+          }
+
+          .form-group:last-child {
+            margin-bottom: 0;
+          }
+
+          .form-label {
+            display: block;
+            margin-bottom: var(--spacing-sm);
+            color: var(--text);
+            font-weight: 500;
+          }
+
+          .input-group {
+            display: flex;
+            gap: var(--spacing-md);
+            align-items: center;
+          }
+
+          .form-input {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            transition: all 0.2s ease;
+          }
+
+          .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.1);
+          }
+
+          .form-input::placeholder {
+            color: var(--text-secondary);
+          }
+
+          .help-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            color: var(--primary-color);
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+          }
+
+          .help-link:hover {
+            background: rgba(33, 150, 243, 0.1);
+          }
+
+          .help-link svg {
+            margin-left: var(--spacing-xs);
+          }
+
+          .actions {
+            display: flex;
+            justify-content: flex-end;
+            height: 50px;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-lg) var(--spacing-xl);
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+          }
+
+          .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+
+          .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+
+          .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+          }
+
+          .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.15);
+          }
+
+          .btn-primary {
+            background: var(--primary-color);
+            color: white;
+          }
+
+          .btn-primary:hover:not(:disabled) {
+            background: var(--primary-hover);
+          }
+
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .settings-section {
+            animation: fadeIn 0.3s ease;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <header class="header">
+            <h1>Settings</h1>
+          </header>
+
+          <main class="content">
+            <div class="settings-section">
+              <form id="settings-form">
+                <div class="settings-group">                  
+                  <div class="form-group">
+                    <label class="form-label" for="api-key-input">Gemini API Key</label>
+                    <div class="input-group">
+                      <input
+                        type="password"
+                        id="api-key-input"
+                        placeholder="Enter your API key"
+                        class="form-input"
+                      />
+                      <a href="https://aistudio.google.com/apikey" 
+                         target="_blank" 
+                         class="help-link"
+                      >
+                        Get API key
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 8.66667V12.6667C12 13.0203 11.8595 13.3594 11.6095 13.6095C11.3594 13.8595 11.0203 14 10.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V5.33333C2 4.97971 2.14048 4.64057 2.39052 4.39052C2.64057 4.14048 2.97971 4 3.33333 4H7.33333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M10 2H14V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M6.66666 9.33333L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </main>
+
+          <footer class="actions">
+            <button type="button" id="cancel-button" class="btn btn-secondary">Cancel</button>
+            <button type="submit" id="save-button" form="settings-form" class="btn btn-primary">Save Changes</button>
+          </footer>
+        </div>
+
+        <script>
+          const { ipcRenderer } = require('electron');
+          
+          const form = document.getElementById('settings-form');
+          const apiKeyInput = document.getElementById('api-key-input');
+          const saveButton = document.getElementById('save-button');
+          const cancelButton = document.getElementById('cancel-button');
+
+          // Initialize with current API key
+          ipcRenderer.on('init-settings', (event, { apiKey }) => {
+            apiKeyInput.value = apiKey || '';
+            saveButton.disabled = !apiKey;
+          });
+
+          // Enable/disable save button based on input
+          apiKeyInput.addEventListener('input', () => {
+            saveButton.disabled = !apiKeyInput.value.trim();
+          });
+
+          // Handle form submission
+          form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const apiKey = apiKeyInput.value.trim();
+            if (apiKey) {
+              ipcRenderer.send('save-settings', { apiKey });
+            }
+          });
+
+          // Handle cancel button
+          cancelButton.addEventListener('click', () => {
+            ipcRenderer.send('close-settings');
+          });
+        </script>
+      </body>
+    </html>
+  `;
+
+  settingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+  settingsWindow.once('ready-to-show', () => {
+    if (settingsWindow) {
+      settingsWindow.show();
+      // Initialize settings
+      if (mainWindow) {
+        mainWindow.webContents.send('get-settings');
+      }
+    }
+  });
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+
+  return settingsWindow;
+}
+
+// Update show-settings handler to not show main window
+ipcMain.on('show-settings', async () => {
+  await createSettingsWindow();
+});
+
+// Handle API key check
+ipcMain.on('check-api-key', async (event) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  // Create a promise to wait for the API key check result
+  const hasApiKey = await new Promise(resolve => {
+    // We know mainWindow is not null here
+    (mainWindow as BrowserWindow).webContents.send('check-api-key');
+    const handleApiKeyCheck = (_: any, result: boolean) => {
+      ipcMain.removeListener('api-key-check-result', handleApiKeyCheck);
+      resolve(result);
+    };
+    ipcMain.on('api-key-check-result', handleApiKeyCheck);
+  });
+
+  if (!hasApiKey) {
+    // Show settings directly if no API key
+    await createSettingsWindow();
+  }
+});
+
+// Handle API key check result
+ipcMain.on('api-key-check-result', (event, hasApiKey) => {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('api-key-check', hasApiKey);
+  }
+});
+
+// Add IPC handlers for session errors
+ipcMain.on('session-error', (event, errorMessage) => {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('show-error-toast', errorMessage);
+  }
+});
+
+// Add handler for logging to file
+ipcMain.on('log-to-file', (event, message) => {
+  logToFile(message);
+});
+
+// Add new IPC handlers for settings window
+ipcMain.on('settings-data', (event, settings) => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('init-settings', settings);
+  }
+});
+
+ipcMain.on('save-settings', (event, settings) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-settings', settings);
+  }
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.close();
+  }
+});
+
+ipcMain.on('close-settings', () => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.close();
+  }
+});
 
 // Initialize all windows on app ready
 async function initializeApp() {
@@ -1207,15 +1641,6 @@ ipcMain.handle('get-selected-text', async () => {
 });
 
 // Add this with other IPC handlers
-ipcMain.on('show-settings', () => {
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
-    mainWindow.webContents.send('show-settings');
-  }
-});
-
-// Add this with other IPC handlers
 ipcMain.on('show-main-window', () => {
   if (mainWindow) {
     mainWindow.show();
@@ -1226,20 +1651,6 @@ ipcMain.on('show-main-window', () => {
 ipcMain.on('hide-main-window', () => {
   if (mainWindow) {
     mainWindow.hide();
-  }
-});
-
-// Add this with other IPC handlers
-ipcMain.on('check-api-key', (event) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('check-api-key');
-  }
-});
-
-// Add this with other IPC handlers
-ipcMain.on('api-key-check-result', (event, hasApiKey) => {
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('api-key-check', hasApiKey);
   }
 });
 
