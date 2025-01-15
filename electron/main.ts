@@ -23,6 +23,39 @@ function logToFile(message: string) {
   fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
 }
 
+// Add settings storage functions
+function getSettingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function loadSettings() {
+  try {
+    const settingsPath = getSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    logToFile(`Error loading settings: ${error}`);
+  }
+  return { apiKey: '' };
+}
+
+function saveSettings(settings: any) {
+  try {
+    const settingsPath = getSettingsPath();
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    logToFile('Settings saved successfully');
+  } catch (error) {
+    logToFile(`Error saving settings: ${error}`);
+  }
+}
+
+// Add handler for getting saved settings
+ipcMain.handle('get-saved-settings', async () => {
+  return loadSettings();
+});
+
 async function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;  // Return existing window if it's still valid
@@ -171,6 +204,9 @@ async function createMainWindow() {
     // Log when the page finishes loading
     mainWindow.webContents.on('did-finish-load', () => {
       logToFile('Page finished loading');
+      // Send saved settings to the renderer
+      const savedSettings = loadSettings();
+      mainWindow?.webContents.send('init-saved-settings', savedSettings);
     });
 
     // Log any errors that occur during page load
@@ -888,6 +924,16 @@ async function createControlWindow() {
               errorToast.classList.remove('visible');
             }, 3000);
           });
+
+          // Handle settings update (just enable/disable connect button)
+          ipcRenderer.on('settings-updated', (event, hasApiKey) => {
+            isConnecting = false;
+            if (!hasApiKey) {
+              connectButton.querySelector('span').textContent = 'play_arrow';
+              connectButton.querySelector('span').classList.remove('filled');
+              actionsNav.classList.add('disabled');
+            }
+          });
         </script>
       </body>
     </html>
@@ -1339,10 +1385,9 @@ async function createSettingsWindow() {
   settingsWindow.once('ready-to-show', () => {
     if (settingsWindow) {
       settingsWindow.show();
-      // Initialize settings
-      if (mainWindow) {
-        mainWindow.webContents.send('get-settings');
-      }
+      // Initialize settings with saved data
+      const savedSettings = loadSettings();
+      settingsWindow.webContents.send('init-settings', savedSettings);
     }
   });
 
@@ -1406,11 +1451,22 @@ ipcMain.on('settings-data', (event, settings) => {
 });
 
 ipcMain.on('save-settings', (event, settings) => {
+  // Save settings to file
+  saveSettings(settings);
+  
+  // Send settings to main window
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-settings', settings);
   }
+
+  // Just notify control window about API key availability without starting session
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('settings-updated', !!settings.apiKey);
+  }
+
+  // Close settings window
   if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.close();
+    settingsWindow.hide();
   }
 });
 
@@ -1420,11 +1476,20 @@ ipcMain.on('close-settings', () => {
   }
 });
 
-// Initialize all windows on app ready
+// Initialize app with saved settings
 async function initializeApp() {
+  // Load saved settings first
+  const savedSettings = loadSettings();
+  
+  // Create windows
   await createMainWindow();
   createOverlayWindow();
   createControlWindow();
+
+  // Send saved settings to main window
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('init-saved-settings', savedSettings);
+  }
 }
 
 // Single app initialization point

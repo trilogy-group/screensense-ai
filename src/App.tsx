@@ -67,9 +67,7 @@ function VideoCanvas({ videoRef, videoStream }: { videoRef: React.RefObject<HTML
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem("gemini_api_key") || "";
-  });
+  const [apiKey, setApiKey] = useState<string>("");
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
   // Initialize PostHog
@@ -77,31 +75,65 @@ function App() {
     initAnalytics();
   }, []);
 
+  // Load saved settings when app starts
   useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem("gemini_api_key", apiKey);
-    }
-  }, [apiKey]);
+    const loadSavedSettings = async () => {
+      try {
+        const savedSettings = await ipcRenderer.invoke('get-saved-settings');
+        console.log('Loaded saved settings:', savedSettings);
+        if (savedSettings?.apiKey) {
+          setApiKey(savedSettings.apiKey);
+        }
+      } catch (error) {
+        console.error('Error loading saved settings:', error);
+      }
+    };
+    loadSavedSettings();
+  }, []);
 
   // Handle settings-related IPC messages
   useEffect(() => {
     const handleGetSettings = () => {
+      console.log('Sending current settings:', { apiKey });
       ipcRenderer.send('settings-data', { apiKey });
     };
 
     const handleUpdateSettings = (event: any, settings: { apiKey: string }) => {
-      if (settings.apiKey) {
+      console.log('Received settings update:', settings);
+      if (settings?.apiKey) {
         setApiKey(settings.apiKey);
         trackEvent('api_key_updated');
       }
     };
 
+    const handleInitSavedSettings = (event: any, settings: { apiKey: string }) => {
+      console.log('Received initial settings:', settings);
+      if (settings?.apiKey) {
+        setApiKey(settings.apiKey);
+      }
+    };
+
     ipcRenderer.on('get-settings', handleGetSettings);
     ipcRenderer.on('update-settings', handleUpdateSettings);
+    ipcRenderer.on('init-saved-settings', handleInitSavedSettings);
 
     return () => {
       ipcRenderer.removeListener('get-settings', handleGetSettings);
       ipcRenderer.removeListener('update-settings', handleUpdateSettings);
+      ipcRenderer.removeListener('init-saved-settings', handleInitSavedSettings);
+    };
+  }, [apiKey]);
+
+  // Handle API key check
+  useEffect(() => {
+    const handleCheckApiKey = () => {
+      console.log('Checking API key:', apiKey);
+      ipcRenderer.send('api-key-check-result', !!apiKey);
+    };
+
+    ipcRenderer.on('check-api-key', handleCheckApiKey);
+    return () => {
+      ipcRenderer.removeListener('check-api-key', handleCheckApiKey);
     };
   }, [apiKey]);
 
@@ -119,18 +151,6 @@ function App() {
       ipcRenderer.removeListener('request-mode-update', handleModeUpdateRequest);
     };
   }, [selectedOption]);
-
-  // Handle API key check
-  useEffect(() => {
-    const handleCheckApiKey = () => {
-      ipcRenderer.send('api-key-check-result', !!apiKey);
-    };
-
-    ipcRenderer.on('check-api-key', handleCheckApiKey);
-    return () => {
-      ipcRenderer.removeListener('check-api-key', handleCheckApiKey);
-    };
-  }, [apiKey]);
 
   return (
     <div className="App">
