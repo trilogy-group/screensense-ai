@@ -72,7 +72,16 @@ function App() {
 
   // Initialize PostHog
   useEffect(() => {
-    initAnalytics();
+    const initAnalyticsWithMachineId = async () => {
+      try {
+        const machineId = await ipcRenderer.invoke('get-machine-id');
+        initAnalytics(machineId);
+      } catch (error) {
+        console.error('Failed to initialize analytics:', error);
+      }
+    };
+    
+    initAnalyticsWithMachineId();
   }, []);
 
   // Load saved settings when app starts
