@@ -96,7 +96,7 @@ async function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    frame: true,
+    frame: false,
     show: false,
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     // For macOS, set the app icon explicitly
@@ -456,33 +456,7 @@ async function createControlWindow() {
             opacity: 1;
           }
           .message-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease-in-out;
-            z-index: 1000;
-          }
-          .message-content {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 8px 12px;
-            border-radius: 4px;
-            color: white;
-            font-size: 12px;
-            text-align: center;
-            max-width: 90%;
-            backdrop-filter: blur(8px);
-          }
-          .message-overlay.visible {
-            opacity: 1;
-            pointer-events: auto;
+            display: none;
           }
           .key-button {
             position: absolute;
@@ -670,12 +644,6 @@ async function createControlWindow() {
             <span class="material-symbols-outlined">close</span>
           </button>
 
-          <div class="message-overlay">
-            <div class="message-content">
-              Please select a screen to share from the main window
-            </div>
-          </div>
-
           <section class="control-tray">
             <div class="control-tray-container">
               <nav class="actions-nav disabled">
@@ -729,7 +697,6 @@ async function createControlWindow() {
           const webcamButton = document.querySelector('.webcam-button');
           const connectButton = document.querySelector('.connect-button');
           const actionsNav = document.querySelector('.actions-nav');
-          const messageOverlay = document.querySelector('.message-overlay');
           const closeButton = document.querySelector('.close-button');
           const prevButton = document.querySelector('.prev-button');
           const nextButton = document.querySelector('.next-button');
@@ -816,10 +783,8 @@ async function createControlWindow() {
               screenButton.querySelector('span').textContent = 'present_to_all';
               screenButton.querySelector('span').classList.remove('filled');
               ipcRenderer.send('control-action', { type: 'screen', value: false });
-              messageOverlay.classList.remove('visible');
             } else {
               ipcRenderer.send('control-action', { type: 'screen', value: true });
-              messageOverlay.classList.add('visible');
             }
           });
 
@@ -858,7 +823,6 @@ async function createControlWindow() {
 
           // Handle screen share result
           ipcRenderer.on('screen-share-result', (event, success) => {
-            messageOverlay.classList.remove('visible');
             if (success) {
               isScreenSharing = true;
               screenButton.querySelector('span').textContent = 'cancel_presentation';
@@ -873,11 +837,6 @@ async function createControlWindow() {
             isWebcamOn = state.isWebcamOn;
             isConnected = state.isConnected;
             isConnecting = false;
-
-            // If screen sharing was stopped from main window, hide the message
-            if (!isScreenSharing) {
-              messageOverlay.classList.remove('visible');
-            }
 
             // Update button states
             micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
