@@ -12,11 +12,21 @@ declare global {
     }
 }
 
+// Track if analytics have been initialized
+let isAnalyticsInitialized = false;
+let cachedMachineId: string  = 'not-initialized';
+
 // Initialize PostHog
-export const initAnalytics = () => {
+export const initAnalytics = (machineId: string) => {
+    // Prevent multiple initializations
+    if (isAnalyticsInitialized) {
+        return;
+    }
+
     // Only initialize in production
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' || true) {
         console.log("initializing analytics");
+        cachedMachineId = machineId;
         posthog.init(
             process.env.REACT_APP_POSTHOG_KEY || 'your-project-key',
             {
@@ -30,6 +40,7 @@ export const initAnalytics = () => {
             }
         )
         
+        isAnalyticsInitialized = true;
         // Track app launch and set up session tracking
         trackAppLaunch()
     } else {
@@ -38,26 +49,32 @@ export const initAnalytics = () => {
 }
 
 // Track app launch with system info
-const trackAppLaunch = () => {
+const trackAppLaunch = async () => {
+    const currentDate = new Date().toISOString().split('T')[0];
+    const launchKey = `app_previously_launched_${cachedMachineId}_${currentDate}`;
+    
     const systemInfo = {
         os: window?.electron?.platform || navigator.platform,
         osVersion: window?.electron?.osVersion,
         arch: window?.electron?.arch,
         appVersion: window?.electron?.appVersion,
-        isFirstLaunch: !localStorage.getItem('app_previously_launched')
+        machineId: cachedMachineId,
+        isFirstLaunch: !localStorage.getItem(launchKey)
     }
     
-    // Mark that the app has been launched before
+    // Mark that the app has been launched today for this machine
     if (systemInfo.isFirstLaunch) {
-        localStorage.setItem('app_previously_launched', 'true')
+        localStorage.setItem(launchKey, 'true')
         trackEvent('first_app_launch', systemInfo)
     }
     
-    trackEvent('app_launched', systemInfo)
-
-    // Set up session tracking
-    trackEvent('session_started', systemInfo)
-    setupSessionTracking()
+    // Use session storage to prevent duplicate launch events in the same session
+    if (!sessionStorage.getItem('app_launched')) {
+        sessionStorage.setItem('app_launched', 'true');
+        trackEvent('app_launched', systemInfo)
+        trackEvent('session_started', systemInfo)
+        setupSessionTracking()
+    }
 }
 
 // Track user session duration
@@ -69,7 +86,8 @@ const setupSessionTracking = () => {
         const sessionDuration = Date.now() - sessionStartTime
         trackEvent('session_ended', {
             duration_ms: sessionDuration,
-            duration_minutes: Math.round(sessionDuration / 60000)
+            duration_minutes: Math.round(sessionDuration / 60000),
+            machineId: cachedMachineId
         })
     })
 }
@@ -78,7 +96,8 @@ const setupSessionTracking = () => {
 export const trackEvent = (eventName: string, properties?: Record<string, any>) => {
     const eventProperties = {
         ...properties,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        machineId: cachedMachineId
     }
     posthog.capture(eventName, eventProperties)
 }

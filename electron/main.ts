@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents, clipboard, n
 import * as path from 'path';
 import * as fs from 'fs';
 import { keyboard, Key } from '@nut-tree-fork/nut-js';
+import { execSync } from 'child_process';
+import * as crypto from 'crypto';
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -1257,4 +1259,35 @@ ipcMain.on('session-error', (event, errorMessage) => {
 // Add handler for logging to file
 ipcMain.on('log-to-file', (event, message) => {
   logToFile(message);
+});
+
+// Get unique machine ID
+async function getMachineId(): Promise<string> {
+    try {
+        if (process.platform === 'darwin') {
+            // Try to get hardware UUID on macOS
+            const output = execSync('ioreg -d2 -c IOPlatformExpertDevice | awk -F\\" \'/IOPlatformUUID/{print $(NF-1)}\'').toString().trim();
+            return output;
+        } else if (process.platform === 'win32') {
+            // Get Windows machine GUID
+            const output = execSync('wmic csproduct get uuid').toString();
+            const match = output.match(/[A-F0-9]{8}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{12}/i);
+            return match ? match[0] : '';
+        } else {
+            // For Linux and others, try to get machine-id
+            const machineId = fs.readFileSync('/etc/machine-id', 'utf8').trim();
+            return machineId;
+        }
+    } catch (error) {
+        console.error('Error getting machine ID:', error);
+        // Fallback: Generate a persistent hash based on available system info
+        const systemInfo = `${app.getPath('home')}-${process.platform}-${process.arch}`;
+        return crypto.createHash('sha256').update(systemInfo).digest('hex');
+    }
+}
+
+// Add this with other IPC handlers
+ipcMain.handle('get-machine-id', async () => {
+    const machineId = await getMachineId();
+    return machineId;
 }); 
