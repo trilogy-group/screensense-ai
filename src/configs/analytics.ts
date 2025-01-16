@@ -24,7 +24,7 @@ export const initAnalytics = (machineId: string) => {
     }
 
     // Only initialize in production
-    if (process.env.NODE_ENV === 'production' || true) {
+    if (process.env.NODE_ENV === 'production') {
         console.log("initializing analytics");
         cachedMachineId = machineId;
         posthog.init(
