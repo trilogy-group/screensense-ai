@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, memo } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { ToolCall } from "../../multimodal-live-types";
 import vegaEmbed from "vega-embed";
-import { trackEvent } from "../../configs/analytics";
+import { trackEvent } from "../../shared/analytics";
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {

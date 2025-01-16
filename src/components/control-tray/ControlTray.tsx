@@ -25,7 +25,7 @@ import { AudioRecorder } from "../../lib/audio-recorder";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 import { assistantConfigs } from "../../configs/assistant-configs";
-import { trackEvent } from "../../configs/analytics";
+import { trackEvent } from "../../shared/analytics";
 import Toast from "../toast/Toast";
 const { ipcRenderer } = window.require('electron');
 

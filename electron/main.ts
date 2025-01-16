@@ -58,6 +58,30 @@ ipcMain.handle('get-saved-settings', async () => {
   return loadSettings();
 });
 
+function getFirstLaunchPath(machineId: string) {
+  return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
+}
+
+function checkFirstLaunch(machineId: string) {
+  const firstLaunchPath = getFirstLaunchPath(machineId);
+  const isFirstLaunch = !fs.existsSync(firstLaunchPath);
+  
+  if (isFirstLaunch) {
+    try {
+      fs.writeFileSync(firstLaunchPath, new Date().toISOString());
+    } catch (error) {
+      logToFile(`Error creating first launch file: ${error}`);
+    }
+  }
+  
+  return isFirstLaunch;
+}
+
+ipcMain.handle('check-first-launch', async () => {
+  const machineId = await getMachineId();
+  return checkFirstLaunch(machineId);
+});
+
 async function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;  // Return existing window if it's still valid

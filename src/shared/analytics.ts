@@ -1,4 +1,5 @@
 import posthog from 'posthog-js'
+const { ipcRenderer } = window.require('electron');
 
 // Define Electron window interface
 declare global {
@@ -14,7 +15,7 @@ declare global {
 
 // Track if analytics have been initialized
 let isAnalyticsInitialized = false;
-let cachedMachineId: string  = 'not-initialized';
+let cachedMachineId: string = 'not-initialized';
 
 // Initialize PostHog
 export const initAnalytics = (machineId: string) => {
@@ -50,8 +51,8 @@ export const initAnalytics = (machineId: string) => {
 
 // Track app launch with system info
 const trackAppLaunch = async () => {
-    const currentDate = new Date().toISOString().split('T')[0];
-    const launchKey = `app_previously_launched_${cachedMachineId}_${currentDate}`;
+    // Check if this is first launch by asking main process
+    const isFirstLaunch = await ipcRenderer.invoke('check-first-launch');
     
     const systemInfo = {
         os: window?.electron?.platform || navigator.platform,
@@ -59,13 +60,13 @@ const trackAppLaunch = async () => {
         arch: window?.electron?.arch,
         appVersion: window?.electron?.appVersion,
         machineId: cachedMachineId,
-        isFirstLaunch: !localStorage.getItem(launchKey)
+        isFirstLaunch
     }
     
-    // Mark that the app has been launched today for this machine
-    if (systemInfo.isFirstLaunch) {
-        localStorage.setItem(launchKey, 'true')
+    if (isFirstLaunch) {
         trackEvent('first_app_launch', systemInfo)
+    } else {
+        console.log("not first launch");
     }
     
     // Use session storage to prevent duplicate launch events in the same session
