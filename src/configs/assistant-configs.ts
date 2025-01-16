@@ -1,7 +1,7 @@
 import { type Tool, SchemaType } from "@google/generative-ai";
 
 // Tool configurations
-export const translationTools: Tool[] = [
+const translationTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -26,7 +26,8 @@ export const translationTools: Tool[] = [
   },
 ];
 
-export const graphingTools: Tool[] = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const graphingTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -47,7 +48,7 @@ export const graphingTools: Tool[] = [
   },
 ];
 
-export const readWriteTools: Tool[] = [
+const readWriteTools: Tool[] = [
   {
     functionDeclarations: [
       
@@ -71,7 +72,28 @@ export const readWriteTools: Tool[] = [
       },
     ],
   },
-]
+];
+
+const interactionTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "find_element",
+        description: "Locates and returns the coordinates of a specific element on the screen",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            description: {
+              type: SchemaType.STRING,
+              description: "Description of the element to find (e.g., 'the submit button', 'the search box', etc.)"
+            }
+          },
+          required: ["description"]
+        }
+      },
+    ],
+  },
+];
 
 // Mode-based configurations
 export const assistantConfigs = {
@@ -210,6 +232,28 @@ For example:
 If the user asks, "What does this formula mean?" provide an explanation of the formula's components and its purpose, followed by a hint about how it might apply to the problem at hand.
 If the user asks, "How do I solve this equation?" guide them through the process step-by-step without solving it outright.
 Your ultimate goal is to help users build a deeper understanding of the subject matter, develop problem-solving skills, and boost their confidence in learning independently.
+    `
+  },
+  element_finder: {
+    display_name: "Element Finder",
+    tools: [...interactionTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in Element Finder Mode.
+
+    Primary Purpose: Help users locate elements on their screen.
+
+    Your Tools:
+    - You can find and return the coordinates of any element on the screen.
+    - Provide clear, descriptive language when searching for elements.
+    - Only you should invoke the tools; do not instruct the user to do so.
+    - The analysis may take a few seconds, so be patient.
+    - Do not invoke the tool multiple times in a loop.
+
+    Key Behaviors:
+    1. When asked to find something, use precise, descriptive language. Describe the element in detail, what it looks like, and approximately where it is on the screen.
+    2. If an element is found, report its coordinates clearly.
+    3. If an element is not found, suggest trying with a different description.
+    4. Be patient during analysis and keep the user informed.
     `
   }
 } as const;

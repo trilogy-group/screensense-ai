@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 import "./App.scss";
 import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
 // import SidePanel from "./components/side-panel/SidePanel";
@@ -21,53 +21,81 @@ const modes: ModeOption[] = Object.keys(assistantConfigs).map(key => ({
   value: key as AssistantConfigMode
 }));
 
-function VideoCanvas({ videoRef, videoStream }: { videoRef: React.RefObject<HTMLVideoElement>, videoStream: MediaStream | null }) {
-  const renderCanvasRef = useRef<HTMLCanvasElement>(null);
-  const { client, connected } = useLiveAPIContext();
+export interface VideoCanvasHandle {
+  captureScreenshot: () => string | null;
+}
 
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = videoStream;
-    }
+const VideoCanvas = forwardRef<VideoCanvasHandle, { videoRef: React.RefObject<HTMLVideoElement>, videoStream: MediaStream | null }>(
+  ({ videoRef, videoStream }, ref) => {
+    const renderCanvasRef = useRef<HTMLCanvasElement>(null);
+    const { client, connected } = useLiveAPIContext();
 
-    let timeoutId = -1;
-
-    function sendVideoFrame() {
+    // Add method to capture screenshot
+    const captureScreenshot = useCallback(() => {
       const video = videoRef.current;
       const canvas = renderCanvasRef.current;
 
       if (!video || !canvas) {
-        return;
+        return null;
       }
 
       const ctx = canvas.getContext("2d")!;
-      canvas.width = video.videoWidth * 0.50;
-      canvas.height = video.videoHeight * 0.50;
-      if (canvas.width + canvas.height > 0) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL("image/jpeg", 1.0);
-        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
-        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
-      }
-      if (connected) {
-        timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
-      }
-    }
-    if (videoStream !== null && connected) {
-      requestAnimationFrame(sendVideoFrame);
-    }
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [videoStream, connected, client, videoRef]);
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 1.0);
+    }, [videoRef]);
 
-  return <canvas style={{ display: "none" }} ref={renderCanvasRef} />;
-}
+    // Expose the capture method through ref
+    useImperativeHandle(ref, () => ({
+      captureScreenshot
+    }));
+
+    useEffect(() => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = videoStream;
+      }
+
+      let timeoutId = -1;
+
+      function sendVideoFrame() {
+        const video = videoRef.current;
+        const canvas = renderCanvasRef.current;
+
+        if (!video || !canvas) {
+          return;
+        }
+
+        const ctx = canvas.getContext("2d")!;
+        canvas.width = video.videoWidth * 0.50;
+        canvas.height = video.videoHeight * 0.50;
+        if (canvas.width + canvas.height > 0) {
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          const base64 = canvas.toDataURL("image/jpeg", 1.0);
+          const data = base64.slice(base64.indexOf(",") + 1, Infinity);
+          client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
+        }
+        if (connected) {
+          timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
+        }
+      }
+      if (videoStream !== null && connected) {
+        requestAnimationFrame(sendVideoFrame);
+      }
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }, [videoStream, connected, client, videoRef]);
+
+    return <canvas style={{ display: "none" }} ref={renderCanvasRef} />;
+  }
+);
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoCanvasRef = useRef<VideoCanvasHandle>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const [apiKey, setApiKey] = useState<string>("");
+  const [geminiApiKey, setGeminiApiKey] = useState<string>("");
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
   // Initialize PostHog
@@ -90,8 +118,8 @@ function App() {
       try {
         const savedSettings = await ipcRenderer.invoke('get-saved-settings');
         console.log('Loaded saved settings:', savedSettings);
-        if (savedSettings?.apiKey) {
-          setApiKey(savedSettings.apiKey);
+        if (savedSettings?.geminiApiKey) {
+          setGeminiApiKey(savedSettings.geminiApiKey);
         }
       } catch (error) {
         console.error('Error loading saved settings:', error);
@@ -103,22 +131,22 @@ function App() {
   // Handle settings-related IPC messages
   useEffect(() => {
     const handleGetSettings = () => {
-      console.log('Sending current settings:', { apiKey });
-      ipcRenderer.send('settings-data', { apiKey });
+      console.log('Sending current settings:', { geminiApiKey });
+      ipcRenderer.send('settings-data', { geminiApiKey });
     };
 
-    const handleUpdateSettings = (event: any, settings: { apiKey: string }) => {
+    const handleUpdateSettings = (event: any, settings: { geminiApiKey: string }) => {
       console.log('Received settings update:', settings);
-      if (settings?.apiKey) {
-        setApiKey(settings.apiKey);
+      if (settings?.geminiApiKey) {
+        setGeminiApiKey(settings.geminiApiKey);
         trackEvent('api_key_updated');
       }
     };
 
-    const handleInitSavedSettings = (event: any, settings: { apiKey: string }) => {
+    const handleInitSavedSettings = (event: any, settings: { geminiApiKey: string }) => {
       console.log('Received initial settings:', settings);
-      if (settings?.apiKey) {
-        setApiKey(settings.apiKey);
+      if (settings?.geminiApiKey) {
+        setGeminiApiKey(settings.geminiApiKey);
       }
     };
 
@@ -131,20 +159,20 @@ function App() {
       ipcRenderer.removeListener('update-settings', handleUpdateSettings);
       ipcRenderer.removeListener('init-saved-settings', handleInitSavedSettings);
     };
-  }, [apiKey]);
+  }, [geminiApiKey]);
 
   // Handle API key check
   useEffect(() => {
     const handleCheckApiKey = () => {
-      console.log('Checking API key:', apiKey);
-      ipcRenderer.send('api-key-check-result', !!apiKey);
+      console.log('Checking API key:', geminiApiKey);
+      ipcRenderer.send('api-key-check-result', !!geminiApiKey);
     };
 
     ipcRenderer.on('check-api-key', handleCheckApiKey);
     return () => {
       ipcRenderer.removeListener('check-api-key', handleCheckApiKey);
     };
-  }, [apiKey]);
+  }, [geminiApiKey]);
 
   // Handle mode update requests
   useEffect(() => {
@@ -161,11 +189,15 @@ function App() {
     };
   }, [selectedOption]);
 
+  const handleScreenshot = useCallback(() => {
+    return videoCanvasRef.current?.captureScreenshot() || null;
+  }, []);
+
   return (
     <div className="App">
-      <LiveAPIProvider url={uri} apiKey={apiKey}>
+      <LiveAPIProvider url={uri} apiKey={geminiApiKey}>
         <div className="streaming-console">
-          <VideoCanvas videoRef={videoRef} videoStream={videoStream} />
+          <VideoCanvas ref={videoCanvasRef} videoRef={videoRef} videoStream={videoStream} />
           <button
             className="action-button settings-button"
             onClick={() => {
@@ -182,6 +214,7 @@ function App() {
                 tools={[...assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].tools]}
                 systemInstruction={assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].systemInstruction}
                 assistantMode={selectedOption.value}
+                onScreenshot={handleScreenshot}
               />
               <video
                 className={cn("stream", {

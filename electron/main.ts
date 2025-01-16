@@ -18,6 +18,7 @@ let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let markerWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -40,7 +41,7 @@ function loadSettings() {
   } catch (error) {
     logToFile(`Error loading settings: ${error}`);
   }
-  return { apiKey: '' };
+  return { geminiApiKey: '', anthropicApiKey: '' };
 }
 
 function saveSettings(settings: any) {
@@ -660,6 +661,21 @@ async function createControlWindow() {
           
           .error-toast.visible {
             opacity: 1;
+          }
+
+          .marker {
+            width: 101px;
+            height: 101px;
+            background: rgba(255, 0, 0, 0.3);
+            border: 2px solid rgba(255, 0, 0, 0.8);
+            position: absolute;
+            animation: pulse 1s infinite;
+            box-sizing: border-box;
+          }
+          @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.4; }
           }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
@@ -1300,15 +1316,38 @@ async function createSettingsWindow() {
               <form id="settings-form">
                 <div class="settings-group">                  
                   <div class="form-group">
-                    <label class="form-label" for="api-key-input">Gemini API Key</label>
+                    <label class="form-label" for="gemini-api-key-input">Gemini API Key</label>
                     <div class="input-group">
                       <input
                         type="password"
-                        id="api-key-input"
+                        id="gemini-api-key-input"
                         placeholder="Enter your API key"
                         class="form-input"
                       />
                       <a href="https://aistudio.google.com/apikey" 
+                         target="_blank" 
+                         class="help-link"
+                      >
+                        Get API key
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 8.66667V12.6667C12 13.0203 11.8595 13.3594 11.6095 13.6095C11.3594 13.8595 11.0203 14 10.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V5.33333C2 4.97971 2.14048 4.64057 2.39052 4.39052C2.64057 4.14048 2.97971 4 3.33333 4H7.33333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M10 2H14V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M6.66666 9.33333L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="anthropic-api-key-input">Anthropic API Key</label>
+                    <div class="input-group">
+                      <input
+                        type="password"
+                        id="anthropic-api-key-input"
+                        placeholder="Enter your Anthropic API key"
+                        class="form-input"
+                      />
+                      <a href="https://console.anthropic.com/" 
                          target="_blank" 
                          class="help-link"
                       >
@@ -1336,27 +1375,33 @@ async function createSettingsWindow() {
           const { ipcRenderer } = require('electron');
           
           const form = document.getElementById('settings-form');
-          const apiKeyInput = document.getElementById('api-key-input');
+          const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+          const anthropicApiKeyInput = document.getElementById('anthropic-api-key-input');
           const saveButton = document.getElementById('save-button');
           const cancelButton = document.getElementById('cancel-button');
 
-          // Initialize with current API key
-          ipcRenderer.on('init-settings', (event, { apiKey }) => {
-            apiKeyInput.value = apiKey || '';
-            saveButton.disabled = !apiKey;
+          // Initialize with current API keys
+          ipcRenderer.on('init-settings', (event, { geminiApiKey, anthropicApiKey }) => {
+            geminiApiKeyInput.value = geminiApiKey || '';
+            anthropicApiKeyInput.value = anthropicApiKey || '';
+            saveButton.disabled = !geminiApiKey;
           });
 
           // Enable/disable save button based on input
-          apiKeyInput.addEventListener('input', () => {
-            saveButton.disabled = !apiKeyInput.value.trim();
-          });
+          const checkInputs = () => {
+            const hasGeminiKey = geminiApiKeyInput.value.trim();
+            saveButton.disabled = !hasGeminiKey;
+          };
+          
+          geminiApiKeyInput.addEventListener('input', checkInputs);
 
           // Handle form submission
           form.addEventListener('submit', (e) => {
             e.preventDefault();
-            const apiKey = apiKeyInput.value.trim();
-            if (apiKey) {
-              ipcRenderer.send('save-settings', { apiKey });
+            const geminiApiKey = geminiApiKeyInput.value.trim();
+            const anthropicApiKey = anthropicApiKeyInput.value.trim();
+            if (geminiApiKey) {
+              ipcRenderer.send('save-settings', { geminiApiKey, anthropicApiKey });
             }
           });
 
@@ -1750,4 +1795,70 @@ async function getMachineId(): Promise<string> {
 ipcMain.handle('get-machine-id', async () => {
     const machineId = await getMachineId();
     return machineId;
+});
+
+function showCoordinateMarker(x: number, y: number) {
+  if (markerWindow && !markerWindow.isDestroyed()) {
+    markerWindow.close();
+  }
+
+  markerWindow = new BrowserWindow({
+    width: 300,
+    height: 300,
+    x: x - 150, // Center the marker on the coordinates (300/2 = 150)
+    y: y - 150,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const markerHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+          }
+          .marker {
+            width: 500px;
+            height: 500px;
+            background: rgba(255, 0, 0, 0.3);
+            border: 2px solid rgba(255, 0, 0, 0.8);
+            position: absolute;
+            animation: pulse 1s infinite;
+            box-sizing: border-box;
+          }
+          @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.4; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="marker"></div>
+        <script>
+          // Auto-close after 10 seconds
+          setTimeout(() => window.close(), 10000);
+        </script>
+      </body>
+    </html>
+  `;
+
+  markerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`);
+  markerWindow.setIgnoreMouseEvents(true);
+}
+
+// Add IPC handler for showing coordinates
+ipcMain.on('show-coordinates', (_, x: number, y: number) => {
+  showCoordinateMarker(x, y);
 }); 
