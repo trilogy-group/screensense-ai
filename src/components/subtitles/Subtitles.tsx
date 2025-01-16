@@ -39,8 +39,10 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
     const onToolCall = async (toolCall: ToolCall) => {
       console.log(`got toolcall`, toolCall);
       let hasResponded = false;
+
+      // Process function calls sequentially with delay
       for (const fc of toolCall.functionCalls) {
-        console.log(`got toolcall`, toolCall);
+        console.log(`processing function call`, fc);
         // Track the tool invocation
         trackEvent('tool_used', {
           tool_name: fc.name,
@@ -50,48 +52,45 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
         // Log tool usage to file
         ipcRenderer.send('log-to-file', `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`);
 
-        if (fc.name === "render_subtitles") {
-          const text = (fc.args as any).subtitles;
-          setSubtitles(text);
-        } else if (fc.name === "remove_subtitles") {
-          setSubtitles("");
-          ipcRenderer.send('remove-subtitles');
-        } else if (fc.name === "render_graph") {
-          const json = (fc.args as any).json_graph;
-          setGraphJson(json);
-        } else if (fc.name === "write_text") {
-          const content = (fc.args as any).content;
-          ipcRenderer.send('write-text', content);
-        } else if (fc.name === "read_text") {
-          const selectedText = await ipcRenderer.invoke('read-selection');
-          console.log("selectedText received", selectedText);
-          // Send an empty response to the tool call, and then send the selected text to the client as a user message
-          // This is because Gemini often ignores the tool call response, or hallucinates the response
-          client.sendToolResponse({
-            functionResponses: toolCall.functionCalls.map((fc) => ({
-              response: { output: { success: true } },
-              id: fc.id,
-            })),
-          });
-          client.send([{ text: `Found the following text: ${selectedText}` }]);
-          ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
-          hasResponded = true;
-        } else if (fc.name === "click") {
-          const x = 700;
-          const y = 25;
-          ipcRenderer.send('click', x, y);
-        } else if (fc.name === "select_content") {
-          const x1 = 300;
-          const y1 = 150;
-          const x2 = 700;
-          const y2 = 700;
-          ipcRenderer.send('select-content', x1, y1, x2, y2);
-        } else if (fc.name === "scroll") {
-          const direction = "up"
-          ipcRenderer.send('scroll', direction, 50);
+        switch (fc.name) {
+          case "render_subtitles":
+            setSubtitles((fc.args as any).subtitles);
+            break;
+          case "remove_subtitles":
+            setSubtitles("");
+            ipcRenderer.send('remove-subtitles');
+            break;
+          case "render_graph":
+            setGraphJson((fc.args as any).json_graph);
+            break;
+          case "write_text":
+            ipcRenderer.send('write-text', (fc.args as any).content);
+            break;
+          case "read_text":
+            const selectedText = await ipcRenderer.invoke('read-selection');
+            console.log("selectedText received", selectedText);
+            client.send([{ text: `Found the following text: ${selectedText}` }]);
+            ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
+            hasResponded = true;
+            break;
+          case "click":
+            ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
+            break;
+          case "select_content":
+            ipcRenderer.send('select-content', 
+              (fc.args as any).x1 || 500, 
+              (fc.args as any).y1 || 500, 
+              (fc.args as any).x2 || 1000, 
+              (fc.args as any).y2 || 1000
+            );
+            break;
+          case "scroll":
+            ipcRenderer.send('scroll', (fc.args as any).direction || "up", (fc.args as any).amount || 50);
+            break;
         }
       }
-
+      // Add delay between function calls
+      await new Promise(resolve => setTimeout(resolve, 2000));
       if (toolCall.functionCalls.length && !hasResponded) {
         client.sendToolResponse({
           functionResponses: toolCall.functionCalls.map((fc) => ({

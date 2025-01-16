@@ -193,14 +193,23 @@ function ControlTray({
     });
   }, [modes.length]);
 
+  // Add an effect to send the initial message when connection is established
+  useEffect(() => {
+    if (connected && client) {
+      // Send initial system message about screen sharing state
+      client.send([{ text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Welcome to Screense AI'" }]);
+    }
+  }, [connected, client]);
+
   const handleConnect = () => {
     if (!connected) {
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
       });
+      connect();
+    } else {
+      disconnect();
     }
-    
-    connected ? disconnect() : connect();
   };
 
   // Handle carousel actions from control window
@@ -225,10 +234,14 @@ function ControlTray({
         case 'screen':
           if (action.value) {
             // Start screen sharing
-            changeStreams(screenCapture)();
+            changeStreams(screenCapture)().then(() => {
+              // Send message to Gemini that screen sharing is enabled
+              client.send([{ text: "Screen sharing has been enabled. You can now use screen data for evaluation. If you have understood, reply with 'Screen sharing enabled'" }]);
+            });
           } else {
-            // Stop screen sharing
+            // Stop screen sharing and notify Gemini
             changeStreams()();
+            client.send([{ text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Screen sharing disabled'" }]);
           }
           break;
         case 'webcam':
@@ -252,7 +265,7 @@ function ControlTray({
     return () => {
       ipcRenderer.removeListener('control-action', handleControlAction);
     };
-  }, [connect, disconnect, webcam, screenCapture, changeStreams]);
+  }, [connect, disconnect, webcam, screenCapture, changeStreams, client]);
 
   // Send state updates to video window
   useEffect(() => {

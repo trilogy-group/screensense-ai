@@ -216,6 +216,8 @@ Your mission: Offer the best possible assistance for the user’s writing and re
     1. Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
     2. Whenever the user asks you to select text, you must call the select_content function. Call the function yourself, do not ask the user to do so.
     3. Whenever the user asks you to scroll the screen, you must call the scroll function. Call the function yourself, do not ask the user to do so.
+    
+    You might have to make multiple function calls. This is very likely. Do not miss this please. Make sure to call the functions in the order they are given.  
     `
   },
   tutor :{

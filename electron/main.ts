@@ -146,7 +146,7 @@ async function createMainWindow() {
 
   // Open DevTools in a new window
   if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   // Remove menu from the window
@@ -291,7 +291,7 @@ async function createControlWindow() {
 
   // Open DevTools in a new window for control window
   if (isDev) {
-    controlWindow.webContents.openDevTools({ mode: 'detach' });
+  controlWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   // Ensure it stays on top even when other windows request always on top
@@ -1579,6 +1579,11 @@ ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y
   try {
     // Move to start position
     await mouse.setPosition(new Point(x1, y1));
+    // await mouse.leftClick();
+    // await keyboard.pressKey(Key.LeftShift);
+    // await mouse.setPosition(new Point(x2, y2));
+    // await mouse.leftClick();
+    // await keyboard.releaseKey(Key.LeftShift);
     // Small delay to ensure position is reached
     await new Promise(resolve => setTimeout(resolve, 50));
     // Press and hold left mouse button
@@ -1618,8 +1623,17 @@ ipcMain.on('control-action', async (event, action) => {
     }
     
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // Show window if screen sharing or webcam is being activated
-      if ((action.type === 'screen' || action.type === 'webcam') && action.value === true) {
+      // Show window if screen sharing is being activated
+      if (action.type === 'screen' && action.value === true) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      // Hide window if screen sharing is being deactivated
+      else if (action.type === 'screen' && action.value === false) {
+        mainWindow.hide();
+      }
+      // Show window if webcam is being activated
+      else if (action.type === 'webcam' && action.value === true) {
         mainWindow.show();
         mainWindow.focus();
       }
@@ -1647,6 +1661,10 @@ ipcMain.on('screen-share-result', (event, success) => {
   try {
     if (controlWindow && !controlWindow.isDestroyed()) {
       controlWindow.webContents.send('screen-share-result', success);
+      // If screen sharing failed, hide the main window
+      if (!success && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
     }
   } catch (error) {
     logToFile(`Error handling screen share result: ${error}`);
