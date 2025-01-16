@@ -1575,13 +1575,38 @@ ipcMain.on('click', async (event, x: number, y: number) => {
   }
 });
 
-ipcMain.on('select-text', async (event, x1: number, y1: number, x2: number, y2: number) => {
-  await mouse.setPosition(new Point(x1, y1));
-  await mouse.leftClick();
-  await keyboard.pressKey(Key.LeftShift);
-  await mouse.setPosition(new Point(x2, y2));
-  await mouse.leftClick();
-  await keyboard.releaseKey(Key.LeftShift);
+ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y2: number) => {
+  try {
+    // Move to start position
+    await mouse.setPosition(new Point(x1, y1));
+    // Small delay to ensure position is reached
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Press and hold left mouse button
+    await mouse.pressButton(0); // 0 is left button in nut-js
+    // Small delay to ensure button press registered
+    await new Promise(resolve => setTimeout(resolve, 50)); 
+    // Move to end position
+    await mouse.setPosition(new Point(x2, y2));
+    // Small delay before release
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Release left mouse button
+    await mouse.releaseButton(0);
+    logToFile(`Selected content from (${x1},${y1}) to (${x2},${y2})`);
+  } catch (error) {
+    logToFile(`Error selecting content: ${error}`);
+  }
+});
+
+ipcMain.on('scroll', async (event, direction: string, amount: number) => {
+  try {
+    if (direction === 'up') {
+      await mouse.scrollUp(amount);
+    } else if (direction === 'down') {
+      await mouse.scrollDown(amount);
+    }
+  } catch (error) {
+    logToFile(`Error scrolling: ${error}`);
+  }
 });
 
 // Update the control-action handler to handle all cases

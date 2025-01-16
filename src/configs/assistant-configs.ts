@@ -54,8 +54,12 @@ export const clickerTools: Tool[] = [
         description: "Clicks the element at a fixed coordinates",
       },
       {
-        name: "select_text",
+        name: "select_content",
         description: "Selects the text between the start and end coordinates",
+      },
+      {
+        name: "scroll",
+        description: "Scrolls the screen up or down",
       }
     ],
   },
@@ -210,7 +214,8 @@ Your mission: Offer the best possible assistance for the user’s writing and re
 
     You have following tasks :
     1. Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
-    2. Whenever the user asks you to select text, you must call the select_text function. Call the function yourself, do not ask the user to do so.
+    2. Whenever the user asks you to select text, you must call the select_content function. Call the function yourself, do not ask the user to do so.
+    3. Whenever the user asks you to scroll the screen, you must call the scroll function. Call the function yourself, do not ask the user to do so.
     `
   },
   tutor :{

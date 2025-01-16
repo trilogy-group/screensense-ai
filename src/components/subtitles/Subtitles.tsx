@@ -80,12 +80,15 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
           const x = 700;
           const y = 700;
           ipcRenderer.send('click', x, y);
-        } else if (fc.name === "select_text") {
-          const x1 = 700;
-          const y1 = 600;
-          const x2 = 700;
+        } else if (fc.name === "select_content") {
+          const x1 = 300;
+          const y1 = 150;
+          const x2 = 0;
           const y2 = 700;
           ipcRenderer.send('select-text', x1, y1, x2, y2);
+        } else if (fc.name === "scroll") {
+          const direction = "up"
+          ipcRenderer.send('scroll', direction, 50);
         }
       }
 
