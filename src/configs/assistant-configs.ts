@@ -53,6 +53,10 @@ export const clickerTools: Tool[] = [
         name: "click",
         description: "Clicks the element at a fixed coordinates",
       },
+      {
+        name: "select_text",
+        description: "Selects the text between the start and end coordinates",
+      }
     ],
   },
 ];
@@ -204,8 +208,9 @@ Your mission: Offer the best possible assistance for the user’s writing and re
     requiresDisplay: true,
     systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in clicker mode. 
 
-    You have only one task :
-    Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
+    You have following tasks :
+    1. Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
+    2. Whenever the user asks you to select text, you must call the select_text function. Call the function yourself, do not ask the user to do so.
     `
   },
   tutor :{

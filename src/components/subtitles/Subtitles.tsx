@@ -77,9 +77,15 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
           ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
           hasResponded = true;
         } else if (fc.name === "click") {
-          const x = 100;
-          const y = 100;
+          const x = 700;
+          const y = 700;
           ipcRenderer.send('click', x, y);
+        } else if (fc.name === "select_text") {
+          const x1 = 700;
+          const y1 = 600;
+          const x2 = 700;
+          const y2 = 700;
+          ipcRenderer.send('select-text', x1, y1, x2, y2);
         }
       }
 

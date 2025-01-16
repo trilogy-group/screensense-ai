@@ -1575,6 +1575,15 @@ ipcMain.on('click', async (event, x: number, y: number) => {
   }
 });
 
+ipcMain.on('select-text', async (event, x1: number, y1: number, x2: number, y2: number) => {
+  await mouse.setPosition(new Point(x1, y1));
+  await mouse.leftClick();
+  await keyboard.pressKey(Key.LeftShift);
+  await mouse.setPosition(new Point(x2, y2));
+  await mouse.leftClick();
+  await keyboard.releaseKey(Key.LeftShift);
+});
+
 // Update the control-action handler to handle all cases
 ipcMain.on('control-action', async (event, action) => {
   try {
