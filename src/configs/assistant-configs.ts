@@ -46,7 +46,16 @@ export const graphingTools: Tool[] = [
     ],
   },
 ];
-
+export const clickerTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "click",
+        description: "Clicks the element at a fixed coordinates",
+      },
+    ],
+  },
+];
 export const readWriteTools: Tool[] = [
   {
     functionDeclarations: [
@@ -188,6 +197,16 @@ Remember to always use the tools to perform the actions, and never request the u
 
 Your mission: Offer the best possible assistance for the user’s writing and rewriting needs by leveraging the available functions while never requesting the user to call the tools themselves.
 `
+  },
+  clicker: {
+    display_name: "Clicker",
+    tools: [...clickerTools],
+    requiresDisplay: true,
+    systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in clicker mode. 
+
+    You have only one task :
+    Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
+    `
   },
   tutor :{
     display_name: "Tutor",

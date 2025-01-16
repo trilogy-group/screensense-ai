@@ -76,6 +76,10 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
           client.send([{ text: `Found the following text: ${selectedText}` }]);
           ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
           hasResponded = true;
+        } else if (fc.name === "click") {
+          const x = 100;
+          const y = 100;
+          ipcRenderer.send('click', x, y);
         }
       }
 

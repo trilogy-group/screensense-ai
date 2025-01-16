@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents, clipboard, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { keyboard, Key } from '@nut-tree-fork/nut-js';
+import { keyboard, Key, mouse, Point } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 
@@ -1560,6 +1560,18 @@ ipcMain.on('write-text', async (event, content) => {
     }, 100);
   } catch (error) {
     logToFile(`Error writing text: ${error}`);
+  }
+});
+
+ipcMain.on('click', async (event, x: number, y: number) => {
+  try {
+    // Move mouse to coordinates and click
+    await mouse.setPosition(new Point(x, y));
+    await mouse.leftClick();
+    logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
+  } catch (error) {
+    logToFile(`Error performing click: ${error}`);
+    console.log("error performing click", error);
   }
 });
 
