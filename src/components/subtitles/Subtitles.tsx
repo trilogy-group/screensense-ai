@@ -78,14 +78,14 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
           hasResponded = true;
         } else if (fc.name === "click") {
           const x = 700;
-          const y = 700;
+          const y = 25;
           ipcRenderer.send('click', x, y);
         } else if (fc.name === "select_content") {
           const x1 = 300;
           const y1 = 150;
-          const x2 = 0;
+          const x2 = 700;
           const y2 = 700;
-          ipcRenderer.send('select-text', x1, y1, x2, y2);
+          ipcRenderer.send('select-content', x1, y1, x2, y2);
         } else if (fc.name === "scroll") {
           const direction = "up"
           ipcRenderer.send('scroll', direction, 50);
