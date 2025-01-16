@@ -41,8 +41,8 @@ function VideoCanvas({ videoRef, videoStream }: { videoRef: React.RefObject<HTML
       }
 
       const ctx = canvas.getContext("2d")!;
-      canvas.width = video.videoWidth * 0.25;
-      canvas.height = video.videoHeight * 0.25;
+      canvas.width = video.videoWidth * 0.5;
+      canvas.height = video.videoHeight * 0.5;
       if (canvas.width + canvas.height > 0) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         const base64 = canvas.toDataURL("image/jpeg", 1.0);
