@@ -69,13 +69,9 @@ const trackAppLaunch = async () => {
         console.log("not first launch");
     }
     
-    // Use session storage to prevent duplicate launch events in the same session
-    if (!sessionStorage.getItem('app_launched')) {
-        sessionStorage.setItem('app_launched', 'true');
-        trackEvent('app_launched', systemInfo)
-        trackEvent('session_started', systemInfo)
-        setupSessionTracking()
-    }
+    trackEvent('app_launched', systemInfo)
+    trackEvent('session_started', systemInfo)
+    setupSessionTracking()
 }
 
 // Track user session duration
