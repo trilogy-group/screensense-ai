@@ -163,7 +163,7 @@ function ControlTray({
   useEffect(() => {
     if (!connected) {
       changeStreams()();
-      ipcRenderer.send('remove-subtitles');
+      ipcRenderer.send('remove_subtitles');
     }
   }, [connected, changeStreams]);
 
