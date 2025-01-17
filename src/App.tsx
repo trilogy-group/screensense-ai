@@ -66,26 +66,26 @@ const VideoCanvas = forwardRef<VideoCanvasHandle, { videoRef: React.RefObject<HT
           return;
         }
 
-        const ctx = canvas.getContext("2d")!;
-        canvas.width = video.videoWidth * 0.50;
-        canvas.height = video.videoHeight * 0.50;
-        if (canvas.width + canvas.height > 0) {
-          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-          const base64 = canvas.toDataURL("image/jpeg", 1.0);
-          const data = base64.slice(base64.indexOf(",") + 1, Infinity);
-          client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
-        }
-        if (connected) {
-          timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
-        }
+      const ctx = canvas.getContext("2d")!;
+      canvas.width = video.videoWidth * 0.5;
+      canvas.height = video.videoHeight * 0.5;
+      if (canvas.width + canvas.height > 0) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL("image/jpeg", 1.0);
+        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
+        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
       }
-      if (videoStream !== null && connected) {
-        requestAnimationFrame(sendVideoFrame);
+      if (connected) {
+        timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
       }
-      return () => {
-        clearTimeout(timeoutId);
-      };
-    }, [videoStream, connected, client, videoRef]);
+    }
+    if (videoStream !== null && connected) {
+      requestAnimationFrame(sendVideoFrame);
+    }
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [videoStream, connected, client, videoRef]);
 
     return <canvas style={{ display: "none" }} ref={renderCanvasRef} />;
   }
