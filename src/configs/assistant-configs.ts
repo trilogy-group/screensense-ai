@@ -77,20 +77,40 @@ const readWriteTools: Tool[] = [
 const interactionTools: Tool[] = [
   {
     functionDeclarations: [
+      // {
+      //   name: "find_element",
+      //   description: "Locates and returns the coordinates of a specific element on the screen",
+      //   parameters: {
+      //     type: SchemaType.OBJECT,
+      //     properties: {
+      //       description: {
+      //         type: SchemaType.STRING,
+      //         description: "Description of the element to find (e.g., 'the submit button', 'the search box', etc.)"
+      //       }
+      //     },
+      //     required: ["description"]
+      //   }
+      // },
       {
-        name: "find_element",
-        description: "Locates and returns the coordinates of a specific element on the screen",
+        name: "find_all_elements",
+        description: "Returns a list of all UI elements visible on the screen with their locations",
+      },
+      {
+        name: "highlight_element",
+        description: "Highlights the element at the given coordinates",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
-            description: {
-              type: SchemaType.STRING,
-              description: "Description of the element to find (e.g., 'the submit button', 'the search box', etc.)"
+            coordinates: {
+              type: SchemaType.OBJECT,
+              properties: {
+                x: { type: SchemaType.NUMBER },
+                y: { type: SchemaType.NUMBER }
+              }
             }
-          },
-          required: ["description"]
+          }
         }
-      },
+      }
     ],
   },
 ];
@@ -243,17 +263,19 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     Primary Purpose: Help users locate elements on their screen.
 
     Your Tools:
-    - You can find and return the coordinates of any element on the screen.
-    - Provide clear, descriptive language when searching for elements.
+    - You can find and return the coordinates of all elements on the screen.
+    - You can also highlight an element at the given coordinates.
     - Only you should invoke the tools; do not instruct the user to do so.
     - The analysis may take a few seconds, so be patient.
     - Do not invoke the tool multiple times in a loop.
 
     Key Behaviors:
-    1. When asked to find something, use precise, descriptive language. Describe the element in detail, what it looks like, and approximately where it is on the screen.
-    2. If an element is found, report its coordinates clearly.
-    3. If an element is not found, suggest trying with a different description.
-    4. Be patient during analysis and keep the user informed.
+    1. Use the find_all_elements tool to get a list of all UI elements
+    2. The tool will return a list of elements with their type, content, interactivity status, and screen coordinates
+    3. Choose the most appropriate element based on the user's description
+    4. Use the highlight_element tool to highlight the element at the given coordinates
+    5. If you think none of the elements match the description, suggest trying with a different description.
+    6. Be patient during analysis and keep the user informed.
     `
   }
 } as const;

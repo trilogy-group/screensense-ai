@@ -117,10 +117,10 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
 
                 // Get elements from ML model
                 const detectionResult = await omniParser.detectElements(blob);
-                const elementsList = detectionResult.data[1]; // Get the description part
+                const elements = detectionResult.data[1]; // Now this is an array of Element objects
 
                 // Match element using Claude
-                const normalizedCoords = await matchElementFromDescription(elementsList, elementDescription);
+                const normalizedCoords = await matchElementFromDescription(elements, elementDescription);
                 
                 // Scale coordinates from 0-1 to actual screen dimensions
                 const coordinates = normalizedCoords ? {
@@ -177,6 +177,95 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
             ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
           }
           hasResponded = true;
+        } else if (fc.name === "find_all_elements") {
+          if (onScreenshot) {
+            const screenshot = onScreenshot();
+            if (screenshot) {
+              try {
+                // Convert base64 to blob
+                const base64Data = screenshot.split(',')[1];
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+                const video = document.querySelector('video');
+                if (!video) {
+                  throw new Error('Video element not found');
+                }
+
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                const devicePixelRatio = window.devicePixelRatio || 1;
+                const actualWidth = Math.round(videoWidth / devicePixelRatio);
+                const actualHeight = Math.round(videoHeight / devicePixelRatio);
+
+                // Get elements from ML model
+                const detectionResult = await omniParser.detectElements(blob);
+                const elements = detectionResult.data[1];
+
+                // Scale all coordinates to actual screen dimensions
+                const scaledElements = elements.map(element => ({
+                  ...element,
+                  center: {
+                    x: Math.round(element.center.x * actualWidth),
+                    y: Math.round(element.center.y * actualHeight)
+                  }
+                }));
+
+                client.sendToolResponse({
+                  functionResponses: toolCall.functionCalls.map((fc) => ({
+                    response: { 
+                      output: { 
+                        success: true, 
+                        elements: scaledElements 
+                      }
+                    },
+                    id: fc.id,
+                  })),
+                });
+                
+                ipcRenderer.send('log-to-file', `Found ${scaledElements.length} elements`);
+              } catch (error) {
+                console.error('Error finding elements:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                client.sendToolResponse({
+                  functionResponses: toolCall.functionCalls.map((fc) => ({
+                    response: { output: { success: false, error: errorMessage } },
+                    id: fc.id,
+                  })),
+                });
+                client.send([{ text: `Error finding elements: ${errorMessage}` }]);
+                ipcRenderer.send('log-to-file', `Error finding elements: ${errorMessage}`);
+              }
+            } else {
+              client.sendToolResponse({
+                functionResponses: toolCall.functionCalls.map((fc) => ({
+                  response: { output: { success: false, error: "Failed to capture screenshot" } },
+                  id: fc.id,
+                })),
+              });
+              client.send([{ text: `Failed to capture screenshot` }]);
+              ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+            }
+          } else {
+            console.log("no onScreenshot function");
+            client.sendToolResponse({
+              functionResponses: toolCall.functionCalls.map((fc) => ({
+                response: { output: { success: false } },
+                id: fc.id,
+              })),
+            });
+            client.send([{ text: `Failed to capture screenshot.` }]);
+            ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+          }
+          hasResponded = true;
+        } else if (fc.name === "highlight_element") {
+          const coordinates = (fc.args as any).coordinates;
+          ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
         }
       }
 

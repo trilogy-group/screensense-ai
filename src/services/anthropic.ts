@@ -66,8 +66,18 @@ export const findElementInImage = async (
   }
 };
 
+interface Element {
+  type: string;
+  content: string;
+  interactivity: boolean;
+  center: {
+    x: number;
+    y: number;
+  };
+}
+
 export const matchElementFromDescription = async (
-  elementsList: string,
+  elements: Element[],
   targetDescription: string
 ): Promise<{ x: number; y: number } | null> => {
   if (!anthropicClient) {
@@ -75,6 +85,10 @@ export const matchElementFromDescription = async (
   }
 
   try {
+    const elementsList = elements.map(el => 
+      `- ${el.content} (${el.type}, ${el.interactivity ? 'interactive' : 'non-interactive'}) at position (${el.center.x}, ${el.center.y})`
+    ).join('\n');
+
     const partialMessage = await anthropicClient.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 8096,
@@ -83,15 +97,7 @@ export const matchElementFromDescription = async (
         content: [
           {
             type: 'text',
-            text: `Here is a list of UI elements and their locations: ${elementsList}
-
-Find the element that best matches this description: "${targetDescription}"
-
-Return ONLY a JSON object with x and y coordinates. If no matching element is found, return null.
-
-Example response formats:
-{"x": 100, "y": 200}
-null`
+            text: `Here is a list of UI elements and their locations:\n${elementsList}\n\nFind the element that best matches this description: "${targetDescription}"\n\nReturn ONLY a JSON object with x and y coordinates from the matching element's center position. If no matching element is found, return null.`
           }
         ]
       }, {
@@ -100,13 +106,10 @@ null`
       }]
     });
 
-    console.log(`Received response from Anthropic: ${JSON.stringify(partialMessage)}`);
-
     const responseText = partialMessage.content[0].type === 'text' ? partialMessage.content[0].text : null;
     if (!responseText) return null;
 
-    const jsonOutput = '{' + responseText.slice(0, responseText.lastIndexOf("}") + 1)
-
+    const jsonOutput = '{' + responseText.slice(0, responseText.lastIndexOf("}") + 1);
     console.log('JSON output:', jsonOutput);
 
     try {
