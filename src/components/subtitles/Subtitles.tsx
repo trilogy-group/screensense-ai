@@ -4,7 +4,9 @@ import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { ToolCall } from "../../multimodal-live-types";
 import vegaEmbed from "vega-embed";
 import { trackEvent } from "../../shared/analytics";
-import { initAnthropicClient, findElementInImage } from '../../services/anthropic';
+import { initAnthropicClient } from '../../services/anthropic';
+import { omniParser } from '../../services/omni-parser';
+import { matchElementFromDescription } from '../../services/anthropic';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -81,7 +83,6 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
           if (onScreenshot) {
             const screenshot = onScreenshot();
             if (screenshot) {
-              const base64Data = screenshot.split(',')[1];
               try {
                 const elementDescription = (fc.args as any).description;
                 const settings = await ipcRenderer.invoke('get-saved-settings');
@@ -90,24 +91,42 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                 }
                 initAnthropicClient(settings.anthropicApiKey);
                 
-                // Get video dimensions from the video element
+                // Convert base64 to blob
+                const base64Data = screenshot.split(',')[1];
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
                 const video = document.querySelector('video');
+
                 if (!video) {
                   throw new Error('Video element not found');
                 }
-                // Get normalized dimensions by dividing by device pixel ratio
+
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+
                 const devicePixelRatio = window.devicePixelRatio || 1;
-                const width = Math.round(video.videoWidth / devicePixelRatio);
-                const height = Math.round(video.videoHeight / devicePixelRatio);
+                const actualWidth = Math.round(videoWidth / devicePixelRatio);
+                const actualHeight = Math.round(videoHeight / devicePixelRatio);
+
+
+                // Get elements from ML model
+                const detectionResult = await omniParser.detectElements(blob);
+                const elementsList = detectionResult.data[1]; // Get the description part
+
+                // Match element using Claude
+                const normalizedCoords = await matchElementFromDescription(elementsList, elementDescription);
                 
-                console.log('Dimensions debug:');
-                console.log(`- Video dimensions (raw): ${video.videoWidth}x${video.videoHeight}`);
-                console.log(`- Video dimensions (normalized): ${width}x${height}`);
-                console.log(`- Screen dimensions: ${window.screen.width}x${window.screen.height}`);
-                console.log(`- Screen available: ${window.screen.availWidth}x${window.screen.availHeight}`);
-                console.log(`- Device pixel ratio: ${devicePixelRatio}`);
-                
-                const coordinates = await findElementInImage(base64Data, elementDescription, width, height);
+                // Scale coordinates from 0-1 to actual screen dimensions
+                const coordinates = normalizedCoords ? {
+                  x: Math.round(normalizedCoords.x * actualWidth),
+                  y: Math.round(normalizedCoords.y * actualHeight)
+                } : null;
                 
                 client.sendToolResponse({
                   functionResponses: toolCall.functionCalls.map((fc) => ({
@@ -118,7 +137,6 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                 
                 if (coordinates) {
                   client.send([{ text: `Found element at coordinates: x=${coordinates.x}, y=${coordinates.y}` }]);
-                  // Show marker at the coordinates
                   ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
                 } else {
                   client.send([{ text: `Could not find the element: ${elementDescription}` }]);

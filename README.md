@@ -140,6 +140,13 @@ npm install
 npm run electron-dev
 ```
 
+Note: In case you face issues with node-gyp on mac, follow the instructions below to create a virtual environment and install the dependencies, and then run
+
+```
+export PYTHON="$(pwd)/.venv/bin/python"
+npm install
+```
+
 ## Building the electron app
 
 _Note: I had to install `xcode` to get this to work, since it required the `unordered_map` cpp header file. The xcode-select cli tool was not enough._

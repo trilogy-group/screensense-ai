@@ -1802,11 +1802,13 @@ function showCoordinateMarker(x: number, y: number) {
     markerWindow.close();
   }
 
+  // Adjust window size to be smaller since we're showing a smaller marker
+  const markerSize = 20; // Diameter (2 * radius)
   markerWindow = new BrowserWindow({
-    width: 300,
-    height: 300,
-    x: x - 150, // Center the marker on the coordinates (300/2 = 150)
-    y: y - 150,
+    width: markerSize,
+    height: markerSize,
+    x: x - markerSize/2, // Center the marker on the coordinates
+    y: y - markerSize/2,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -1829,13 +1831,14 @@ function showCoordinateMarker(x: number, y: number) {
             background: transparent;
           }
           .marker {
-            width: 500px;
-            height: 500px;
+            width: 20px;
+            height: 20px;
             background: rgba(255, 0, 0, 0.3);
             border: 2px solid rgba(255, 0, 0, 0.8);
             position: absolute;
             animation: pulse 1s infinite;
             box-sizing: border-box;
+            border-radius: 50%; /* Make it circular */
           }
           @keyframes pulse {
             0% { opacity: 0.4; }
