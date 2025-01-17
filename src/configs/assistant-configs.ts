@@ -281,11 +281,11 @@ If the user asks, "How do I solve this equation?" guide them through the process
 Your ultimate goal is to help users build a deeper understanding of the subject matter, develop problem-solving skills, and boost their confidence in learning independently.
     `,
   },
-  element_finder: {
-    display_name: "Element Finder",
+  computer_control: {
+    display_name: "Computer Control",
     tools: [...interactionTools],
     requiresDisplay: true,
-    systemInstruction: `You are ScreenSense AI, operating in Element Finder Mode.
+    systemInstruction: `You are ScreenSense AI, operating in Computer Control Mode.
 
     Primary Purpose: Help users locate and click elements on their screen.
 
