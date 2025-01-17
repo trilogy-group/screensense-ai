@@ -77,8 +77,8 @@ export class OmniParser {
       console.log('OmniParser: Sending prediction request to endpoint...');
       const result = await this.client!.predict("/process", {
         image_input: imageBlob,
-        box_threshold: 0.01,
-        iou_threshold: 0.1,
+        box_threshold: 0.4,
+        iou_threshold: 0.4,
         use_paddleocr: true,
         imgsz: 1920,
         icon_process_batch_size: 256,

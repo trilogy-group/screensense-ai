@@ -70,6 +70,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
           console.log("selectedText received", selectedText);
           // Send an empty response to the tool call, and then send the selected text to the client as a user message
           // This is because Gemini often ignores the tool call response, or hallucinates the response
+          // At some point, we should see if we can fix this via the prompt instead
           client.sendToolResponse({
             functionResponses: toolCall.functionCalls.map((fc) => ({
               response: { output: { success: true } },
