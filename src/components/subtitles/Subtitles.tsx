@@ -18,6 +18,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
   const [graphJson, setGraphJson] = useState<string>("");
   const { client, setConfig } = useLiveAPIContext();
   const graphRef = useRef<HTMLDivElement>(null);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
 
   useEffect(() => {
     setConfig({
@@ -71,6 +72,20 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
             console.log("selectedText received", selectedText);
             client.send([{ text: `Found the following text: ${selectedText}` }]);
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
+            hasResponded = true;
+            break;
+          case "record_conversation":
+            ipcRenderer.send('record-conversation', 
+              (fc.args as any).function_call.name,
+              (fc.args as any).function_call.args,
+              (fc.args as any).description
+            );
+            break;
+          case "set_action_name":
+            ipcRenderer.send('set-action-name', (fc.args as any).name);
+            break;
+          case "perform_action":
+            await ipcRenderer.invoke('perform-action', (fc.args as any).name);
             hasResponded = true;
             break;
           case "click":
@@ -128,7 +143,55 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
     }
   }, [graphRef, graphJson]);
 
-  return <div className="vega-embed" ref={graphRef} />; // Only render the graph container
+  useEffect(() => {
+    const handleSessionNamePrompt = () => {
+      setShowNamePrompt(true);
+    };
+
+    ipcRenderer.on('prompt-session-name', handleSessionNamePrompt);
+
+    return () => {
+      ipcRenderer.removeListener('prompt-session-name', handleSessionNamePrompt);
+    };
+  }, []);
+
+  const handleNameSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const sessionName = formData.get('sessionName') as string;
+    if (sessionName) {
+      ipcRenderer.send('set-session-name', sessionName);
+      setShowNamePrompt(false);
+    }
+  };
+
+  return (
+    <>
+      {showNamePrompt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <form onSubmit={handleNameSubmit} className="space-y-4">
+              <h2 className="text-lg font-semibold">Enter Session Name</h2>
+              <input
+                type="text"
+                name="sessionName"
+                className="w-full px-3 py-2 border rounded"
+                placeholder="Enter session name"
+                required
+              />
+              <button
+                type="submit"
+                className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                Start Session
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+      <div className="vega-embed" ref={graphRef} />
+    </>
+  );
 }
 
 export const Subtitles = memo(SubtitlesComponent); 

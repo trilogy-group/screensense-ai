@@ -144,8 +144,116 @@ export const readWriteTools: Tool[] = [
   },
 ]
 
+// Add new recorder tools
+export const recorderTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "record_conversation",
+        description: "Records the conversation to a text file in the actions folder",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            function_call: {  
+              type: SchemaType.STRING,
+              description: "The function call to record in the conversation file",
+            },
+            description: {
+              type: SchemaType.STRING,
+              description: "The description of the request made by the user so that the parameters required for the function call can be extracted  ",
+            },
+          },
+          required: ["function_call", "description"],
+        },
+      },
+      {
+        name: "set_action_name",
+        description: "Sets a custom name for the current action that is being recorded",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            name: {
+              type: SchemaType.STRING,
+              description: "The name to give to the action",
+            },
+          },
+          required: ["name"],
+        },
+      },
+    ],
+  },
+];
+
+// Add new action player tools
+export const actionPlayerTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "perform_action",
+        description: "Performs the action for a given action name",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            name: {
+              type: SchemaType.STRING,
+              description: "The name of the action to perform",
+            },
+          },
+          required: ["name"],
+        },
+      },
+    ],
+  },
+];
+
 // Mode-based configurations
 export const assistantConfigs = {
+  recorder: {
+    display_name: "Recorder",
+    tools: [...recorderTools],
+    requiresDisplay: false,
+    systemInstruction: `
+You are ScreenSense AI, operating in Recorder Mode.
+
+
+Give a confirmation message to the user after each function call that you make. For example, if the user asks you to "Open Chrome", you must say "open chrome recorded". If he says "set action name to send mail", you must say "action name set to send mail".
+
+
+When user asks you to set the name of the action, you must call the "set_action_name" function with the "name". Call this function yourself, do not ask the user to do so.
+
+
+For each request made by the user (that is not to set the name of the action), you must call the "record_conversation" function with the "function_call" and "description".
+The function_call is the name of the function to be called that can perform the corresponding mouse or keyboard action on the screen as requested by the user and the description is the description of the request made by the user so that the coordinates required for the function call can be extracted.
+
+
+
+Here are the available function call: 
+  1. click : Any operation that involves clicking on the screen. 
+  2. select_Content : Any operation that involves selecting or copying text on the screen.
+  3. scroll : Any operation that involves scrolling the screen.
+  4. insert_Content : Any operation that involves pasting text on the screen.
+
+Give a detailed description of the request made by the user so that the parameters required for the function call can be extracted by passing them to an LLM.
+
+Examples:
+  User : Open Chrome
+  Description : Open the Chrome browser on the user's screen.
+  Function Call : click
+
+  User : Select the text "Hello"
+  Description : Select the text "Hello" on the user's screen.
+  Function Call : select_content
+
+  User : Scroll down the chrome browser
+  Description : Scroll down on the user's screen such that chrome is scrolled down.
+  Function Call : scroll
+
+  User : Paste the content on docs page
+  Description : Paste the content on the docs page.
+  Function Call : insert_content.
+    
+`
+  },
   daily_helper: {
     display_name: "Daily Guide",
     tools: [({googleSearch: {}} as Tool)],
@@ -315,6 +423,16 @@ If the user asks, "What does this formula mean?" provide an explanation of the f
 If the user asks, "How do I solve this equation?" guide them through the process step-by-step without solving it outright.
 Your ultimate goal is to help users build a deeper understanding of the subject matter, develop problem-solving skills, and boost their confidence in learning independently.
     `
+  },
+  action_player: {
+    display_name: "Action Player",
+    tools: [...actionPlayerTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in Action Player Mode.
+
+You have only one task:
+Whenever the user asks you to play an action, you must call the get_action_data function with the name of the action.
+`
   }
 } as const;
 

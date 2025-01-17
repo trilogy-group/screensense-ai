@@ -18,6 +18,7 @@ let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let customSessionName: string | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -65,7 +66,7 @@ function getFirstLaunchPath(machineId: string) {
 function checkFirstLaunch(machineId: string) {
   const firstLaunchPath = getFirstLaunchPath(machineId);
   const isFirstLaunch = !fs.existsSync(firstLaunchPath);
-  
+
   if (isFirstLaunch) {
     try {
       fs.writeFileSync(firstLaunchPath, new Date().toISOString());
@@ -73,7 +74,7 @@ function checkFirstLaunch(machineId: string) {
       logToFile(`Error creating first launch file: ${error}`);
     }
   }
-  
+
   return isFirstLaunch;
 }
 
@@ -106,7 +107,7 @@ async function createMainWindow() {
       logToFile('Warning: Could not find icon file in expected location');
     }
   }
-  
+
   logToFile(`Using icon path: ${iconPath}`);
   try {
     const iconDir = path.dirname(iconPath);
@@ -146,7 +147,7 @@ async function createMainWindow() {
 
   // Open DevTools in a new window
   if (isDev) {
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   // Remove menu from the window
@@ -203,7 +204,7 @@ async function createMainWindow() {
       // Remove .asar from the path to access unpacked resources
       const basePath = appPath.replace('.asar', '.asar.unpacked');
       const indexPath = path.join(basePath, 'build', 'index.html');
-      
+
       // Log more details about the paths
       logToFile(`Base path: ${basePath}`);
       logToFile(`Index path: ${indexPath}`);
@@ -214,10 +215,10 @@ async function createMainWindow() {
       } catch (error) {
         logToFile(`Error reading build directory: ${error}`);
       }
-      
+
       loadUrl = `file://${indexPath}`;
     }
-    
+
     logToFile(`App path: ${app.getAppPath()}`);
     logToFile(`Attempting to load URL: ${loadUrl}`);
     logToFile(`Build path exists: ${fs.existsSync(loadUrl.replace('file://', ''))}`);
@@ -291,7 +292,7 @@ async function createControlWindow() {
 
   // Open DevTools in a new window for control window
   if (isDev) {
-  controlWindow.webContents.openDevTools({ mode: 'detach' });
+    controlWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   // Ensure it stays on top even when other windows request always on top
@@ -973,7 +974,7 @@ function createOverlayWindow() {
 
   overlayWindow.setIgnoreMouseEvents(true);
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-  
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -1442,7 +1443,7 @@ ipcMain.on('settings-data', (event, settings) => {
 ipcMain.on('save-settings', (event, settings) => {
   // Save settings to file
   saveSettings(settings);
-  
+
   // Send settings to main window
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-settings', settings);
@@ -1469,7 +1470,7 @@ ipcMain.on('close-settings', () => {
 async function initializeApp() {
   // Load saved settings first
   const savedSettings = loadSettings();
-  
+
   // Create windows
   await createMainWindow();
   createOverlayWindow();
@@ -1545,15 +1546,15 @@ ipcMain.on('write-text', async (event, content) => {
   try {
     // Save the current clipboard content
     const previousClipboard = clipboard.readText();
-    
+
     // Set new content to clipboard
     clipboard.writeText(content);
-    
+
     // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
     const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.V);
     await keyboard.releaseKey(modifier, Key.V);
-    
+
     // Restore previous clipboard content after a short delay
     setTimeout(() => {
       clipboard.writeText(previousClipboard);
@@ -1579,12 +1580,12 @@ ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y
   try {
     // Move to start position
     await mouse.setPosition(new Point(x1, y1));
-    
+
     await new Promise(resolve => setTimeout(resolve, 50));
     // Press and hold left mouse button
     await mouse.pressButton(0); // 0 is left button in nut-js
     // Small delay to ensure button press registered
-    await new Promise(resolve => setTimeout(resolve, 50)); 
+    await new Promise(resolve => setTimeout(resolve, 50));
     // Move to end position
     await mouse.setPosition(new Point(x2, y2));
     // Small delay before release
@@ -1593,7 +1594,7 @@ ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y
     await mouse.releaseButton(0);
 
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.C);
     await keyboard.releaseKey(modifier, Key.C);
@@ -1637,7 +1638,7 @@ ipcMain.on('control-action', async (event, action) => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       await createMainWindow();
     }
-    
+
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Show window if screen sharing is being activated
       if (action.type === 'screen' && action.value === true) {
@@ -1724,15 +1725,15 @@ ipcMain.on('paste-content', async (event, content) => {
   try {
     // Save the current clipboard content
     const previousClipboard = clipboard.readText();
-    
+
     // Set new content to clipboard
     clipboard.writeText(content);
-    
+
     // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
     const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.V);
     await keyboard.releaseKey(modifier, Key.V);
-    
+
     // Restore previous clipboard content after a short delay
     setTimeout(() => {
       clipboard.writeText(previousClipboard);
@@ -1746,22 +1747,22 @@ async function getSelectedText() {
   try {
     // Save current clipboard content
     const previousClipboard = clipboard.readText();
-    
+
     // Simulate Cmd+C (for macOS) or Ctrl+C (for other platforms)
     const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.C);
     await keyboard.releaseKey(modifier, Key.C);
-    
+
     // Wait a bit for the clipboard to update
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     // Get the selected text from clipboard
     const selectedText = clipboard.readText();
     // logToFile(`Selected text: ${selectedText}`);
-    
+
     // Restore previous clipboard content
     clipboard.writeText(previousClipboard);
-    
+
     return selectedText;
   } catch (error) {
     logToFile(`Error getting selected text: ${error}`);
@@ -1802,32 +1803,225 @@ ipcMain.on('log-to-file', (event, message) => {
 
 // Get unique machine ID
 async function getMachineId(): Promise<string> {
-    try {
-        if (process.platform === 'darwin') {
-            // Try to get hardware UUID on macOS
-            const output = execSync('ioreg -d2 -c IOPlatformExpertDevice | awk -F\\" \'/IOPlatformUUID/{print $(NF-1)}\'').toString().trim();
-            return output;
-        } else if (process.platform === 'win32') {
-            // Get Windows machine GUID
-            const output = execSync('get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID').toString().trim();
-            // const match = output.match(/[A-F0-9]{8}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{12}/i);
-            // return match ? match[0] : '';
-            return output;
-        } else {
-            // For Linux and others, try to get machine-id
-            const machineId = fs.readFileSync('/etc/machine-id', 'utf8').trim();
-            return machineId;
-        }
-    } catch (error) {
-        console.error('Error getting machine ID:', error);
-        // Fallback: Generate a persistent hash based on available system info
-        const systemInfo = `${app.getPath('home')}-${process.platform}-${process.arch}`;
-        return crypto.createHash('sha256').update(systemInfo).digest('hex');
+  try {
+    if (process.platform === 'darwin') {
+      // Try to get hardware UUID on macOS
+      const output = execSync('ioreg -d2 -c IOPlatformExpertDevice | awk -F\\" \'/IOPlatformUUID/{print $(NF-1)}\'').toString().trim();
+      return output;
+    } else if (process.platform === 'win32') {
+      // Get Windows machine GUID
+      const output = execSync('get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID').toString().trim();
+      // const match = output.match(/[A-F0-9]{8}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{12}/i);
+      // return match ? match[0] : '';
+      return output;
+    } else {
+      // For Linux and others, try to get machine-id
+      const machineId = fs.readFileSync('/etc/machine-id', 'utf8').trim();
+      return machineId;
     }
+  } catch (error) {
+    console.error('Error getting machine ID:', error);
+    // Fallback: Generate a persistent hash based on available system info
+    const systemInfo = `${app.getPath('home')}-${process.platform}-${process.arch}`;
+    return crypto.createHash('sha256').update(systemInfo).digest('hex');
+  }
 }
 
 // Add this with other IPC handlers
 ipcMain.handle('get-machine-id', async () => {
-    const machineId = await getMachineId();
-    return machineId;
+  const machineId = await getMachineId();
+  return machineId;
+});
+
+// Add function to handle conversation recording
+function getActionsPath() {
+  return path.join(app.getPath('appData'), 'screensense-ai', 'actions');
+}
+
+function ensureActionsDirectory() {
+  const actionsPath = getActionsPath();
+  if (!fs.existsSync(actionsPath)) {
+    fs.mkdirSync(actionsPath, { recursive: true });
+  }
+  return actionsPath;
+}
+
+// Add function to get the conversations file path
+function getConversationsFilePath() {
+  const actionsPath = ensureActionsDirectory();
+  return path.join(actionsPath, 'conversations.json');
+}
+
+// Add TypeScript interfaces
+interface FunctionCall {
+  name: string;
+  args: {
+    x?: number;
+    y?: number;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    direction?: string;
+    amount?: number;
+  };
+}
+
+interface ConversationEntry {
+  function_call: string;
+  args: FunctionCall['args'];
+  description: string;
+  delay?: number;
+}
+
+interface Conversations {
+  [key: string]: ConversationEntry[];
+}
+
+// Add function to load or initialize conversations file
+function loadConversations(): Conversations {
+  const filePath = getConversationsFilePath();
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    logToFile(`Error loading conversations: ${error}`);
+  }
+  return {};
+}
+
+// Add function to save conversations
+function saveConversations(conversations: Conversations) {
+  const filePath = getConversationsFilePath();
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(conversations, null, 2));
+    logToFile('Conversations saved successfully');
+  } catch (error) {
+    logToFile(`Error saving conversations: ${error}`);
+  }
+}
+
+// Modified handler for setting session name
+ipcMain.on('set-action-name', (event, name) => {
+  try {
+    const sanitizedName = name.replace(/[^a-zA-Z0-9-_ ]/g, '_');
+    customSessionName = sanitizedName.trim().toLowerCase();
+
+    // Initialize or overwrite the session in the conversations file
+    const conversations = loadConversations();
+    if (customSessionName) {
+      // Overwrite the existing array or create a new one
+      conversations[customSessionName] = [];
+      saveConversations(conversations);
+      logToFile(`Set/Reset session name: ${customSessionName}`);
+    }
+  } catch (error) {
+    logToFile(`Error setting session name: ${error}`);
+  }
+});
+
+// Modified record-conversation handler
+ipcMain.on('record-conversation', (event, function_call, args, description) => {
+  try {
+    if (!customSessionName) {
+      logToFile('No session name set, cannot record conversation');
+      return;
+    }
+
+    const conversations = loadConversations();
+    const sessionName = customSessionName;
+
+    if (!conversations[sessionName]) {
+      conversations[sessionName] = [];
+    }
+
+    conversations[sessionName].push({
+      function_call,
+      args,
+      description
+    });
+
+    saveConversations(conversations);
+    logToFile(`Recorded conversation for session: ${sessionName}`);
+  } catch (error) {
+    logToFile(`Error recording conversation: ${error}`);
+  }
+});
+
+// Reset only the session name when app starts or restarts
+app.on('ready', () => {
+  customSessionName = null;
+});
+
+// Remove the currentSessionFile variable since we don't need it anymore
+// And update the control-action handler
+ipcMain.on('control-action', async (event, action) => {
+  if (action.type === 'connect' && action.value === true) {
+    if (!customSessionName) {
+      // Only prompt for name if not already set
+      mainWindow?.webContents.send('prompt-session-name');
+    }
+  }
+  // ... rest of the existing control-action handler
+});
+
+// Add handler for getting action data
+ipcMain.handle('perform-action', async (event, name) => {
+  try {
+    const conversations = loadConversations();
+    const actionName = name.trim().toLowerCase();
+
+    if (conversations[actionName]) {
+      let actions = conversations[actionName];
+      const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+      for (let action of actions) {
+        switch (action.function_call) {
+          case "click":
+            if (action.args.x !== undefined && action.args.y !== undefined) {
+              await mouse.setPosition(new Point(action.args.x, action.args.y));
+              await mouse.leftClick();
+            }
+            break;
+          case "select_content":
+            if (action.args.x1 !== undefined && action.args.y1 !== undefined &&
+              action.args.x2 !== undefined && action.args.y2 !== undefined) {
+              await mouse.setPosition(new Point(action.args.x1, action.args.y1));
+              await mouse.pressButton(0);
+              await mouse.setPosition(new Point(action.args.x2, action.args.y2));
+              await mouse.releaseButton(0);
+              await keyboard.pressKey(modifier, Key.C);
+              await keyboard.releaseKey(modifier, Key.C);
+            }
+            break;
+          case "scroll":
+            if (action.args.direction && action.args.amount !== undefined) {
+              if (action.args.direction === "up") {
+                await mouse.scrollUp(action.args.amount);
+              } else if (action.args.direction === "down") {
+                await mouse.scrollDown(action.args.amount);
+              }
+            }
+            break;
+          case "insert_content":
+            if (action.args.x !== undefined && action.args.y !== undefined) {
+              await mouse.setPosition(new Point(action.args.x, action.args.y));
+              await mouse.leftClick();
+              await new Promise(resolve => setTimeout(resolve, 50));
+              await keyboard.pressKey(modifier, Key.V);
+              await keyboard.releaseKey(modifier, Key.V);
+            }
+            break;
+        }
+        await new Promise(resolve => setTimeout(resolve, action.delay));
+      }
+    } else {
+      logToFile(`No action data found for: ${actionName}`);
+      return [];
+    }
+  } catch (error) {
+    logToFile(`Error getting action data: ${error}`);
+    return [];
+  }
 }); 
