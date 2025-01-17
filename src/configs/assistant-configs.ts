@@ -52,14 +52,68 @@ export const clickerTools: Tool[] = [
       {
         name: "click",
         description: "Clicks the element at a fixed coordinates",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            x: {
+              type: SchemaType.NUMBER,
+              description: "The x coordinate to click",
+            },
+            y: {
+              type: SchemaType.NUMBER,
+              description: "The y coordinate to click",
+            },
+          },
+          required: ["x", "y"],
+        },
       },
       {
         name: "select_content",
         description: "Selects the text between the start and end coordinates",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            x1: {
+              type: SchemaType.NUMBER,
+              description: "The x coordinate of the start of the selection",
+            },
+            y1: {
+              type: SchemaType.NUMBER,
+              description: "The y coordinate of the start of the selection",
+            },
+            x2: {
+              type: SchemaType.NUMBER,
+              description: "The x coordinate of the end of the selection",
+            },
+            y2: {
+              type: SchemaType.NUMBER,
+              description: "The y coordinate of the end of the selection",
+            },
+          },
+          required: ["x1", "y1", "x2", "y2"],
+        },
       },
       {
         name: "scroll",
         description: "Scrolls the screen up or down",
+      },
+      {
+        name: "insert_content",
+        description: "Inserts the content at the given coordinates",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            x: {
+              type: SchemaType.NUMBER,
+              description: "The x coordinate of the insertion",
+            },
+            y: {
+              type: SchemaType.NUMBER,
+              description: "The y coordinate of the insertion",
+            },
+          },
+          required: ["x", "y"],
+        },
       }
     ],
   },
@@ -206,18 +260,37 @@ Remember to always use the tools to perform the actions, and never request the u
 Your mission: Offer the best possible assistance for the user’s writing and rewriting needs by leveraging the available functions while never requesting the user to call the tools themselves.
 `
   },
-  clicker: {
-    display_name: "Clicker",
+  // clicker: {
+  //   display_name: "Clicker",
+  //   tools: [...clickerTools],
+  //   requiresDisplay: true,
+  //   systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in clicker mode. 
+
+  //   You have following tasks :
+  //   1. Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
+  //   2. Whenever the user asks you to select text, you must call the select_content function. Call the function yourself, do not ask the user to do so.
+  //   3. Whenever the user asks you to scroll the screen, you must call the scroll function. Call the function yourself, do not ask the user to do so.
+    
+  //   You might have to make multiple function calls. This is very likely. Do not miss this please. Make sure to call the functions in the order they are given.  
+  //   `
+  // },
+  hardcode_clicker: {
+    display_name: "Hardcode Click",
     tools: [...clickerTools],
     requiresDisplay: true,
-    systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in clicker mode. 
+    systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in hardcode click mode. 
 
     You have following tasks :
-    1. Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
-    2. Whenever the user asks you to select text, you must call the select_content function. Call the function yourself, do not ask the user to do so.
-    3. Whenever the user asks you to scroll the screen, you must call the scroll function. Call the function yourself, do not ask the user to do so.
+    1. when user asks you to "Open Chrome", you must call the click function with x = 1250 and y = 1025.
+    2. When user asks you to "Use trilogy account", you must call the click function with x = 1100 and y = 600.
+    3. When user asks you to "Open Physics notion page", you must call the click function with x = 700 and y = 125.
+    4. When user asks you to "Open docs Page", you must call the click function with x = 600 and y = 125.
+    5. When user asks you to "Close Overlay box", you must call the click function with x = 1550 and y = 250.
+    6. When user asks you to "Copy the content", you must call the select_content function with x1 = 670, y1 = 360, x2 = 800, y2 = 800.
+    7. When user asks you to "Insert the content", you must call the insert_content function with x = 670 and y = 360.
+
+    Give a confirmation message to the user after each action. For example, if the user asks you to "Open Chrome", you must say "Chrome opened".
     
-    You might have to make multiple function calls. This is very likely. Do not miss this please. Make sure to call the functions in the order they are given.  
     `
   },
   tutor :{

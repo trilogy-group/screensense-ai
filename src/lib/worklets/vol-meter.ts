@@ -19,6 +19,7 @@ const VolMeterWorket = `
     volume
     updateIntervalInMS
     nextUpdateFrame
+    noiseThreshold = 0.1
 
     constructor() {
       super()
@@ -49,7 +50,8 @@ const VolMeterWorket = `
         }
 
         rms = Math.sqrt(sum / samples.length)
-        this.volume = Math.max(rms, this.volume * 0.7)
+        rms = rms < this.noiseThreshold ? 0 : rms * 0.5
+        this.volume = Math.max(rms, this.volume * 0.5)
 
         this.nextUpdateFrame -= samples.length
         if (this.nextUpdateFrame < 0) {

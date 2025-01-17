@@ -87,6 +87,9 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
           case "scroll":
             ipcRenderer.send('scroll', (fc.args as any).direction || "up", (fc.args as any).amount || 50);
             break;
+          case "insert_content":
+            ipcRenderer.send('insert-content', (fc.args as any).x || 500, (fc.args as any).y || 500);
+            break;  
         }
       }
       // Add delay between function calls

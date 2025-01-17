@@ -1579,12 +1579,7 @@ ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y
   try {
     // Move to start position
     await mouse.setPosition(new Point(x1, y1));
-    // await mouse.leftClick();
-    // await keyboard.pressKey(Key.LeftShift);
-    // await mouse.setPosition(new Point(x2, y2));
-    // await mouse.leftClick();
-    // await keyboard.releaseKey(Key.LeftShift);
-    // Small delay to ensure position is reached
+    
     await new Promise(resolve => setTimeout(resolve, 50));
     // Press and hold left mouse button
     await mouse.pressButton(0); // 0 is left button in nut-js
@@ -1596,9 +1591,30 @@ ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y
     await new Promise(resolve => setTimeout(resolve, 50));
     // Release left mouse button
     await mouse.releaseButton(0);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.C);
+    await keyboard.releaseKey(modifier, Key.C);
+
     logToFile(`Selected content from (${x1},${y1}) to (${x2},${y2})`);
   } catch (error) {
     logToFile(`Error selecting content: ${error}`);
+  }
+});
+
+ipcMain.on('insert-content', async (event, x: number, y: number) => {
+  try {
+    await mouse.setPosition(new Point(x, y));
+    await mouse.leftClick();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.V);
+    await keyboard.releaseKey(modifier, Key.V);
+    logToFile(`Inserted content at coordinates: x=${x}, y=${y}`);
+  } catch (error) {
+    logToFile(`Error inserting content: ${error}`);
   }
 });
 

@@ -197,7 +197,7 @@ function ControlTray({
   useEffect(() => {
     if (connected && client) {
       // Send initial system message about screen sharing state
-      client.send([{ text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Welcome to Screense AI'" }]);
+      client.send([{ text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Welcome to Screen Sense AI'" }]);
     }
   }, [connected, client]);
 
