@@ -1,9 +1,9 @@
-import { type Tool } from "@google/generative-ai";
-import { useEffect, useState, useRef, memo } from "react";
-import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { ToolCall } from "../../multimodal-live-types";
-import vegaEmbed from "vega-embed";
-import { trackEvent } from "../../shared/analytics";
+import { type Tool } from '@google/generative-ai';
+import { useEffect, useState, useRef, memo } from 'react';
+import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
+import { ToolCall } from '../../multimodal-live-types';
+import vegaEmbed from 'vega-embed';
+import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
 const { ipcRenderer } = window.require('electron');
 
@@ -15,23 +15,28 @@ interface SubtitlesProps {
 }
 
 // Default tool configuration
-function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreenshot }: SubtitlesProps) {
-  const [subtitles, setSubtitles] = useState<string>("");
-  const [graphJson, setGraphJson] = useState<string>("");
+function SubtitlesComponent({
+  tools,
+  systemInstruction,
+  assistantMode,
+  onScreenshot,
+}: SubtitlesProps) {
+  const [subtitles, setSubtitles] = useState<string>('');
+  const [graphJson, setGraphJson] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
   const graphRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setConfig({
-      model: "models/gemini-2.0-flash-exp",
+      model: 'models/gemini-2.0-flash-exp',
       generationConfig: {
-        responseModalities: "audio",
+        responseModalities: 'audio',
         speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
         },
       },
       systemInstruction: {
-        parts: [{ text: systemInstruction }]
+        parts: [{ text: systemInstruction }],
       },
       tools: tools,
     });
@@ -45,32 +50,35 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
         // Track the tool invocation
         trackEvent('tool_used', {
           tool_name: fc.name,
-          args: fc.args
+          args: fc.args,
         });
-        
-        // Log tool usage to file
-        ipcRenderer.send('log_to_file', `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`);
 
-        if (fc.name === "render_subtitles") {
+        // Log tool usage to file
+        ipcRenderer.send(
+          'log_to_file',
+          `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`
+        );
+
+        if (fc.name === 'render_subtitles') {
           const text = (fc.args as any).subtitles;
           setSubtitles(text);
-        } else if (fc.name === "remove_subtitles") {
-          setSubtitles("");
+        } else if (fc.name === 'remove_subtitles') {
+          setSubtitles('');
           ipcRenderer.send('remove_subtitles');
-        } else if (fc.name === "render_graph") {
+        } else if (fc.name === 'render_graph') {
           const json = (fc.args as any).json_graph;
           setGraphJson(json);
-        } else if (fc.name === "write_text") {
+        } else if (fc.name === 'write_text') {
           const content = (fc.args as any).content;
           ipcRenderer.send('write_text', content);
-        } else if (fc.name === "read_text") {
+        } else if (fc.name === 'read_text') {
           const selectedText = await ipcRenderer.invoke('read_selection');
-          console.log("selectedText received", selectedText);
+          console.log('selectedText received', selectedText);
           // Send an empty response to the tool call, and then send the selected text to the client as a user message
           // This is because Gemini often ignores the tool call response, or hallucinates the response
           // At some point, we should see if we can fix this via the prompt instead
           client.sendToolResponse({
-            functionResponses: toolCall.functionCalls.map((fc) => ({
+            functionResponses: toolCall.functionCalls.map(fc => ({
               response: { output: { success: true } },
               id: fc.id,
             })),
@@ -78,7 +86,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
           client.send([{ text: `Found the following text: ${selectedText}` }]);
           ipcRenderer.send('log_to_file', `Read text: ${selectedText}`);
           hasResponded = true;
-        } else if (fc.name === "find_all_elements") {
+        } else if (fc.name === 'find_all_elements') {
           if (onScreenshot) {
             const screenshot = onScreenshot();
             if (screenshot) {
@@ -113,30 +121,33 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                   ...element,
                   center: {
                     x: Math.round(element.center.x * actualWidth),
-                    y: Math.round(element.center.y * actualHeight)
-                  }
+                    y: Math.round(element.center.y * actualHeight),
+                  },
                 }));
 
                 client.sendToolResponse({
-                  functionResponses: toolCall.functionCalls.map((fc) => ({
-                    response: { 
-                      output: { 
-                        success: true, 
-                        // elements: scaledElements 
-                      }
+                  functionResponses: toolCall.functionCalls.map(fc => ({
+                    response: {
+                      output: {
+                        success: true,
+                        // elements: scaledElements
+                      },
                     },
                     id: fc.id,
                   })),
                 });
-                client.send([{text: `Found the following elements: ${JSON.stringify(scaledElements)}`}])
-                console.log('sent coordinates')
-                
+                client.send([
+                  { text: `Found the following elements: ${JSON.stringify(scaledElements)}` },
+                ]);
+                console.log('sent coordinates');
+
                 ipcRenderer.send('log_to_file', `Found ${scaledElements.length} elements`);
               } catch (error) {
                 console.error('Error finding elements:', error);
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+                const errorMessage =
+                  error instanceof Error ? error.message : 'Unknown error occurred';
                 client.sendToolResponse({
-                  functionResponses: toolCall.functionCalls.map((fc) => ({
+                  functionResponses: toolCall.functionCalls.map(fc => ({
                     response: { output: { success: false, error: errorMessage } },
                     id: fc.id,
                   })),
@@ -146,8 +157,8 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
               }
             } else {
               client.sendToolResponse({
-                functionResponses: toolCall.functionCalls.map((fc) => ({
-                  response: { output: { success: false, error: "Failed to capture screenshot" } },
+                functionResponses: toolCall.functionCalls.map(fc => ({
+                  response: { output: { success: false, error: 'Failed to capture screenshot' } },
                   id: fc.id,
                 })),
               });
@@ -155,9 +166,9 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
               ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
             }
           } else {
-            console.log("no onScreenshot function");
+            console.log('no onScreenshot function');
             client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map((fc) => ({
+              functionResponses: toolCall.functionCalls.map(fc => ({
                 response: { output: { success: false } },
                 id: fc.id,
               })),
@@ -166,10 +177,10 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
             ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
           }
           hasResponded = true;
-        } else if (fc.name === "highlight_element") {
+        } else if (fc.name === 'highlight_element') {
           const coordinates = (fc.args as any).coordinates;
           ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
-        } else if (fc.name === "click_element") {
+        } else if (fc.name === 'click_element') {
           const args = fc.args as any;
           ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
         }
@@ -177,16 +188,16 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
 
       if (toolCall.functionCalls.length && !hasResponded) {
         client.sendToolResponse({
-          functionResponses: toolCall.functionCalls.map((fc) => ({
+          functionResponses: toolCall.functionCalls.map(fc => ({
             response: { output: { success: true } },
             id: fc.id,
           })),
         });
       }
     };
-    client.on("toolcall", onToolCall);
+    client.on('toolcall', onToolCall);
     return () => {
-      client.off("toolcall", onToolCall);
+      client.off('toolcall', onToolCall);
     };
   }, [client, onScreenshot]);
 
@@ -212,4 +223,4 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
   return <div className="vega-embed" ref={graphRef} />; // Only render the graph container
 }
 
-export const Subtitles = memo(SubtitlesComponent); 
+export const Subtitles = memo(SubtitlesComponent);

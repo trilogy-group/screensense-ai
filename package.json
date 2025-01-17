@@ -37,7 +37,8 @@
     "electron-dev": "npm run electron:tsc && concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
     "electron-build": "cross-env NODE_ENV=production npm run build:react && npm run electron:tsc && electron-builder",
     "electron-pack": "cross-env NODE_ENV=production electron-builder",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"electron/**/*.{js,jsx,ts,tsx,json}\""
   },
   "build": {
     "appId": "com.screensense.ai",
@@ -168,6 +169,7 @@
     "https-browserify": "^1.0.0",
     "os-browserify": "^0.3.0",
     "path-browserify": "^1.0.1",
+    "prettier": "^3.4.2",
     "react-app-rewired": "^2.2.1",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",

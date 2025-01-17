@@ -1,15 +1,15 @@
-import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
-import "./App.scss";
-import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
+import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
+import './App.scss';
+import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
 // import SidePanel from "./components/side-panel/SidePanel";
-import { Subtitles } from "./components/subtitles/Subtitles";
-import ControlTray from "./components/control-tray/ControlTray";
-import cn from "classnames";
-import { assistantConfigs, type AssistantConfigMode } from "./configs/assistant-configs";
-import { initAnalytics, trackEvent } from "./shared/analytics";
+import { Subtitles } from './components/subtitles/Subtitles';
+import ControlTray from './components/control-tray/ControlTray';
+import cn from 'classnames';
+import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
+import { initAnalytics, trackEvent } from './shared/analytics';
 const { ipcRenderer } = window.require('electron');
 
-const host = "generativelanguage.googleapis.com";
+const host = 'generativelanguage.googleapis.com';
 const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
 
 type ModeOption = {
@@ -18,62 +18,64 @@ type ModeOption = {
 
 // Ensure daily_helper is first in the modes array
 const modes: ModeOption[] = Object.keys(assistantConfigs).map(key => ({
-  value: key as AssistantConfigMode
+  value: key as AssistantConfigMode,
 }));
 
 export interface VideoCanvasHandle {
   captureScreenshot: () => string | null;
 }
 
-const VideoCanvas = forwardRef<VideoCanvasHandle, { videoRef: React.RefObject<HTMLVideoElement>, videoStream: MediaStream | null }>(
-  ({ videoRef, videoStream }, ref) => {
-    const renderCanvasRef = useRef<HTMLCanvasElement>(null);
-    const { client, connected } = useLiveAPIContext();
+const VideoCanvas = forwardRef<
+  VideoCanvasHandle,
+  { videoRef: React.RefObject<HTMLVideoElement>; videoStream: MediaStream | null }
+>(({ videoRef, videoStream }, ref) => {
+  const renderCanvasRef = useRef<HTMLCanvasElement>(null);
+  const { client, connected } = useLiveAPIContext();
 
-    // Add method to capture screenshot
-    const captureScreenshot = useCallback(() => {
+  // Add method to capture screenshot
+  const captureScreenshot = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = renderCanvasRef.current;
+
+    if (!video || !canvas) {
+      return null;
+    }
+
+    const ctx = canvas.getContext('2d')!;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 1.0);
+  }, [videoRef]);
+
+  // Expose the capture method through ref
+  useImperativeHandle(ref, () => ({
+    captureScreenshot,
+  }));
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = videoStream;
+    }
+
+    let timeoutId = -1;
+
+    function sendVideoFrame() {
       const video = videoRef.current;
       const canvas = renderCanvasRef.current;
 
       if (!video || !canvas) {
-        return null;
+        return;
       }
 
-      const ctx = canvas.getContext("2d")!;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL("image/jpeg", 1.0);
-    }, [videoRef]);
-
-    // Expose the capture method through ref
-    useImperativeHandle(ref, () => ({
-      captureScreenshot
-    }));
-
-    useEffect(() => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = videoStream;
-      }
-
-      let timeoutId = -1;
-
-      function sendVideoFrame() {
-        const video = videoRef.current;
-        const canvas = renderCanvasRef.current;
-
-        if (!video || !canvas) {
-          return;
-        }
-
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext('2d')!;
       canvas.width = video.videoWidth * 0.5;
       canvas.height = video.videoHeight * 0.5;
       if (canvas.width + canvas.height > 0) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL("image/jpeg", 1.0);
-        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
-        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
+        const base64 = canvas.toDataURL('image/jpeg', 1.0);
+        const data = base64.slice(base64.indexOf(',') + 1, Infinity);
+        client.sendRealtimeInput([{ mimeType: 'image/jpeg', data }]);
       }
       if (connected) {
         timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
@@ -87,15 +89,14 @@ const VideoCanvas = forwardRef<VideoCanvasHandle, { videoRef: React.RefObject<HT
     };
   }, [videoStream, connected, client, videoRef]);
 
-    return <canvas style={{ display: "none" }} ref={renderCanvasRef} />;
-  }
-);
+  return <canvas style={{ display: 'none' }} ref={renderCanvasRef} />;
+});
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoCanvasRef = useRef<VideoCanvasHandle>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const [geminiApiKey, setGeminiApiKey] = useState<string>("");
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
 
   // Initialize PostHog
@@ -108,7 +109,7 @@ function App() {
         console.error('Failed to initialize analytics:', error);
       }
     };
-    
+
     initAnalyticsWithMachineId();
   }, []);
 
@@ -210,14 +211,19 @@ function App() {
 
           <main>
             <div className="main-app-area">
-              <Subtitles 
-                tools={[...assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].tools]}
-                systemInstruction={assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].systemInstruction}
+              <Subtitles
+                tools={[
+                  ...assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].tools,
+                ]}
+                systemInstruction={
+                  assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
+                    .systemInstruction
+                }
                 assistantMode={selectedOption.value}
                 onScreenshot={handleScreenshot}
               />
               <video
-                className={cn("stream", {
+                className={cn('stream', {
                   hidden: !videoRef.current || !videoStream,
                 })}
                 ref={videoRef}
@@ -233,8 +239,9 @@ function App() {
                 onVideoStreamChange={setVideoStream}
                 modes={modes}
                 selectedOption={selectedOption}
-                setSelectedOption={(option: { value: string }) => 
-                  setSelectedOption(option as ModeOption)}
+                setSelectedOption={(option: { value: string }) =>
+                  setSelectedOption(option as ModeOption)
+                }
               >
                 {/* put your own buttons here */}
               </ControlTray>

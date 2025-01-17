@@ -52,7 +52,7 @@
   }
 
   .plain-log {
-    &>* {
+    & > * {
       padding-right: 4px;
     }
   }
@@ -61,7 +61,7 @@
     font-style: italic;
 
     &::after {
-      content: ", ";
+      content: ', ';
     }
   }
 }
@@ -70,7 +70,7 @@
   display: block;
   padding: 8px 0;
   color: var(--Neutral-50, #707577);
-  font-family: "Space Mono";
+  font-family: 'Space Mono';
   font-size: 14px;
   font-style: normal;
   font-weight: 400;

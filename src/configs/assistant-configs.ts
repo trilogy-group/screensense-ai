@@ -1,28 +1,28 @@
-import { type Tool, SchemaType } from "@google/generative-ai";
+import { type Tool, SchemaType } from '@google/generative-ai';
 
 // Tool configurations
 const translationTools: Tool[] = [
   {
     functionDeclarations: [
       {
-        name: "render_subtitles",
+        name: 'render_subtitles',
         description:
-          "Displays subtitles in an overlay window. Use this whenever you wish to display subtitles.",
+          'Displays subtitles in an overlay window. Use this whenever you wish to display subtitles.',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             subtitles: {
               type: SchemaType.STRING,
-              description: "The text to display as subtitles",
+              description: 'The text to display as subtitles',
             },
           },
-          required: ["subtitles"],
+          required: ['subtitles'],
         },
       },
       {
-        name: "remove_subtitles",
+        name: 'remove_subtitles',
         description:
-          "Removes the subtitles overlay window. Use this when the user is done translating text.",
+          'Removes the subtitles overlay window. Use this when the user is done translating text.',
       },
     ],
   },
@@ -33,19 +33,18 @@ const graphingTools: Tool[] = [
   {
     functionDeclarations: [
       {
-        name: "render_graph",
-        description:
-          "Displays a graph using Vega-Lite/Altair JSON specification.",
+        name: 'render_graph',
+        description: 'Displays a graph using Vega-Lite/Altair JSON specification.',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             json_graph: {
               type: SchemaType.STRING,
               description:
-                "JSON STRING representation of the graph to render. Must be a string, not a json object",
+                'JSON STRING representation of the graph to render. Must be a string, not a json object',
             },
           },
-          required: ["json_graph"],
+          required: ['json_graph'],
         },
       },
     ],
@@ -56,23 +55,22 @@ const readWriteTools: Tool[] = [
   {
     functionDeclarations: [
       {
-        name: "read_text",
+        name: 'read_text',
         description: "Reads text from the user's screen",
       },
       {
-        name: "write_text",
+        name: 'write_text',
         description:
-          "Writes the provided text at the current cursor position in any active window.",
+          'Writes the provided text at the current cursor position in any active window.',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             content: {
               type: SchemaType.STRING,
-              description:
-                "The text content to write at the current cursor position",
+              description: 'The text content to write at the current cursor position',
             },
           },
-          required: ["content"],
+          required: ['content'],
         },
       },
     ],
@@ -97,13 +95,12 @@ const interactionTools: Tool[] = [
       //   }
       // },
       {
-        name: "find_all_elements",
-        description:
-          "Returns a list of all UI elements visible on the screen with their locations",
+        name: 'find_all_elements',
+        description: 'Returns a list of all UI elements visible on the screen with their locations',
       },
       {
-        name: "highlight_element",
-        description: "Highlights the element at the given coordinates",
+        name: 'highlight_element',
+        description: 'Highlights the element at the given coordinates',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -118,8 +115,8 @@ const interactionTools: Tool[] = [
         },
       },
       {
-        name: "click_element",
-        description: "Clicks the element at the given coordinates",
+        name: 'click_element',
+        description: 'Clicks the element at the given coordinates',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -132,8 +129,8 @@ const interactionTools: Tool[] = [
             },
             action: {
               type: SchemaType.STRING,
-              description: "The action to perform on the element",
-              enum: ["click", "double-click", "right-click"],
+              description: 'The action to perform on the element',
+              enum: ['click', 'double-click', 'right-click'],
             },
           },
         },
@@ -145,7 +142,7 @@ const interactionTools: Tool[] = [
 // Mode-based configurations
 export const assistantConfigs = {
   daily_helper: {
-    display_name: "Daily Guide",
+    display_name: 'Daily Guide',
     tools: [{ googleSearch: {} } as Tool],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Daily Guide Mode.  
@@ -173,7 +170,7 @@ Your role:
 Your mission: Provide the best possible assistance for the user’s daily tasks using all the resources and abilities at your disposal while respecting the guidelines above.`,
   },
   translator: {
-    display_name: "Transcriber",
+    display_name: 'Transcriber',
     tools: translationTools,
     requiresDisplay: false,
     systemInstruction: `You are ScreenSense AI, operating in Translator Mode.
@@ -211,7 +208,7 @@ Your mission: Provide accurate, real-time English subtitles from spoken content 
 `,
   },
   author: {
-    display_name: "Document Expert",
+    display_name: 'Document Expert',
     tools: [...readWriteTools],
     requiresDisplay: false,
     systemInstruction: `
@@ -259,7 +256,7 @@ Your mission: Offer the best possible assistance for the user’s writing and re
 `,
   },
   tutor: {
-    display_name: "Tutor",
+    display_name: 'Tutor',
     tools: [...readWriteTools],
     requiresDisplay: true,
     systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in tutor mode. 
@@ -282,7 +279,7 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     `,
   },
   computer_control: {
-    display_name: "Computer Control",
+    display_name: 'Computer Control',
     tools: [...interactionTools],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Computer Control Mode.

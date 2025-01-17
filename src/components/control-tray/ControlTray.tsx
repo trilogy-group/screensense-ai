@@ -14,19 +14,28 @@
  * limitations under the License.
  */
 
-import cn from "classnames";
+import cn from 'classnames';
 
-import { memo, ReactNode, RefObject, useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
-import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
-import { useScreenCapture } from "../../hooks/use-screen-capture";
-import { useWebcam } from "../../hooks/use-webcam";
-import { AudioRecorder } from "../../lib/audio-recorder";
-import AudioPulse from "../audio-pulse/AudioPulse";
-import "./control-tray.scss";
-import { assistantConfigs } from "../../configs/assistant-configs";
-import { trackEvent } from "../../shared/analytics";
-import Toast from "../toast/Toast";
+import {
+  memo,
+  ReactNode,
+  RefObject,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
+import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
+import { UseMediaStreamResult } from '../../hooks/use-media-stream-mux';
+import { useScreenCapture } from '../../hooks/use-screen-capture';
+import { useWebcam } from '../../hooks/use-webcam';
+import { AudioRecorder } from '../../lib/audio-recorder';
+import AudioPulse from '../audio-pulse/AudioPulse';
+import './control-tray.scss';
+import { assistantConfigs } from '../../configs/assistant-configs';
+import { trackEvent } from '../../shared/analytics';
+import Toast from '../toast/Toast';
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
@@ -60,7 +69,7 @@ const MediaStreamButton = memo(
       <button className="action-button" onClick={start}>
         <span className="material-symbols-outlined">{offIcon}</span>
       </button>
-    ),
+    )
 );
 
 function ControlTray({
@@ -74,7 +83,10 @@ function ControlTray({
 }: ControlTrayProps) {
   const webcamStream = useWebcam();
   const screenCaptureStream = useScreenCapture();
-  const videoStreams = useMemo(() => [webcamStream, screenCaptureStream], [webcamStream, screenCaptureStream]);
+  const videoStreams = useMemo(
+    () => [webcamStream, screenCaptureStream],
+    [webcamStream, screenCaptureStream]
+  );
   const [activeVideoStream, setActiveVideoStream] = useState<MediaStream | null>(null);
   const [webcam, screenCapture] = videoStreams;
   const [inVolume, setInVolume] = useState(0);
@@ -94,8 +106,8 @@ function ControlTray({
 
   useEffect(() => {
     document.documentElement.style.setProperty(
-      "--volume",
-      `${Math.max(5, Math.min(inVolume * 200, 8))}px`,
+      '--volume',
+      `${Math.max(5, Math.min(inVolume * 200, 8))}px`
     );
   }, [inVolume]);
 
@@ -103,18 +115,18 @@ function ControlTray({
     const onData = (base64: string) => {
       client.sendRealtimeInput([
         {
-          mimeType: "audio/pcm;rate=16000",
+          mimeType: 'audio/pcm;rate=16000',
           data: base64,
         },
       ]);
     };
     if (connected && !muted && audioRecorder) {
-      audioRecorder.on("data", onData).on("volume", setInVolume).start();
+      audioRecorder.on('data', onData).on('volume', setInVolume).start();
     } else {
       audioRecorder.stop();
     }
     return () => {
-      audioRecorder.off("data", onData).off("volume", setInVolume);
+      audioRecorder.off('data', onData).off('volume', setInVolume);
     };
   }, [connected, client, muted, audioRecorder]);
 
@@ -126,38 +138,41 @@ function ControlTray({
   }, [activeVideoStream, onVideoStreamChange, videoRef]);
 
   //handler for swapping from one video-stream to the next
-  const changeStreams = useCallback((next?: UseMediaStreamResult) => async () => {
-    if (next) {
-      try {
-        const mediaStream = await next.start();
-        setActiveVideoStream(mediaStream);
-        onVideoStreamChange(mediaStream);
-        // Send success result for screen sharing
-        if (next === screenCapture) {
-          ipcRenderer.send('screen-share-result', true);
+  const changeStreams = useCallback(
+    (next?: UseMediaStreamResult) => async () => {
+      if (next) {
+        try {
+          const mediaStream = await next.start();
+          setActiveVideoStream(mediaStream);
+          onVideoStreamChange(mediaStream);
+          // Send success result for screen sharing
+          if (next === screenCapture) {
+            ipcRenderer.send('screen-share-result', true);
+          }
+        } catch (error) {
+          // Handle cancellation by hiding the main window
+          if (error instanceof Error && error.message === 'Selection cancelled') {
+            console.log('Screen selection was cancelled, hiding main window');
+            ipcRenderer.send('hide-main-window');
+          } else {
+            console.error('Error changing streams:', error);
+          }
+          setActiveVideoStream(null);
+          onVideoStreamChange(null);
+          // Send failure result for screen sharing
+          if (next === screenCapture) {
+            ipcRenderer.send('screen-share-result', false);
+          }
         }
-      } catch (error) {
-        // Handle cancellation by hiding the main window
-        if (error instanceof Error && error.message === 'Selection cancelled') {
-          console.log('Screen selection was cancelled, hiding main window');
-          ipcRenderer.send('hide-main-window');
-        } else {
-          console.error('Error changing streams:', error);
-        }
+      } else {
         setActiveVideoStream(null);
         onVideoStreamChange(null);
-        // Send failure result for screen sharing
-        if (next === screenCapture) {
-          ipcRenderer.send('screen-share-result', false);
-        }
       }
-    } else {
-      setActiveVideoStream(null);
-      onVideoStreamChange(null);
-    }
 
-    videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
-  }, [onVideoStreamChange, screenCapture, videoStreams]);
+      videoStreams.filter(msr => msr !== next).forEach(msr => msr.stop());
+    },
+    [onVideoStreamChange, screenCapture, videoStreams]
+  );
 
   // Stop all streams and hide subtitles when connection is closed
   useEffect(() => {
@@ -184,14 +199,18 @@ function ControlTray({
     ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
   }, [modes]);
 
-  const handleCarouselChange = useCallback((direction: 'next' | 'prev') => {
-    setCarouselIndex(prevIndex => {
-      const newIndex = direction === 'next' 
-        ? (prevIndex + 1) % modes.length
-        : (prevIndex - 1 + modes.length) % modes.length;
-      return newIndex;
-    });
-  }, [modes.length]);
+  const handleCarouselChange = useCallback(
+    (direction: 'next' | 'prev') => {
+      setCarouselIndex(prevIndex => {
+        const newIndex =
+          direction === 'next'
+            ? (prevIndex + 1) % modes.length
+            : (prevIndex - 1 + modes.length) % modes.length;
+        return newIndex;
+      });
+    },
+    [modes.length]
+  );
 
   const handleConnect = () => {
     if (!connected) {
@@ -199,7 +218,7 @@ function ControlTray({
         assistant_mode: selectedOption.value,
       });
     }
-    
+
     connected ? disconnect() : connect();
   };
 
@@ -260,7 +279,7 @@ function ControlTray({
       isMuted: muted,
       isScreenSharing: screenCapture.isStreaming,
       isWebcamOn: webcam.isStreaming,
-      isConnected: connected
+      isConnected: connected,
     });
 
     // Show/hide main window based on active streams
@@ -292,92 +311,93 @@ function ControlTray({
     };
   }, []);
 
-  return (<>
-    <section className="control-tray">
-      <div className="control-tray-container">
-        <nav className={cn("actions-nav", { disabled: !connected })}>
-          <button
-            className={cn("action-button mic-button")}
-            onClick={() => setMuted(!muted)}
-          >
-            {!muted ? (
-              <span className="material-symbols-outlined filled">mic</span>
-            ) : (
-              <span className="material-symbols-outlined filled">mic_off</span>
-            )}
-          </button>
+  return (
+    <>
+      <section className="control-tray">
+        <div className="control-tray-container">
+          <nav className={cn('actions-nav', { disabled: !connected })}>
+            <button className={cn('action-button mic-button')} onClick={() => setMuted(!muted)}>
+              {!muted ? (
+                <span className="material-symbols-outlined filled">mic</span>
+              ) : (
+                <span className="material-symbols-outlined filled">mic_off</span>
+              )}
+            </button>
 
-          <div className="action-button no-action outlined">
-            <AudioPulse volume={volume} active={connected} hover={false} />
-          </div>
-
-          {supportsVideo && assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].requiresDisplay && (
-            <>
-              <MediaStreamButton
-                isStreaming={screenCapture.isStreaming}
-                start={changeStreams(screenCapture)}
-                stop={changeStreams()}
-                onIcon="cancel_presentation"
-                offIcon="present_to_all"
-              />
-              <MediaStreamButton
-                isStreaming={webcam.isStreaming}
-                start={changeStreams(webcam)}
-                stop={changeStreams()}
-                onIcon="videocam_off"
-                offIcon="videocam"
-              />
-            </>
-          )}
-          {children}
-        </nav>
-        
-        <div className="carousel-container">
-          <button
-            className="carousel-button action-button"
-            onClick={() => handleCarouselChange('prev')}
-          >
-            <span className="material-symbols-outlined">chevron_left</span>
-          </button>
-
-          <div className="carousel-content">
-            <div className="carousel-slide">
-              <span className="carousel-text">{assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name}</span>
+            <div className="action-button no-action outlined">
+              <AudioPulse volume={volume} active={connected} hover={false} />
             </div>
+
+            {supportsVideo &&
+              assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
+                .requiresDisplay && (
+                <>
+                  <MediaStreamButton
+                    isStreaming={screenCapture.isStreaming}
+                    start={changeStreams(screenCapture)}
+                    stop={changeStreams()}
+                    onIcon="cancel_presentation"
+                    offIcon="present_to_all"
+                  />
+                  <MediaStreamButton
+                    isStreaming={webcam.isStreaming}
+                    start={changeStreams(webcam)}
+                    stop={changeStreams()}
+                    onIcon="videocam_off"
+                    offIcon="videocam"
+                  />
+                </>
+              )}
+            {children}
+          </nav>
+
+          <div className="carousel-container">
+            <button
+              className="carousel-button action-button"
+              onClick={() => handleCarouselChange('prev')}
+            >
+              <span className="material-symbols-outlined">chevron_left</span>
+            </button>
+
+            <div className="carousel-content">
+              <div className="carousel-slide">
+                <span className="carousel-text">
+                  {
+                    assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
+                      .display_name
+                  }
+                </span>
+              </div>
+            </div>
+
+            <button
+              className="carousel-button action-button"
+              onClick={() => handleCarouselChange('next')}
+            >
+              <span className="material-symbols-outlined">chevron_right</span>
+            </button>
           </div>
-
-          <button
-            className="carousel-button action-button"
-            onClick={() => handleCarouselChange('next')}
-          >
-            <span className="material-symbols-outlined">chevron_right</span>
-          </button>
         </div>
-      </div>
 
-      <div className={cn("connection-container", { connected })}>
-        <div className="connection-button-container">
-          <button
-            ref={connectButtonRef}
-            className={cn("action-button connect-toggle", { connected })}
-            onClick={handleConnect}
-          >
-            <span className="material-symbols-outlined filled">
-              {connected ? "pause" : "play_arrow"}
-            </span>
-          </button>
+        <div className={cn('connection-container', { connected })}>
+          <div className="connection-button-container">
+            <button
+              ref={connectButtonRef}
+              className={cn('action-button connect-toggle', { connected })}
+              onClick={handleConnect}
+            >
+              <span className="material-symbols-outlined filled">
+                {connected ? 'pause' : 'play_arrow'}
+              </span>
+            </button>
+          </div>
+          <span className="text-indicator">Streaming</span>
         </div>
-        <span className="text-indicator">Streaming</span>
-      </div>
-    </section>
-    {errorMessage && (
-      <Toast
-        message={errorMessage}
-        type="error"
-        onClose={() => setErrorMessage(null)}
-      />
-    )}
-  </>
+      </section>
+      {errorMessage && (
+        <Toast message={errorMessage} type="error" onClose={() => setErrorMessage(null)} />
+      )}
+    </>
   );
 }
 

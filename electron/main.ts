@@ -6,25 +6,18 @@ import {
   WebContents,
   clipboard,
   nativeImage,
-} from "electron";
-import * as path from "path";
-import * as fs from "fs";
-import {
-  keyboard,
-  Key,
-  mouse,
-  Point,
-  straightTo,
-  Button,
-} from "@nut-tree-fork/nut-js";
-import { execSync } from "child_process";
-import * as crypto from "crypto";
+} from 'electron';
+import * as path from 'path';
+import * as fs from 'fs';
+import { keyboard, Key, mouse, Point, straightTo, Button } from '@nut-tree-fork/nut-js';
+import { execSync } from 'child_process';
+import * as crypto from 'crypto';
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
-  require("dotenv-flow").config();
+  require('dotenv-flow').config();
 } else {
-  require("dotenv").config({ path: path.join(process.resourcesPath, ".env") });
+  require('dotenv').config({ path: path.join(process.resourcesPath, '.env') });
 }
 
 keyboard.config.autoDelayMs = 0;
@@ -36,46 +29,46 @@ let settingsWindow: BrowserWindow | null = null;
 let markerWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
-  const logPath = app.getPath("userData") + "/app.log";
+  const logPath = app.getPath('userData') + '/app.log';
   const timestamp = new Date().toISOString();
   fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
 }
 
 // Add settings storage functions
 function getSettingsPath() {
-  return path.join(app.getPath("userData"), "settings.json");
+  return path.join(app.getPath('userData'), 'settings.json');
 }
 
 function loadSettings() {
   try {
     const settingsPath = getSettingsPath();
     if (fs.existsSync(settingsPath)) {
-      const data = fs.readFileSync(settingsPath, "utf8");
+      const data = fs.readFileSync(settingsPath, 'utf8');
       return JSON.parse(data);
     }
   } catch (error) {
     logToFile(`Error loading settings: ${error}`);
   }
-  return { geminiApiKey: "" };
+  return { geminiApiKey: '' };
 }
 
 function saveSettings(settings: any) {
   try {
     const settingsPath = getSettingsPath();
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-    logToFile("Settings saved successfully");
+    logToFile('Settings saved successfully');
   } catch (error) {
     logToFile(`Error saving settings: ${error}`);
   }
 }
 
 // Add handler for getting saved settings
-ipcMain.handle("get-saved-settings", async () => {
+ipcMain.handle('get-saved-settings', async () => {
   return loadSettings();
 });
 
 function getFirstLaunchPath(machineId: string) {
-  return path.join(app.getPath("userData"), `first_launch_${machineId}.txt`);
+  return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
 }
 
 function checkFirstLaunch(machineId: string) {
@@ -93,7 +86,7 @@ function checkFirstLaunch(machineId: string) {
   return isFirstLaunch;
 }
 
-ipcMain.handle("check-first-launch", async () => {
+ipcMain.handle('check-first-launch', async () => {
   const machineId = await getMachineId();
   return checkFirstLaunch(machineId);
 });
@@ -103,8 +96,8 @@ async function createMainWindow() {
     return mainWindow; // Return existing window if it's still valid
   }
 
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== "production";
-  logToFile(`Starting app in ${isDev ? "development" : "production"} mode`);
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
+  logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
 
   // Resolve icon path differently for dev mode
   let iconPath;
@@ -112,24 +105,24 @@ async function createMainWindow() {
     // In development, try multiple possible locations
     iconPath = path.resolve(
       __dirname,
-      "..",
-      "icons",
-      process.platform === "darwin" ? "icon.icns" : "icon.ico"
+      '..',
+      'icons',
+      process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
     );
     logToFile(`Using dev icon path: ${iconPath}`);
     if (!fs.existsSync(iconPath)) {
-      logToFile("Warning: Could not find icon file in development mode");
+      logToFile('Warning: Could not find icon file in development mode');
     }
   } else {
     // Production path resolution
     iconPath = path.join(
       app.getAppPath(),
-      "public",
-      "icons",
-      process.platform === "darwin" ? "icon.icns" : "icon.ico"
+      'public',
+      'icons',
+      process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
     );
     if (!fs.existsSync(iconPath)) {
-      logToFile("Warning: Could not find icon file in expected location");
+      logToFile('Warning: Could not find icon file in expected location');
     }
   }
 
@@ -152,9 +145,9 @@ async function createMainWindow() {
     show: false,
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     // For macOS, set the app icon explicitly
-    ...(process.platform === "darwin"
+    ...(process.platform === 'darwin'
       ? {
-          titleBarStyle: "hiddenInset",
+          titleBarStyle: 'hiddenInset',
           trafficLightPosition: { x: 10, y: 10 },
         }
       : {}),
@@ -167,34 +160,34 @@ async function createMainWindow() {
   });
 
   // Prevent window from being closed directly
-  mainWindow.on("close", (event) => {
+  mainWindow.on('close', event => {
     event.preventDefault();
     mainWindow?.hide();
   });
 
   // Open DevTools in a new window
   if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: "detach" });
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   // Remove menu from the window
   mainWindow.setMenu(null);
 
   // Add IPC handler for closing main window
-  ipcMain.on("close-main-window", () => {
+  ipcMain.on('close-main-window', () => {
     if (mainWindow) {
       mainWindow.close();
     }
   });
 
   // Set dock icon explicitly for macOS
-  if (process.platform === "darwin" && fs.existsSync(iconPath)) {
+  if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
     try {
       const dockIcon = nativeImage.createFromPath(iconPath);
       if (!dockIcon.isEmpty()) {
         app.dock.setIcon(dockIcon);
       } else {
-        logToFile("Warning: Dock icon image is empty");
+        logToFile('Warning: Dock icon image is empty');
       }
     } catch (error) {
       logToFile(`Error setting dock icon: ${error}`);
@@ -204,17 +197,8 @@ async function createMainWindow() {
   // Set permissions for media access
   if (mainWindow) {
     mainWindow.webContents.session.setPermissionRequestHandler(
-      (
-        webContents: WebContents,
-        permission: string,
-        callback: (granted: boolean) => void
-      ) => {
-        const allowedPermissions = [
-          "media",
-          "display-capture",
-          "screen",
-          "mediaKeySystem",
-        ];
+      (webContents: WebContents, permission: string, callback: (granted: boolean) => void) => {
+        const allowedPermissions = ['media', 'display-capture', 'screen', 'mediaKeySystem'];
         if (allowedPermissions.includes(permission)) {
           callback(true);
         } else {
@@ -224,29 +208,27 @@ async function createMainWindow() {
     );
 
     // Enable screen capture
-    mainWindow.webContents.session.setDisplayMediaRequestHandler(
-      (request, callback) => {
-        mainWindow?.webContents.send("show-screen-picker");
-        callback({}); // Let the renderer handle source selection
-      }
-    );
+    mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+      mainWindow?.webContents.send('show-screen-picker');
+      callback({}); // Let the renderer handle source selection
+    });
 
     let loadUrl: string;
     if (isDev) {
-      loadUrl = "http://localhost:3000";
+      loadUrl = 'http://localhost:3000';
     } else {
       // In production, use the app.getAppPath() to get the correct base path
       const appPath = app.getAppPath();
       // Remove .asar from the path to access unpacked resources
-      const basePath = appPath.replace(".asar", ".asar.unpacked");
-      const indexPath = path.join(basePath, "build", "index.html");
+      const basePath = appPath.replace('.asar', '.asar.unpacked');
+      const indexPath = path.join(basePath, 'build', 'index.html');
 
       // Log more details about the paths
       logToFile(`Base path: ${basePath}`);
       logToFile(`Index path: ${indexPath}`);
       logToFile(`Directory contents of build:`);
       try {
-        const buildContents = fs.readdirSync(path.join(basePath, "build"));
+        const buildContents = fs.readdirSync(path.join(basePath, 'build'));
         logToFile(JSON.stringify(buildContents, null, 2));
       } catch (error) {
         logToFile(`Error reading build directory: ${error}`);
@@ -257,40 +239,32 @@ async function createMainWindow() {
 
     logToFile(`App path: ${app.getAppPath()}`);
     logToFile(`Attempting to load URL: ${loadUrl}`);
-    logToFile(
-      `Build path exists: ${fs.existsSync(loadUrl.replace("file://", ""))}`
-    );
+    logToFile(`Build path exists: ${fs.existsSync(loadUrl.replace('file://', ''))}`);
 
     try {
       await mainWindow.loadURL(loadUrl);
-      logToFile("Successfully loaded the window URL");
+      logToFile('Successfully loaded the window URL');
     } catch (error) {
       logToFile(`Error loading URL: ${error}`);
     }
 
     // Log when the page finishes loading
-    mainWindow.webContents.on("did-finish-load", () => {
-      logToFile("Page finished loading");
+    mainWindow.webContents.on('did-finish-load', () => {
+      logToFile('Page finished loading');
       // Send saved settings to the renderer
       const savedSettings = loadSettings();
-      mainWindow?.webContents.send("init-saved-settings", savedSettings);
+      mainWindow?.webContents.send('init-saved-settings', savedSettings);
     });
 
     // Log any errors that occur during page load
-    mainWindow.webContents.on(
-      "did-fail-load",
-      (event, errorCode, errorDescription) => {
-        logToFile(`Failed to load: ${errorDescription} (${errorCode})`);
-      }
-    );
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      logToFile(`Failed to load: ${errorDescription} (${errorCode})`);
+    });
 
     // Add console logging from the renderer process
-    mainWindow.webContents.on(
-      "console-message",
-      (event, level, message, line, sourceId) => {
-        logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
-      }
-    );
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
+    });
   }
   return mainWindow;
 }
@@ -300,7 +274,7 @@ async function createControlWindow() {
     return controlWindow;
   }
 
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== "production";
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   controlWindow = new BrowserWindow({
     width: 250,
     height: 100,
@@ -316,18 +290,18 @@ async function createControlWindow() {
   });
 
   // When control window is closed, close all other windows and quit the app
-  controlWindow.on("closed", () => {
+  controlWindow.on('closed', () => {
     // Force close all windows by removing their close event listeners
     if (mainWindow) {
-      mainWindow.removeAllListeners("close");
+      mainWindow.removeAllListeners('close');
       mainWindow.close();
     }
     if (settingsWindow) {
-      settingsWindow.removeAllListeners("close");
+      settingsWindow.removeAllListeners('close');
       settingsWindow.close();
     }
     if (overlayWindow) {
-      overlayWindow.removeAllListeners("close");
+      overlayWindow.removeAllListeners('close');
       overlayWindow.close();
     }
     controlWindow = null;
@@ -340,7 +314,7 @@ async function createControlWindow() {
   // }
 
   // Ensure it stays on top even when other windows request always on top
-  controlWindow.setAlwaysOnTop(true, "screen-saver");
+  controlWindow.setAlwaysOnTop(true, 'screen-saver');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -988,21 +962,19 @@ async function createControlWindow() {
     </html>
   `;
 
-  controlWindow.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
-  );
+  controlWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
   // Wait for window to be ready before showing
-  controlWindow.once("ready-to-show", () => {
+  controlWindow.once('ready-to-show', () => {
     // Send initial mode update
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Force a mode update from the main window
-      mainWindow.webContents.send("request-mode-update");
+      mainWindow.webContents.send('request-mode-update');
     }
   });
 
   // Handle window close
-  controlWindow.on("closed", () => {
+  controlWindow.on('closed', () => {
     controlWindow = null;
   });
 
@@ -1028,13 +1000,13 @@ function createOverlayWindow() {
   });
 
   // Prevent window from being closed directly
-  overlayWindow.on("close", (event) => {
+  overlayWindow.on('close', event => {
     event.preventDefault();
     overlayWindow?.hide();
   });
 
   overlayWindow.setIgnoreMouseEvents(true);
-  overlayWindow.setAlwaysOnTop(true, "screen-saver");
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -1104,12 +1076,10 @@ function createOverlayWindow() {
     </html>
   `;
 
-  overlayWindow.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
-  );
+  overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
   // Handle window close
-  overlayWindow.on("closed", () => {
+  overlayWindow.on('closed', () => {
     overlayWindow = null;
   });
 
@@ -1136,7 +1106,7 @@ async function createSettingsWindow() {
   });
 
   // Prevent window from being closed directly
-  settingsWindow.on("close", (event) => {
+  settingsWindow.on('close', event => {
     event.preventDefault();
     settingsWindow?.hide();
   });
@@ -1436,20 +1406,18 @@ async function createSettingsWindow() {
     </html>
   `;
 
-  settingsWindow.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
-  );
+  settingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
-  settingsWindow.once("ready-to-show", () => {
+  settingsWindow.once('ready-to-show', () => {
     if (settingsWindow) {
       settingsWindow.show();
       // Initialize settings with saved data
       const savedSettings = loadSettings();
-      settingsWindow.webContents.send("init-settings", savedSettings);
+      settingsWindow.webContents.send('init-settings', savedSettings);
     }
   });
 
-  settingsWindow.on("closed", () => {
+  settingsWindow.on('closed', () => {
     settingsWindow = null;
   });
 
@@ -1457,23 +1425,23 @@ async function createSettingsWindow() {
 }
 
 // Update show-settings handler to not show main window
-ipcMain.on("show-settings", async () => {
+ipcMain.on('show-settings', async () => {
   await createSettingsWindow();
 });
 
 // Handle API key check
-ipcMain.on("check-api-key", async (event) => {
+ipcMain.on('check-api-key', async event => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   // Create a promise to wait for the API key check result
-  const hasApiKey = await new Promise((resolve) => {
+  const hasApiKey = await new Promise(resolve => {
     // We know mainWindow is not null here
-    (mainWindow as BrowserWindow).webContents.send("check-api-key");
+    (mainWindow as BrowserWindow).webContents.send('check-api-key');
     const handleApiKeyCheck = (_: any, result: boolean) => {
-      ipcMain.removeListener("api-key-check-result", handleApiKeyCheck);
+      ipcMain.removeListener('api-key-check-result', handleApiKeyCheck);
       resolve(result);
     };
-    ipcMain.on("api-key-check-result", handleApiKeyCheck);
+    ipcMain.on('api-key-check-result', handleApiKeyCheck);
   });
 
   if (!hasApiKey) {
@@ -1483,43 +1451,43 @@ ipcMain.on("check-api-key", async (event) => {
 });
 
 // Handle API key check result
-ipcMain.on("api-key-check-result", (event, hasApiKey) => {
+ipcMain.on('api-key-check-result', (event, hasApiKey) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send("api-key-check", hasApiKey);
+    controlWindow.webContents.send('api-key-check', hasApiKey);
   }
 });
 
 // Add IPC handlers for session errors
-ipcMain.on("session-error", (event, errorMessage) => {
+ipcMain.on('session-error', (event, errorMessage) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send("show-error-toast", errorMessage);
+    controlWindow.webContents.send('show-error-toast', errorMessage);
   }
 });
 
 // Add handler for logging to file
-ipcMain.on("log_to_file", (event, message) => {
+ipcMain.on('log_to_file', (event, message) => {
   logToFile(message);
 });
 
 // Add new IPC handlers for settings window
-ipcMain.on("settings-data", (event, settings) => {
+ipcMain.on('settings-data', (event, settings) => {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.webContents.send("init-settings", settings);
+    settingsWindow.webContents.send('init-settings', settings);
   }
 });
 
-ipcMain.on("save-settings", (event, settings) => {
+ipcMain.on('save-settings', (event, settings) => {
   // Save settings to file
   saveSettings(settings);
 
   // Send settings to main window
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("update-settings", settings);
+    mainWindow.webContents.send('update-settings', settings);
   }
 
   // Just notify control window about API key availability without starting session
   if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send("settings-updated", !!settings.apiKey);
+    controlWindow.webContents.send('settings-updated', !!settings.apiKey);
   }
 
   // Close settings window
@@ -1528,7 +1496,7 @@ ipcMain.on("save-settings", (event, settings) => {
   }
 });
 
-ipcMain.on("close-settings", () => {
+ipcMain.on('close-settings', () => {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.close();
   }
@@ -1546,25 +1514,25 @@ async function initializeApp() {
 
   // Send saved settings to main window
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("init-saved-settings", savedSettings);
+    mainWindow.webContents.send('init-saved-settings', savedSettings);
   }
 }
 
 // Single app initialization point
 app.whenReady().then(initializeApp);
 
-app.on("window-all-closed", () => {
+app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.on("activate", () => {
+app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     initializeApp();
   }
 });
 
 // Update main window close handler to clean up other windows
-ipcMain.on("close-main-window", () => {
+ipcMain.on('close-main-window', () => {
   if (mainWindow) {
     // Clean up all windows when main window is closed
     if (controlWindow && !controlWindow.isDestroyed()) {
@@ -1578,9 +1546,9 @@ ipcMain.on("close-main-window", () => {
 });
 
 // Update subtitle handlers to check for destroyed windows
-ipcMain.on("update-subtitles", (event, text) => {
+ipcMain.on('update-subtitles', (event, text) => {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send("update-subtitles", text);
+    overlayWindow.webContents.send('update-subtitles', text);
     if (text) {
       overlayWindow.showInactive();
     } else {
@@ -1589,28 +1557,28 @@ ipcMain.on("update-subtitles", (event, text) => {
   }
 });
 
-ipcMain.on("remove-subtitles", () => {
+ipcMain.on('remove-subtitles', () => {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.hide();
   }
 });
 
 // Handle IPC for screen sharing
-ipcMain.handle("get-sources", async () => {
+ipcMain.handle('get-sources', async () => {
   const sources = await desktopCapturer.getSources({
-    types: ["window", "screen"],
+    types: ['window', 'screen'],
     thumbnailSize: { width: 1920, height: 1080 },
   });
   return sources;
 });
 
 // Add this with other IPC handlers
-ipcMain.handle("read_selection", async () => {
+ipcMain.handle('read_selection', async () => {
   return await getSelectedText();
 });
 
 // Add this after the other ipcMain handlers
-ipcMain.on("write_text", async (event, content) => {
+ipcMain.on('write_text', async (event, content) => {
   try {
     // Save the current clipboard content
     const previousClipboard = clipboard.readText();
@@ -1619,8 +1587,7 @@ ipcMain.on("write_text", async (event, content) => {
     clipboard.writeText(content);
 
     // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
-    const modifier =
-      process.platform === "darwin" ? Key.LeftCmd : Key.LeftControl;
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.V);
     await keyboard.releaseKey(modifier, Key.V);
 
@@ -1634,7 +1601,7 @@ ipcMain.on("write_text", async (event, content) => {
 });
 
 // Update the control-action handler to handle all cases
-ipcMain.on("control-action", async (event, action) => {
+ipcMain.on('control-action', async (event, action) => {
   try {
     // Create main window if it doesn't exist for any control action
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -1643,28 +1610,25 @@ ipcMain.on("control-action", async (event, action) => {
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Show window if screen sharing or webcam is being activated
-      if (
-        (action.type === "screen" || action.type === "webcam") &&
-        action.value === true
-      ) {
+      if ((action.type === 'screen' || action.type === 'webcam') && action.value === true) {
         mainWindow.show();
         mainWindow.focus();
       }
-      mainWindow.webContents.send("control-action", action);
+      mainWindow.webContents.send('control-action', action);
     }
   } catch (error) {
     logToFile(`Error handling control action: ${error}`);
-    event.reply("control-action-error", {
-      error: "Failed to process control action",
+    event.reply('control-action-error', {
+      error: 'Failed to process control action',
     });
   }
 });
 
 // Add this to handle state updates from the main window
-ipcMain.on("update-control-state", (event, state) => {
+ipcMain.on('update-control-state', (event, state) => {
   try {
     if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.webContents.send("update-controls", state);
+      controlWindow.webContents.send('update-controls', state);
     }
   } catch (error) {
     logToFile(`Error updating control state: ${error}`);
@@ -1672,10 +1636,10 @@ ipcMain.on("update-control-state", (event, state) => {
 });
 
 // Add this to handle screen selection result
-ipcMain.on("screen-share-result", (event, success) => {
+ipcMain.on('screen-share-result', (event, success) => {
   try {
     if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.webContents.send("screen-share-result", success);
+      controlWindow.webContents.send('screen-share-result', success);
     }
   } catch (error) {
     logToFile(`Error handling screen share result: ${error}`);
@@ -1683,13 +1647,13 @@ ipcMain.on("screen-share-result", (event, success) => {
 });
 
 // Add this to handle carousel actions
-ipcMain.on("carousel-action", async (event, direction) => {
+ipcMain.on('carousel-action', async (event, direction) => {
   try {
     if (!mainWindow || mainWindow.isDestroyed()) {
       await createMainWindow();
     }
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("carousel-action", direction);
+      mainWindow.webContents.send('carousel-action', direction);
     }
   } catch (error) {
     logToFile(`Error handling carousel action: ${error}`);
@@ -1697,10 +1661,10 @@ ipcMain.on("carousel-action", async (event, direction) => {
 });
 
 // Add this to handle carousel updates
-ipcMain.on("update-carousel", (event, modeName) => {
+ipcMain.on('update-carousel', (event, modeName) => {
   try {
     if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.webContents.send("update-carousel", modeName);
+      controlWindow.webContents.send('update-carousel', modeName);
     }
   } catch (error) {
     logToFile(`Error updating carousel: ${error}`);
@@ -1708,14 +1672,14 @@ ipcMain.on("update-carousel", (event, modeName) => {
 });
 
 // Add this to handle control window close
-ipcMain.on("close-control-window", (event) => {
+ipcMain.on('close-control-window', event => {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.close();
   }
 });
 
 // Add this after the other ipcMain handlers
-ipcMain.on("paste-content", async (event, content) => {
+ipcMain.on('paste-content', async (event, content) => {
   try {
     // Save the current clipboard content
     const previousClipboard = clipboard.readText();
@@ -1724,8 +1688,7 @@ ipcMain.on("paste-content", async (event, content) => {
     clipboard.writeText(content);
 
     // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
-    const modifier =
-      process.platform === "darwin" ? Key.LeftCmd : Key.LeftControl;
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.V);
     await keyboard.releaseKey(modifier, Key.V);
 
@@ -1744,13 +1707,12 @@ async function getSelectedText() {
     const previousClipboard = clipboard.readText();
 
     // Simulate Cmd+C (for macOS) or Ctrl+C (for other platforms)
-    const modifier =
-      process.platform === "darwin" ? Key.LeftCmd : Key.LeftControl;
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.C);
     await keyboard.releaseKey(modifier, Key.C);
 
     // Wait a bit for the clipboard to update
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     // Get the selected text from clipboard
     const selectedText = clipboard.readText();
@@ -1762,45 +1724,45 @@ async function getSelectedText() {
     return selectedText;
   } catch (error) {
     logToFile(`Error getting selected text: ${error}`);
-    return "";
+    return '';
   }
 }
 
 // Add this with other IPC handlers
-ipcMain.handle("get-selected-text", async () => {
+ipcMain.handle('get-selected-text', async () => {
   return await getSelectedText();
 });
 
 // Add this with other IPC handlers
-ipcMain.on("show-main-window", () => {
+ipcMain.on('show-main-window', () => {
   if (mainWindow) {
     mainWindow.show();
     mainWindow.focus();
   }
 });
 
-ipcMain.on("hide-main-window", () => {
+ipcMain.on('hide-main-window', () => {
   if (mainWindow) {
     mainWindow.hide();
   }
 });
 
 // Add IPC handlers for session errors (add this before app.on('ready'))
-ipcMain.on("session-error", (event, errorMessage) => {
+ipcMain.on('session-error', (event, errorMessage) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send("show-error-toast", errorMessage);
+    controlWindow.webContents.send('show-error-toast', errorMessage);
   }
 });
 
 // Add handler for logging to file
-ipcMain.on("log_to_file", (event, message) => {
+ipcMain.on('log_to_file', (event, message) => {
   logToFile(message);
 });
 
 // Get unique machine ID
 async function getMachineId(): Promise<string> {
   try {
-    if (process.platform === "darwin") {
+    if (process.platform === 'darwin') {
       // Try to get hardware UUID on macOS
       const output = execSync(
         "ioreg -d2 -c IOPlatformExpertDevice | awk -F\\\" '/IOPlatformUUID/{print $(NF-1)}'"
@@ -1808,10 +1770,10 @@ async function getMachineId(): Promise<string> {
         .toString()
         .trim();
       return output;
-    } else if (process.platform === "win32") {
+    } else if (process.platform === 'win32') {
       // Get Windows machine GUID
       const output = execSync(
-        "get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID"
+        'get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID'
       )
         .toString()
         .trim();
@@ -1820,21 +1782,19 @@ async function getMachineId(): Promise<string> {
       return output;
     } else {
       // For Linux and others, try to get machine-id
-      const machineId = fs.readFileSync("/etc/machine-id", "utf8").trim();
+      const machineId = fs.readFileSync('/etc/machine-id', 'utf8').trim();
       return machineId;
     }
   } catch (error) {
-    console.error("Error getting machine ID:", error);
+    console.error('Error getting machine ID:', error);
     // Fallback: Generate a persistent hash based on available system info
-    const systemInfo = `${app.getPath("home")}-${process.platform}-${
-      process.arch
-    }`;
-    return crypto.createHash("sha256").update(systemInfo).digest("hex");
+    const systemInfo = `${app.getPath('home')}-${process.platform}-${process.arch}`;
+    return crypto.createHash('sha256').update(systemInfo).digest('hex');
   }
 }
 
 // Add this with other IPC handlers
-ipcMain.handle("get-machine-id", async () => {
+ipcMain.handle('get-machine-id', async () => {
   const machineId = await getMachineId();
   return machineId;
 });
@@ -1899,28 +1859,26 @@ function showCoordinateMarker(x: number, y: number) {
     </html>
   `;
 
-  markerWindow.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`
-  );
+  markerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`);
   markerWindow.setIgnoreMouseEvents(true);
 }
 
 // Add IPC handler for showing coordinates
-ipcMain.on("show-coordinates", (_, x: number, y: number) => {
+ipcMain.on('show-coordinates', (_, x: number, y: number) => {
   showCoordinateMarker(x, y);
 });
 
-ipcMain.on("click", async (event, x: number, y: number, action: string) => {
+ipcMain.on('click', async (event, x: number, y: number, action: string) => {
   try {
     // Move mouse to coordinates and click
     // await mouse.setPosition(new Point(x, y));
     await mouse.move(straightTo(new Point(x, y)));
     logToFile(`Going to perform action: ${action}`);
-    if (action === "click") {
+    if (action === 'click') {
       await mouse.leftClick();
-    } else if (action === "double-click") {
+    } else if (action === 'double-click') {
       await mouse.doubleClick(Button.LEFT);
-    } else if (action === "right-click") {
+    } else if (action === 'right-click') {
       await mouse.rightClick();
     } else {
       logToFile(`Unknown action: ${action}`);
@@ -1928,6 +1886,6 @@ ipcMain.on("click", async (event, x: number, y: number, action: string) => {
     logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
   } catch (error) {
     logToFile(`Error performing click: ${error}`);
-    console.log("error performing click", error);
+    console.log('error performing click', error);
   }
 });

@@ -26,7 +26,7 @@
   scrollbar-color: var(--gray-600) var(--gray-900);
   scrollbar-width: thin;
 
-  --font-family: "Space Mono", monospace;
+  --font-family: 'Space Mono', monospace;
 
   /* */
   --Neutral-00: #000;
@@ -53,40 +53,40 @@
 }
 
 body {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
   background: var(--Neutral-30);
 }
 
 .material-symbols-outlined {
   &.filled {
     font-variation-settings:
-      "FILL" 1,
-      "wght" 400,
-      "GRAD" 0,
-      "opsz" 24;
+      'FILL' 1,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24;
   }
 }
 
 .space-mono-regular {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
   font-weight: 400;
   font-style: normal;
 }
 
 .space-mono-bold {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
   font-weight: 700;
   font-style: normal;
 }
 
 .space-mono-regular-italic {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
   font-weight: 400;
   font-style: italic;
 }
 
 .space-mono-bold-italic {
-  font-family: "Space Mono", monospace;
+  font-family: 'Space Mono', monospace;
   font-weight: 700;
   font-style: italic;
 }
@@ -111,7 +111,8 @@ body {
   flex-direction: column;
 }
 
-@media (prefers-reduced-motion: no-preference) {}
+@media (prefers-reduced-motion: no-preference) {
+}
 
 .streaming-console {
   background: var(--Neutral-5);
@@ -129,7 +130,7 @@ body {
   .disabled {
     pointer-events: none;
 
-    >* {
+    > * {
       pointer-events: none;
     }
   }
@@ -177,7 +178,7 @@ body {
   z-index: 100;
   background: var(--Neutral-20);
   color: var(--Neutral-60);
-  
+
   &:hover {
     background: var(--Neutral-30);
   }
@@ -264,11 +265,11 @@ body {
     color: var(--gray-200);
     outline: none;
     transition: border-color 0.2s;
-    font-family: "Space Mono", monospace;
+    font-family: 'Space Mono', monospace;
 
     &::placeholder {
       color: var(--gray-500);
-      font-family: "Space Mono", monospace;
+      font-family: 'Space Mono', monospace;
       opacity: 1;
     }
 
@@ -294,7 +295,7 @@ body {
       cursor: pointer;
       transition: all 0.2s;
 
-      &[type="button"] {
+      &[type='button'] {
         background: var(--Neutral-20);
         color: var(--gray-200);
 
@@ -303,7 +304,7 @@ body {
         }
       }
 
-      &[type="submit"] {
+      &[type='submit'] {
         background: var(--Blue-500);
         color: white;
 

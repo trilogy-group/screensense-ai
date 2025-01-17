@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { UseMediaStreamResult } from "./use-media-stream-mux";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { UseMediaStreamResult } from './use-media-stream-mux';
 import { DesktopCapturerSource } from 'electron';
 const { ipcRenderer } = window.require('electron');
 
@@ -33,16 +33,10 @@ export function useScreenCapture(): UseMediaStreamResult {
     };
     if (stream) {
       // console.log('🎥 Setting up stream end listeners');
-      stream
-        .getTracks()
-        .forEach((track) => track.addEventListener("ended", handleStreamEnded));
+      stream.getTracks().forEach(track => track.addEventListener('ended', handleStreamEnded));
       return () => {
         console.log('🎥 Cleaning up stream end listeners');
-        stream
-          .getTracks()
-          .forEach((track) =>
-            track.removeEventListener("ended", handleStreamEnded),
-          );
+        stream.getTracks().forEach(track => track.removeEventListener('ended', handleStreamEnded));
       };
     }
   }, [stream]);
@@ -74,7 +68,7 @@ export function useScreenCapture(): UseMediaStreamResult {
     } catch (error) {
       console.error('🎯 Error during picker cleanup:', error);
     }
-    
+
     if (isPickerOpenRef.current) {
       // console.log('🎯 Resetting picker open state');
       isPickerOpenRef.current = false;
@@ -206,13 +200,13 @@ export function useScreenCapture(): UseMediaStreamResult {
       }
 
       const constraints = {
-        audio: false,  // Start with just video to avoid audio issues
+        audio: false, // Start with just video to avoid audio issues
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: selectedSource
-          }
-        }
+            chromeMediaSourceId: selectedSource,
+          },
+        },
       };
 
       // console.log('🎥 Requesting media stream with constraints');
@@ -257,7 +251,7 @@ export function useScreenCapture(): UseMediaStreamResult {
   }, [stop]);
 
   const result: UseMediaStreamResult = {
-    type: "screen",
+    type: 'screen',
     start,
     stop,
     isStreaming,

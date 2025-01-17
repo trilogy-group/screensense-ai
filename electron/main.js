@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 var __awaiter =
   (this && this.__awaiter) ||
   function (thisArg, _arguments, P, generator) {
@@ -19,15 +19,13 @@ var __awaiter =
       }
       function rejected(value) {
         try {
-          step(generator["throw"](value));
+          step(generator['throw'](value));
         } catch (e) {
           reject(e);
         }
       }
       function step(result) {
-        result.done
-          ? resolve(result.value)
-          : adopt(result.value).then(fulfilled, rejected);
+        result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
       }
       step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
@@ -50,7 +48,7 @@ var __generator =
       g;
     return (
       (g = { next: verb(0), throw: verb(1), return: verb(2) }),
-      typeof Symbol === "function" &&
+      typeof Symbol === 'function' &&
         (g[Symbol.iterator] = function () {
           return this;
         }),
@@ -62,7 +60,7 @@ var __generator =
       };
     }
     function step(op) {
-      if (f) throw new TypeError("Generator is already executing.");
+      if (f) throw new TypeError('Generator is already executing.');
       while ((g && ((g = 0), op[0] && (_ = 0)), _))
         try {
           if (
@@ -70,10 +68,10 @@ var __generator =
             y &&
               (t =
                 op[0] & 2
-                  ? y["return"]
+                  ? y['return']
                   : op[0]
-                  ? y["throw"] || ((t = y["return"]) && t.call(y), 0)
-                  : y.next) &&
+                    ? y['throw'] || ((t = y['return']) && t.call(y), 0)
+                    : y.next) &&
               !(t = t.call(y, op[1])).done)
           )
             return t;
@@ -132,9 +130,9 @@ var __generator =
       return { value: op[0] ? op[1] : void 0, done: true };
     }
   };
-Object.defineProperty(exports, "__esModule", { value: true });
-var electron_1 = require("electron");
-var path = require("path");
+Object.defineProperty(exports, '__esModule', { value: true });
+var electron_1 = require('electron');
+var path = require('path');
 var mainWindow = null;
 var overlayWindow = null;
 function createWindow() {
@@ -154,29 +152,22 @@ function createWindow() {
             },
           });
           if (!mainWindow) return [3 /*break*/, 2];
-          mainWindow.webContents.session.setPermissionRequestHandler(function (
-            webContents,
-            permission,
-            callback
-          ) {
-            var allowedPermissions = [
-              "media",
-              "display-capture",
-              "screen",
-              "mediaKeySystem",
-            ];
-            if (allowedPermissions.includes(permission)) {
-              callback(true);
-            } else {
-              callback(false);
+          mainWindow.webContents.session.setPermissionRequestHandler(
+            function (webContents, permission, callback) {
+              var allowedPermissions = ['media', 'display-capture', 'screen', 'mediaKeySystem'];
+              if (allowedPermissions.includes(permission)) {
+                callback(true);
+              } else {
+                callback(false);
+              }
             }
-          });
+          );
           // Enable screen capture
           mainWindow.webContents.session.setDisplayMediaRequestHandler(
             function (request, callback) {
               mainWindow === null || mainWindow === void 0
                 ? void 0
-                : mainWindow.webContents.send("show-screen-picker");
+                : mainWindow.webContents.send('show-screen-picker');
               callback({}); // Let the renderer handle source selection
             }
           );
@@ -184,8 +175,8 @@ function createWindow() {
             4 /*yield*/,
             mainWindow.loadURL(
               isDev
-                ? "http://localhost:3000"
-                : "file://".concat(path.join(__dirname, "../build/index.html"))
+                ? 'http://localhost:3000'
+                : 'file://'.concat(path.join(__dirname, '../build/index.html'))
             ),
           ];
         case 1:
@@ -215,15 +206,13 @@ function createOverlayWindow() {
     },
   });
   overlayWindow.setIgnoreMouseEvents(true);
-  overlayWindow.setAlwaysOnTop(true, "screen-saver");
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   var htmlContent =
     "\n    <!DOCTYPE html>\n    <html>\n      <head>\n        <style>\n          body {\n            margin: 0;\n            padding: 0;\n            overflow: hidden;\n            background: transparent;\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            height: 100vh;\n            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\n          }\n          #subtitles {\n            background-color: rgba(0, 0, 0, 0.7);\n            color: white;\n            padding: 15px 30px;\n            border-radius: 10px;\n            font-size: 24px;\n            font-weight: 500;\n            text-align: center;\n            max-width: 80%;\n            display: none;\n          }\n        </style>\n      </head>\n      <body>\n        <div id=\"subtitles\"></div>\n        <script>\n          const { ipcRenderer } = require('electron');\n          const subtitles = document.getElementById('subtitles');\n          \n          ipcRenderer.on('update-subtitles', (event, text) => {\n            if (text) {\n              subtitles.textContent = text;\n              subtitles.style.display = 'block';\n            } else {\n              subtitles.style.display = 'none';\n            }\n          });\n        </script>\n      </body>\n    </html>\n  ";
-  overlayWindow.loadURL(
-    "data:text/html;charset=utf-8,".concat(encodeURIComponent(htmlContent))
-  );
+  overlayWindow.loadURL('data:text/html;charset=utf-8,'.concat(encodeURIComponent(htmlContent)));
 }
 // Handle IPC for screen sharing
-electron_1.ipcMain.handle("get-sources", function () {
+electron_1.ipcMain.handle('get-sources', function () {
   return __awaiter(void 0, void 0, void 0, function () {
     var sources;
     return __generator(this, function (_a) {
@@ -232,7 +221,7 @@ electron_1.ipcMain.handle("get-sources", function () {
           return [
             4 /*yield*/,
             electron_1.desktopCapturer.getSources({
-              types: ["window", "screen"],
+              types: ['window', 'screen'],
               thumbnailSize: { width: 150, height: 150 },
             }),
           ];
@@ -244,19 +233,19 @@ electron_1.ipcMain.handle("get-sources", function () {
   });
 });
 electron_1.app.whenReady().then(createWindow);
-electron_1.app.on("window-all-closed", function () {
-  if (process.platform !== "darwin") {
+electron_1.app.on('window-all-closed', function () {
+  if (process.platform !== 'darwin') {
     electron_1.app.quit();
   }
 });
-electron_1.app.on("activate", function () {
+electron_1.app.on('activate', function () {
   if (electron_1.BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
-electron_1.ipcMain.on("update-subtitles", function (event, text) {
+electron_1.ipcMain.on('update-subtitles', function (event, text) {
   if (overlayWindow) {
-    overlayWindow.webContents.send("update-subtitles", text);
+    overlayWindow.webContents.send('update-subtitles', text);
     if (text) {
       overlayWindow.showInactive();
     } else {
@@ -264,7 +253,7 @@ electron_1.ipcMain.on("update-subtitles", function (event, text) {
     }
   }
 });
-electron_1.ipcMain.on("remove_subtitles", function () {
+electron_1.ipcMain.on('remove_subtitles', function () {
   if (overlayWindow) {
     overlayWindow.hide();
   }
