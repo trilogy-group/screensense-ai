@@ -6,7 +6,8 @@ const translationTools: Tool[] = [
     functionDeclarations: [
       {
         name: "render_subtitles",
-        description: "Displays subtitles in an overlay window. Use this whenever you wish to display subtitles.",
+        description:
+          "Displays subtitles in an overlay window. Use this whenever you wish to display subtitles.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -20,7 +21,8 @@ const translationTools: Tool[] = [
       },
       {
         name: "remove_subtitles",
-        description: "Removes the subtitles overlay window. Use this when the user is done translating text.",
+        description:
+          "Removes the subtitles overlay window. Use this when the user is done translating text.",
       },
     ],
   },
@@ -32,13 +34,15 @@ const graphingTools: Tool[] = [
     functionDeclarations: [
       {
         name: "render_graph",
-        description: "Displays a graph using Vega-Lite/Altair JSON specification.",
+        description:
+          "Displays a graph using Vega-Lite/Altair JSON specification.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             json_graph: {
               type: SchemaType.STRING,
-              description: "JSON STRING representation of the graph to render. Must be a string, not a json object",
+              description:
+                "JSON STRING representation of the graph to render. Must be a string, not a json object",
             },
           },
           required: ["json_graph"],
@@ -51,20 +55,21 @@ const graphingTools: Tool[] = [
 const readWriteTools: Tool[] = [
   {
     functionDeclarations: [
-      
       {
         name: "read_text",
         description: "Reads text from the user's screen",
       },
       {
         name: "write_text",
-        description: "Writes the provided text at the current cursor position in any active window.",
+        description:
+          "Writes the provided text at the current cursor position in any active window.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             content: {
               type: SchemaType.STRING,
-              description: "The text content to write at the current cursor position",
+              description:
+                "The text content to write at the current cursor position",
             },
           },
           required: ["content"],
@@ -93,7 +98,8 @@ const interactionTools: Tool[] = [
       // },
       {
         name: "find_all_elements",
-        description: "Returns a list of all UI elements visible on the screen with their locations",
+        description:
+          "Returns a list of all UI elements visible on the screen with their locations",
       },
       {
         name: "highlight_element",
@@ -105,12 +111,33 @@ const interactionTools: Tool[] = [
               type: SchemaType.OBJECT,
               properties: {
                 x: { type: SchemaType.NUMBER },
-                y: { type: SchemaType.NUMBER }
-              }
-            }
-          }
-        }
-      }
+                y: { type: SchemaType.NUMBER },
+              },
+            },
+          },
+        },
+      },
+      {
+        name: "click_element",
+        description: "Clicks the element at the given coordinates",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            coordinates: {
+              type: SchemaType.OBJECT,
+              properties: {
+                x: { type: SchemaType.NUMBER },
+                y: { type: SchemaType.NUMBER },
+              },
+            },
+            action: {
+              type: SchemaType.STRING,
+              description: "The action to perform on the element",
+              enum: ["click", "double-click", "right-click"],
+            },
+          },
+        },
+      },
     ],
   },
 ];
@@ -119,7 +146,7 @@ const interactionTools: Tool[] = [
 export const assistantConfigs = {
   daily_helper: {
     display_name: "Daily Guide",
-    tools: [({googleSearch: {}} as Tool)],
+    tools: [{ googleSearch: {} } as Tool],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Daily Guide Mode.  
 
@@ -143,10 +170,10 @@ Your role:
    - If the user needs quick facts or help with a simple task, answer promptly.  
    - If the user requests something more in-depth or complex, use the Google Search tool (if helpful), then provide a well-structured summary.  
 
-Your mission: Provide the best possible assistance for the user’s daily tasks using all the resources and abilities at your disposal while respecting the guidelines above.`
+Your mission: Provide the best possible assistance for the user’s daily tasks using all the resources and abilities at your disposal while respecting the guidelines above.`,
   },
   translator: {
-    display_name: "Transcriber", 
+    display_name: "Transcriber",
     tools: translationTools,
     requiresDisplay: false,
     systemInstruction: `You are ScreenSense AI, operating in Translator Mode.
@@ -181,7 +208,7 @@ Example Behavior:
 - If the user says "Stop translating," hide all subtitles and cease translation immediately.
 
 Your mission: Provide accurate, real-time English subtitles from spoken content using your translator tools. Avoid asking the user to employ these tools themselves, and remain silent otherwise.
-`
+`,
   },
   author: {
     display_name: "Document Expert",
@@ -229,9 +256,9 @@ Example Behavior:
 Remember to always use the tools to perform the actions, and never request the user to call the tools themselves.
 
 Your mission: Offer the best possible assistance for the user’s writing and rewriting needs by leveraging the available functions while never requesting the user to call the tools themselves.
-`
+`,
   },
-  tutor :{
+  tutor: {
     display_name: "Tutor",
     tools: [...readWriteTools],
     requiresDisplay: true,
@@ -252,7 +279,7 @@ For example:
 If the user asks, "What does this formula mean?" provide an explanation of the formula's components and its purpose, followed by a hint about how it might apply to the problem at hand.
 If the user asks, "How do I solve this equation?" guide them through the process step-by-step without solving it outright.
 Your ultimate goal is to help users build a deeper understanding of the subject matter, develop problem-solving skills, and boost their confidence in learning independently.
-    `
+    `,
   },
   element_finder: {
     display_name: "Element Finder",
@@ -260,25 +287,35 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Element Finder Mode.
 
-    Primary Purpose: Help users locate elements on their screen.
+    Primary Purpose: Help users locate and click elements on their screen.
 
     Your Tools:
     - You can find and return the coordinates of all elements on the screen.
     - You can also highlight an element at the given coordinates.
+    - You can also click an element at the given coordinates.
     - Only you should invoke the tools; do not instruct the user to do so.
     - The analysis may take a few seconds, so be patient.
     - Do not invoke the tool multiple times in a loop.
 
-    Key Behaviors:
+    If the user asks you to click an element, follow these steps:
     1. Use the find_all_elements tool to get a list of all UI elements
     2. The tool will return a list of elements with their type, content, interactivity status, and screen coordinates
     3. Choose the most appropriate element based on the user's description
-    4. Use the highlight_element tool to highlight the element at the given coordinates
-    5. If you think none of the elements match the description, suggest trying with a different description.
+    4. If you think none of the elements match the description, suggest trying with a different description.
+    5. Use the click_element tool to click the element at the given coordinates. You must also provide the action to perform on the element. Assume this is always left click unless otherwise specified.
+    6. Unless the user asks you to click at the same place, you must find the elements again, as the screen may have changed.
+    7. Be patient during analysis and keep the user informed.
+
+    If the user asks you to find an element, follow these steps:
+    1. Use the find_all_elements tool to get a list of all UI elements
+    2. The tool will return a list of elements with their type, content, interactivity status, and screen coordinates
+    3. Choose the most appropriate element based on the user's description
+    4. If you think none of the elements match the description, suggest trying with a different description.
+    5. Use the highlight_element tool to highlight the element at the given coordinates
     6. Be patient during analysis and keep the user informed.
-    `
-  }
+    `,
+  },
 } as const;
 
 // Type for the configuration modes
-export type AssistantConfigMode = keyof typeof assistantConfigs; 
+export type AssistantConfigMode = keyof typeof assistantConfigs;

@@ -51,22 +51,22 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
         });
         
         // Log tool usage to file
-        ipcRenderer.send('log-to-file', `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`);
+        ipcRenderer.send('log_to_file', `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`);
 
         if (fc.name === "render_subtitles") {
           const text = (fc.args as any).subtitles;
           setSubtitles(text);
         } else if (fc.name === "remove_subtitles") {
           setSubtitles("");
-          ipcRenderer.send('remove-subtitles');
+          ipcRenderer.send('remove_subtitles');
         } else if (fc.name === "render_graph") {
           const json = (fc.args as any).json_graph;
           setGraphJson(json);
         } else if (fc.name === "write_text") {
           const content = (fc.args as any).content;
-          ipcRenderer.send('write-text', content);
+          ipcRenderer.send('write_text', content);
         } else if (fc.name === "read_text") {
-          const selectedText = await ipcRenderer.invoke('read-selection');
+          const selectedText = await ipcRenderer.invoke('read_selection');
           console.log("selectedText received", selectedText);
           // Send an empty response to the tool call, and then send the selected text to the client as a user message
           // This is because Gemini often ignores the tool call response, or hallucinates the response
@@ -78,7 +78,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
             })),
           });
           client.send([{ text: `Found the following text: ${selectedText}` }]);
-          ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
+          ipcRenderer.send('log_to_file', `Read text: ${selectedText}`);
           hasResponded = true;
         } else if (fc.name === "find_element") {
           if (onScreenshot) {
@@ -143,7 +143,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                   client.send([{ text: `Could not find the element: ${elementDescription}` }]);
                 }
                 
-                ipcRenderer.send('log-to-file', `Element search completed`);
+                ipcRenderer.send('log_to_file', `Element search completed`);
               } catch (error) {
                 console.error('Error finding element:', error);
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -154,7 +154,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                   })),
                 });
                 client.send([{ text: `Error finding element: ${errorMessage}` }]);
-                ipcRenderer.send('log-to-file', `Error finding element: ${errorMessage}`);
+                ipcRenderer.send('log_to_file', `Error finding element: ${errorMessage}`);
               }
             } else {
               client.sendToolResponse({
@@ -164,7 +164,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                 })),
               });
               client.send([{ text: `Failed to capture screenshot` }]);
-              ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+              ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
             }
           } else {
             console.log("no onScreenshot function");
@@ -175,7 +175,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
               })),
             });
             client.send([{ text: `Failed to capture screenshot.` }]);
-            ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+            ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
           }
           hasResponded = true;
         } else if (fc.name === "find_all_elements") {
@@ -222,14 +222,16 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                     response: { 
                       output: { 
                         success: true, 
-                        elements: scaledElements 
+                        // elements: scaledElements 
                       }
                     },
                     id: fc.id,
                   })),
                 });
+                client.send([{text: `Found the following elements: ${JSON.stringify(scaledElements)}`}])
+                console.log('sent coordinates')
                 
-                ipcRenderer.send('log-to-file', `Found ${scaledElements.length} elements`);
+                ipcRenderer.send('log_to_file', `Found ${scaledElements.length} elements`);
               } catch (error) {
                 console.error('Error finding elements:', error);
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -240,7 +242,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                   })),
                 });
                 client.send([{ text: `Error finding elements: ${errorMessage}` }]);
-                ipcRenderer.send('log-to-file', `Error finding elements: ${errorMessage}`);
+                ipcRenderer.send('log_to_file', `Error finding elements: ${errorMessage}`);
               }
             } else {
               client.sendToolResponse({
@@ -250,7 +252,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
                 })),
               });
               client.send([{ text: `Failed to capture screenshot` }]);
-              ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+              ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
             }
           } else {
             console.log("no onScreenshot function");
@@ -261,12 +263,15 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
               })),
             });
             client.send([{ text: `Failed to capture screenshot.` }]);
-            ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+            ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
           }
           hasResponded = true;
         } else if (fc.name === "highlight_element") {
           const coordinates = (fc.args as any).coordinates;
           ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
+        } else if (fc.name === "click_element") {
+          const args = fc.args as any;
+          ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
         }
       }
 
@@ -299,7 +304,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode, onScreens
       } catch (error) {
         console.error('Failed to render graph:', error);
         // Log graph rendering errors
-        ipcRenderer.send('log-to-file', `Error rendering graph: ${error}`);
+        ipcRenderer.send('log_to_file', `Error rendering graph: ${error}`);
       }
     }
   }, [graphRef, graphJson]);
