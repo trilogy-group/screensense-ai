@@ -20,7 +20,7 @@ interface ParsedDetectionResult {
 
 export class OmniParser {
   private client: Client | null = null;
-  private readonly endpoint = "http://52.90.204.78:7861/";
+  private readonly endpoint = "http://34.199.128.33:7861/";
 
   private parseElementsList(description: string): Element[] {
     const lines = description.split("\n");
