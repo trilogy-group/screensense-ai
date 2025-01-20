@@ -1,7 +1,15 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, WebContents, clipboard, nativeImage } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  desktopCapturer,
+  WebContents,
+  clipboard,
+  nativeImage,
+} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { keyboard, Key, mouse, Point } from '@nut-tree-fork/nut-js';
+import { keyboard, Key, mouse, Point, straightTo, Button } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 
@@ -19,6 +27,7 @@ let overlayWindow: BrowserWindow | null = null;
 let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let customSessionName: string | null = null;
+let markerWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -41,7 +50,7 @@ function loadSettings() {
   } catch (error) {
     logToFile(`Error loading settings: ${error}`);
   }
-  return { apiKey: '' };
+  return { geminiApiKey: '' };
 }
 
 function saveSettings(settings: any) {
@@ -85,7 +94,7 @@ ipcMain.handle('check-first-launch', async () => {
 
 async function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    return mainWindow;  // Return existing window if it's still valid
+    return mainWindow; // Return existing window if it's still valid
   }
 
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
@@ -95,14 +104,24 @@ async function createMainWindow() {
   let iconPath;
   if (isDev) {
     // In development, try multiple possible locations
-    iconPath = path.resolve(__dirname, '..', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    iconPath = path.resolve(
+      __dirname,
+      '..',
+      'icons',
+      process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
+    );
     logToFile(`Using dev icon path: ${iconPath}`);
     if (!fs.existsSync(iconPath)) {
       logToFile('Warning: Could not find icon file in development mode');
     }
   } else {
     // Production path resolution
-    iconPath = path.join(app.getAppPath(), 'public', 'icons', process.platform === 'darwin' ? 'icon.icns' : 'icon.ico');
+    iconPath = path.join(
+      app.getAppPath(),
+      'public',
+      'icons',
+      process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
+    );
     if (!fs.existsSync(iconPath)) {
       logToFile('Warning: Could not find icon file in expected location');
     }
@@ -127,20 +146,22 @@ async function createMainWindow() {
     show: false,
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     // For macOS, set the app icon explicitly
-    ...(process.platform === 'darwin' ? {
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 10, y: 10 }
-    } : {}),
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 10, y: 10 },
+        }
+      : {}),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: false,  // Temporarily disable for debugging
-      devTools: true
+      webSecurity: false, // Temporarily disable for debugging
+      devTools: true,
     },
   });
 
   // Prevent window from being closed directly
-  mainWindow.on('close', (event) => {
+  mainWindow.on('close', event => {
     event.preventDefault();
     mainWindow?.hide();
   });
@@ -176,18 +197,16 @@ async function createMainWindow() {
 
   // Set permissions for media access
   if (mainWindow) {
-    mainWindow.webContents.session.setPermissionRequestHandler((
-      webContents: WebContents,
-      permission: string,
-      callback: (granted: boolean) => void
-    ) => {
-      const allowedPermissions = ['media', 'display-capture', 'screen', 'mediaKeySystem'];
-      if (allowedPermissions.includes(permission)) {
-        callback(true);
-      } else {
-        callback(false);
+    mainWindow.webContents.session.setPermissionRequestHandler(
+      (webContents: WebContents, permission: string, callback: (granted: boolean) => void) => {
+        const allowedPermissions = ['media', 'display-capture', 'screen', 'mediaKeySystem'];
+        if (allowedPermissions.includes(permission)) {
+          callback(true);
+        } else {
+          callback(false);
+        }
       }
-    });
+    );
 
     // Enable screen capture
     mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
@@ -291,9 +310,9 @@ async function createControlWindow() {
   });
 
   // Open DevTools in a new window for control window
-  if (isDev) {
-    controlWindow.webContents.openDevTools({ mode: 'detach' });
-  }
+  // if (isDev) {
+  //   controlWindow.webContents.openDevTools({ mode: "detach" });
+  // }
 
   // Ensure it stays on top even when other windows request always on top
   controlWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -662,6 +681,21 @@ async function createControlWindow() {
           .error-toast.visible {
             opacity: 1;
           }
+
+          .marker {
+            width: 101px;
+            height: 101px;
+            background: rgba(255, 0, 0, 0.3);
+            border: 2px solid rgba(255, 0, 0, 0.8);
+            position: absolute;
+            animation: pulse 1s infinite;
+            box-sizing: border-box;
+          }
+          @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.4; }
+          }
         </style>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
       </head>
@@ -950,7 +984,7 @@ async function createControlWindow() {
 
 function createOverlayWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    return overlayWindow;  // Return existing window if it's still valid
+    return overlayWindow; // Return existing window if it's still valid
   }
 
   overlayWindow = new BrowserWindow({
@@ -967,7 +1001,7 @@ function createOverlayWindow() {
   });
 
   // Prevent window from being closed directly
-  overlayWindow.on('close', (event) => {
+  overlayWindow.on('close', event => {
     event.preventDefault();
     overlayWindow?.hide();
   });
@@ -1073,7 +1107,7 @@ async function createSettingsWindow() {
   });
 
   // Prevent window from being closed directly
-  settingsWindow.on('close', (event) => {
+  settingsWindow.on('close', event => {
     event.preventDefault();
     settingsWindow?.hide();
   });
@@ -1301,11 +1335,11 @@ async function createSettingsWindow() {
               <form id="settings-form">
                 <div class="settings-group">                  
                   <div class="form-group">
-                    <label class="form-label" for="api-key-input">Gemini API Key</label>
+                    <label class="form-label" for="gemini-api-key-input">Gemini API Key</label>
                     <div class="input-group">
                       <input
                         type="password"
-                        id="api-key-input"
+                        id="gemini-api-key-input"
                         placeholder="Enter your API key"
                         class="form-input"
                       />
@@ -1337,27 +1371,30 @@ async function createSettingsWindow() {
           const { ipcRenderer } = require('electron');
           
           const form = document.getElementById('settings-form');
-          const apiKeyInput = document.getElementById('api-key-input');
+          const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
           const saveButton = document.getElementById('save-button');
           const cancelButton = document.getElementById('cancel-button');
 
-          // Initialize with current API key
-          ipcRenderer.on('init-settings', (event, { apiKey }) => {
-            apiKeyInput.value = apiKey || '';
-            saveButton.disabled = !apiKey;
+          // Initialize with current API keys
+          ipcRenderer.on('init-settings', (event, { geminiApiKey }) => {
+            geminiApiKeyInput.value = geminiApiKey || '';
+            saveButton.disabled = !geminiApiKey;
           });
 
           // Enable/disable save button based on input
-          apiKeyInput.addEventListener('input', () => {
-            saveButton.disabled = !apiKeyInput.value.trim();
-          });
+          const checkInputs = () => {
+            const hasGeminiKey = geminiApiKeyInput.value.trim();
+            saveButton.disabled = !hasGeminiKey;
+          };
+          
+          geminiApiKeyInput.addEventListener('input', checkInputs);
 
           // Handle form submission
           form.addEventListener('submit', (e) => {
             e.preventDefault();
-            const apiKey = apiKeyInput.value.trim();
-            if (apiKey) {
-              ipcRenderer.send('save-settings', { apiKey });
+            const geminiApiKey = geminiApiKeyInput.value.trim();
+            if (geminiApiKey) {
+              ipcRenderer.send('save-settings', { geminiApiKey });
             }
           });
 
@@ -1394,7 +1431,7 @@ ipcMain.on('show-settings', async () => {
 });
 
 // Handle API key check
-ipcMain.on('check-api-key', async (event) => {
+ipcMain.on('check-api-key', async event => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   // Create a promise to wait for the API key check result
@@ -1429,7 +1466,7 @@ ipcMain.on('session-error', (event, errorMessage) => {
 });
 
 // Add handler for logging to file
-ipcMain.on('log-to-file', (event, message) => {
+ipcMain.on('log_to_file', (event, message) => {
   logToFile(message);
 });
 
@@ -1531,18 +1568,18 @@ ipcMain.on('remove-subtitles', () => {
 ipcMain.handle('get-sources', async () => {
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
-    thumbnailSize: { width: 1920, height: 1080 }
+    thumbnailSize: { width: 1920, height: 1080 },
   });
   return sources;
 });
 
 // Add this with other IPC handlers
-ipcMain.handle('read-selection', async () => {
+ipcMain.handle('read_selection', async () => {
   return await getSelectedText();
 });
 
 // Add this after the other ipcMain handlers
-ipcMain.on('write-text', async (event, content) => {
+ipcMain.on('write_text', async (event, content) => {
   try {
     // Save the current clipboard content
     const previousClipboard = clipboard.readText();
@@ -1658,7 +1695,9 @@ ipcMain.on('control-action', async (event, action) => {
     }
   } catch (error) {
     logToFile(`Error handling control action: ${error}`);
-    event.reply('control-action-error', { error: 'Failed to process control action' });
+    event.reply('control-action-error', {
+      error: 'Failed to process control action',
+    });
   }
 });
 
@@ -1714,7 +1753,7 @@ ipcMain.on('update-carousel', (event, modeName) => {
 });
 
 // Add this to handle control window close
-ipcMain.on('close-control-window', (event) => {
+ipcMain.on('close-control-window', event => {
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.close();
   }
@@ -1797,7 +1836,7 @@ ipcMain.on('session-error', (event, errorMessage) => {
 });
 
 // Add handler for logging to file
-ipcMain.on('log-to-file', (event, message) => {
+ipcMain.on('log_to_file', (event, message) => {
   logToFile(message);
 });
 
@@ -1806,11 +1845,19 @@ async function getMachineId(): Promise<string> {
   try {
     if (process.platform === 'darwin') {
       // Try to get hardware UUID on macOS
-      const output = execSync('ioreg -d2 -c IOPlatformExpertDevice | awk -F\\" \'/IOPlatformUUID/{print $(NF-1)}\'').toString().trim();
+      const output = execSync(
+        "ioreg -d2 -c IOPlatformExpertDevice | awk -F\\\" '/IOPlatformUUID/{print $(NF-1)}'"
+      )
+        .toString()
+        .trim();
       return output;
     } else if (process.platform === 'win32') {
       // Get Windows machine GUID
-      const output = execSync('get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID').toString().trim();
+      const output = execSync(
+        'get-wmiobject Win32_ComputerSystemProduct  | Select-Object -ExpandProperty UUID'
+      )
+        .toString()
+        .trim();
       // const match = output.match(/[A-F0-9]{8}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{4}[-][A-F0-9]{12}/i);
       // return match ? match[0] : '';
       return output;
@@ -2023,4 +2070,95 @@ ipcMain.handle('perform-action', async (event, name) => {
     logToFile(`Error getting action data: ${error}`);
     return [];
   }
-}); 
+});
+
+function showCoordinateMarker(x: number, y: number) {
+  if (markerWindow && !markerWindow.isDestroyed()) {
+    markerWindow.close();
+  }
+
+  // Adjust window size to be smaller since we're showing a smaller marker
+  const markerSize = 20; // Diameter (2 * radius)
+  markerWindow = new BrowserWindow({
+    width: markerSize,
+    height: markerSize,
+    x: x - markerSize / 2, // Center the marker on the coordinates
+    y: y - markerSize / 2,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const markerHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+          }
+          .marker {
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 0, 0, 0.3);
+            border: 2px solid rgba(255, 0, 0, 0.8);
+            position: absolute;
+            animation: pulse 1s infinite;
+            box-sizing: border-box;
+            border-radius: 50%; /* Make it circular */
+          }
+          @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.4; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="marker"></div>
+        <script>
+          // Auto-close after 10 seconds
+          setTimeout(() => window.close(), 10000);
+        </script>
+      </body>
+    </html>
+  `;
+
+  markerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`);
+  markerWindow.setIgnoreMouseEvents(true);
+}
+
+// Add IPC handler for showing coordinates
+ipcMain.on('show-coordinates', (_, x: number, y: number) => {
+  showCoordinateMarker(x, y);
+});
+
+ipcMain.on('click', async (event, x: number, y: number, action: string) => {
+  try {
+    // Move mouse to coordinates and click
+    // await mouse.setPosition(new Point(x, y));
+    await mouse.move(straightTo(new Point(x, y)));
+    logToFile(`Going to perform action: ${action}`);
+    if (action === 'click') {
+      await mouse.leftClick();
+    } else if (action === 'double-click') {
+      await mouse.doubleClick(Button.LEFT);
+    } else if (action === 'right-click') {
+      await mouse.rightClick();
+    } else {
+      logToFile(`Unknown action: ${action}`);
+    }
+    logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
+  } catch (error) {
+    logToFile(`Error performing click: ${error}`);
+    console.log('error performing click', error);
+  }
+});

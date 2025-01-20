@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MultimodalLiveAPIClientConnection,
   MultimodalLiveClient,
-} from "../lib/multimodal-live-client";
-import { LiveConfig } from "../multimodal-live-types";
-import { AudioStreamer } from "../lib/audio-streamer";
-import { audioContext } from "../lib/utils";
-import VolMeterWorket from "../lib/worklets/vol-meter";
+} from '../lib/multimodal-live-client';
+import { LiveConfig } from '../multimodal-live-types';
+import { AudioStreamer } from '../lib/audio-streamer';
+import { audioContext } from '../lib/utils';
+import VolMeterWorket from '../lib/worklets/vol-meter';
 const { ipcRenderer } = window.require('electron');
 
 export type UseLiveAPIResults = {
@@ -35,29 +35,23 @@ export type UseLiveAPIResults = {
   volume: number;
 };
 
-export function useLiveAPI({
-  url,
-  apiKey,
-}: MultimodalLiveAPIClientConnection): UseLiveAPIResults {
-  const client = useMemo(
-    () => new MultimodalLiveClient({ url, apiKey }),
-    [url, apiKey],
-  );
+export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): UseLiveAPIResults {
+  const client = useMemo(() => new MultimodalLiveClient({ url, apiKey }), [url, apiKey]);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
 
   const [connected, setConnected] = useState(false);
   const [config, setConfig] = useState<LiveConfig>({
-    model: "models/gemini-2.0-flash-exp",
+    model: 'models/gemini-2.0-flash-exp',
   });
   const [volume, setVolume] = useState(0);
 
   // register audio for streaming server -> speakers
   useEffect(() => {
     if (!audioStreamerRef.current) {
-      audioContext({ id: "audio-out" }).then((audioCtx: AudioContext) => {
+      audioContext({ id: 'audio-out' }).then((audioCtx: AudioContext) => {
         audioStreamerRef.current = new AudioStreamer(audioCtx);
         audioStreamerRef.current
-          .addWorklet<any>("vumeter-out", VolMeterWorket, (ev: any) => {
+          .addWorklet<any>('vumeter-out', VolMeterWorket, (ev: any) => {
             setVolume(ev.data.volume);
           })
           .then(() => {
@@ -68,10 +62,10 @@ export function useLiveAPI({
   }, [audioStreamerRef]);
 
   const connect = useCallback(async () => {
-    console.log('Going to connect')
+    console.log('Going to connect');
     // console.log(JSON.stringify(config));
     if (!config) {
-      throw new Error("config has not been set");
+      throw new Error('config has not been set');
     }
     client.disconnect();
     await client.connect(config);
@@ -90,10 +84,10 @@ export function useLiveAPI({
         reason: ev.reason,
         wasClean: ev.wasClean,
         type: ev.type,
-        isTrusted: ev.isTrusted
+        isTrusted: ev.isTrusted,
       });
       setConnected(false);
-      
+
       // Handle deadline exceeded error (1011) with one retry
       if (ev.code === 1011) {
         console.log('Deadline exceeded error detected, attempting to reconnect once...');
@@ -109,17 +103,17 @@ export function useLiveAPI({
         }, 1000);
         return;
       }
-      
+
       // Always send session end notification if not a normal disconnect
       if (ev.code !== 1000) {
         let errorMessage = 'Session ended unexpectedly';
-        
+
         // Try to extract error message from reason
         if (ev.reason) {
           const errorMatch = ev.reason.match(/ERROR\](.*)/i);
           errorMessage = errorMatch ? errorMatch[1].trim() : ev.reason;
         }
-        
+
         // Send error to main process
         ipcRenderer.send('session-error', errorMessage);
       }
@@ -127,19 +121,12 @@ export function useLiveAPI({
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();
 
-    const onAudio = (data: ArrayBuffer) =>
-      audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+    const onAudio = (data: ArrayBuffer) => audioStreamerRef.current?.addPCM16(new Uint8Array(data));
 
-    client
-      .on("close", onClose)
-      .on("interrupted", stopAudioStreamer)
-      .on("audio", onAudio);
+    client.on('close', onClose).on('interrupted', stopAudioStreamer).on('audio', onAudio);
 
     return () => {
-      client
-        .off("close", onClose)
-        .off("interrupted", stopAudioStreamer)
-        .off("audio", onAudio);
+      client.off('close', onClose).off('interrupted', stopAudioStreamer).off('audio', onAudio);
     };
   }, [client, connect]);
 
