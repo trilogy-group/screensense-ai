@@ -1869,7 +1869,7 @@ interface FunctionCall {
 
 interface ConversationEntry {
   function_call: string;
-  args: FunctionCall['args'];
+  args?: FunctionCall['args'];
   description: string;
   delay?: number;
 }
@@ -1923,7 +1923,7 @@ ipcMain.on('set-action-name', (event, name) => {
 });
 
 // Modified record-conversation handler
-ipcMain.on('record-conversation', (event, function_call, args, description) => {
+ipcMain.on('record-conversation', (event, function_call, description) => {
   try {
     if (!customSessionName) {
       logToFile('No session name set, cannot record conversation');
@@ -1939,7 +1939,6 @@ ipcMain.on('record-conversation', (event, function_call, args, description) => {
 
     conversations[sessionName].push({
       function_call,
-      args,
       description
     });
 
@@ -1979,13 +1978,13 @@ ipcMain.handle('perform-action', async (event, name) => {
       for (let action of actions) {
         switch (action.function_call) {
           case "click":
-            if (action.args.x !== undefined && action.args.y !== undefined) {
+            if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
               await mouse.setPosition(new Point(action.args.x, action.args.y));
               await mouse.leftClick();
             }
             break;
           case "select_content":
-            if (action.args.x1 !== undefined && action.args.y1 !== undefined &&
+            if (action.args && action.args.x1 !== undefined && action.args.y1 !== undefined &&
               action.args.x2 !== undefined && action.args.y2 !== undefined) {
               await mouse.setPosition(new Point(action.args.x1, action.args.y1));
               await mouse.pressButton(0);
@@ -1996,7 +1995,7 @@ ipcMain.handle('perform-action', async (event, name) => {
             }
             break;
           case "scroll":
-            if (action.args.direction && action.args.amount !== undefined) {
+            if (action.args && action.args.direction && action.args.amount !== undefined) {
               if (action.args.direction === "up") {
                 await mouse.scrollUp(action.args.amount);
               } else if (action.args.direction === "down") {
@@ -2005,7 +2004,7 @@ ipcMain.handle('perform-action', async (event, name) => {
             }
             break;
           case "insert_content":
-            if (action.args.x !== undefined && action.args.y !== undefined) {
+            if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
               await mouse.setPosition(new Point(action.args.x, action.args.y));
               await mouse.leftClick();
               await new Promise(resolve => setTimeout(resolve, 50));

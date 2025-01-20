@@ -76,8 +76,7 @@ function SubtitlesComponent({ tools, systemInstruction, assistantMode }: Subtitl
             break;
           case "record_conversation":
             ipcRenderer.send('record-conversation', 
-              (fc.args as any).function_call.name,
-              (fc.args as any).function_call.args,
+              (fc.args as any).function_call,
               (fc.args as any).description
             );
             break;
