@@ -6,12 +6,16 @@ import {
   WebContents,
   clipboard,
   nativeImage,
+  screen as electron_screen
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { keyboard, Key, mouse, Point, straightTo, Button } from '@nut-tree-fork/nut-js';
+import { keyboard, Key, mouse, Point, straightTo, Button, screen as nutscreen } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
+import { electron } from 'process';
+
+
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -1466,7 +1470,7 @@ ipcMain.on('session-error', (event, errorMessage) => {
 });
 
 // Add handler for logging to file
-ipcMain.on('log_to_file', (event, message) => {
+ipcMain.on('log-to-file', (event, message) => {
   logToFile(message);
 });
 
@@ -1601,17 +1605,17 @@ ipcMain.on('write_text', async (event, content) => {
   }
 });
 
-ipcMain.on('click', async (event, x: number, y: number) => {
-  try {
-    // Move mouse to coordinates and click
-    await mouse.setPosition(new Point(x, y));
-    await mouse.leftClick();
-    logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
-  } catch (error) {
-    logToFile(`Error performing click: ${error}`);
-    console.log("error performing click", error);
-  }
-});
+// ipcMain.on('click', async (event, x: number, y: number) => {
+//   try {
+//     // Move mouse to coordinates and click
+//     await mouse.setPosition(new Point(x, y));
+//     await mouse.leftClick();
+//     logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
+//   } catch (error) {
+//     logToFile(`Error performing click: ${error}`);
+//     console.log("error performing click", error);
+//   }
+// });
 
 ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y2: number) => {
   try {
@@ -1642,15 +1646,20 @@ ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y
   }
 });
 
-ipcMain.on('insert-content', async (event, x: number, y: number) => {
+ipcMain.on('insert-content', async (event, content: string) => {
   try {
-    await mouse.setPosition(new Point(x, y));
-    await mouse.leftClick();
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Store previous clipboard content
+    const previousClipboard = clipboard.readText();
+    // Set new content
+    clipboard.writeText(content);
+    // Wait briefly to ensure clipboard is updated
+    await new Promise(resolve => setTimeout(resolve, 100));
     const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
     await keyboard.pressKey(modifier, Key.V);
     await keyboard.releaseKey(modifier, Key.V);
-    logToFile(`Inserted content at coordinates: x=${x}, y=${y}`);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    // Restore previous clipboard content
+    clipboard.writeText(previousClipboard);
   } catch (error) {
     logToFile(`Error inserting content: ${error}`);
   }
@@ -2022,53 +2031,59 @@ ipcMain.handle('perform-action', async (event, name) => {
     if (conversations[actionName]) {
       let actions = conversations[actionName];
       const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
-      for (let action of actions) {
-        switch (action.function_call) {
-          case "click":
-            if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
-              await mouse.setPosition(new Point(action.args.x, action.args.y));
-              await mouse.leftClick();
-            }
-            break;
-          case "select_content":
-            if (action.args && action.args.x1 !== undefined && action.args.y1 !== undefined &&
-              action.args.x2 !== undefined && action.args.y2 !== undefined) {
-              await mouse.setPosition(new Point(action.args.x1, action.args.y1));
-              await mouse.pressButton(0);
-              await mouse.setPosition(new Point(action.args.x2, action.args.y2));
-              await mouse.releaseButton(0);
-              await keyboard.pressKey(modifier, Key.C);
-              await keyboard.releaseKey(modifier, Key.C);
-            }
-            break;
-          case "scroll":
-            if (action.args && action.args.direction && action.args.amount !== undefined) {
-              if (action.args.direction === "up") {
-                await mouse.scrollUp(action.args.amount);
-              } else if (action.args.direction === "down") {
-                await mouse.scrollDown(action.args.amount);
-              }
-            }
-            break;
-          case "insert_content":
-            if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
-              await mouse.setPosition(new Point(action.args.x, action.args.y));
-              await mouse.leftClick();
-              await new Promise(resolve => setTimeout(resolve, 50));
-              await keyboard.pressKey(modifier, Key.V);
-              await keyboard.releaseKey(modifier, Key.V);
-            }
-            break;
-        }
-        await new Promise(resolve => setTimeout(resolve, action.delay));
-      }
+      
+      // Return the actions data before executing them
+      const actionData = actions;
+      return actionData;
+      // Execute the actions
+      // for (let action of actions) {
+      //   switch (action.function_call) {
+      //     case "click":
+      //       if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
+      //         await mouse.setPosition(new Point(action.args.x, action.args.y));
+      //         await mouse.leftClick();
+      //       }
+      //       break;
+      //     case "select_content":
+      //       if (action.args && action.args.x1 !== undefined && action.args.y1 !== undefined &&
+      //         action.args.x2 !== undefined && action.args.y2 !== undefined) {
+      //         await mouse.setPosition(new Point(action.args.x1, action.args.y1));
+      //         await mouse.pressButton(0);
+      //         await mouse.setPosition(new Point(action.args.x2, action.args.y2));
+      //         await mouse.releaseButton(0);
+      //         await keyboard.pressKey(modifier, Key.C);
+      //         await keyboard.releaseKey(modifier, Key.C);
+      //       }
+      //       break;
+      //     case "scroll":
+      //       if (action.args && action.args.direction && action.args.amount !== undefined) {
+      //         if (action.args.direction === "up") {
+      //           await mouse.scrollUp(action.args.amount);
+      //         } else if (action.args.direction === "down") {
+      //           await mouse.scrollDown(action.args.amount);
+      //         }
+      //       }
+      //       break;
+      //     case "insert_content":
+      //       if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
+      //         await mouse.setPosition(new Point(action.args.x, action.args.y));
+      //         await mouse.leftClick();
+      //         await new Promise(resolve => setTimeout(resolve, 50));
+      //         await keyboard.pressKey(modifier, Key.V);
+      //         await keyboard.releaseKey(modifier, Key.V);
+      //       }
+      //       break;
+      //   }
+      //   await new Promise(resolve => setTimeout(resolve, action.delay));
+      // }
+      // return actionData;
     } else {
       logToFile(`No action data found for: ${actionName}`);
-      return [];
+      return null;
     }
   } catch (error) {
     logToFile(`Error getting action data: ${error}`);
-    return [];
+    return null;
   }
 });
 
@@ -2143,10 +2158,22 @@ ipcMain.on('show-coordinates', (_, x: number, y: number) => {
 
 ipcMain.on('click', async (event, x: number, y: number, action: string) => {
   try {
-    // Move mouse to coordinates and click
-    // await mouse.setPosition(new Point(x, y));
-    await mouse.move(straightTo(new Point(x, y)));
-    logToFile(`Going to perform action: ${action}`);
+    const primaryDisplay = electron_screen.getPrimaryDisplay();
+    const { bounds, workArea, scaleFactor } = primaryDisplay;
+    
+    // Account for taskbar offset and display scaling
+    const x_scaled = Math.round(x * scaleFactor);
+    const y_scaled = Math.round(y * scaleFactor);
+    
+    // Add display bounds offset
+    const x_final = x_scaled + bounds.x;
+    const y_final = y_scaled + bounds.y;
+
+    // await mouse.move(straightTo(new Point(x_final, y_final)));
+    await mouse.setPosition(new Point(x_final, y_final))
+    // await new Promise(resolve => setTimeout(resolve, 100));
+    logToFile(`Going to perform action: ${action} at scaled coordinates: x=${x_final}, y=${y_final}`);
+    console.log(action)
     if (action === 'click') {
       await mouse.leftClick();
     } else if (action === 'double-click') {
@@ -2156,7 +2183,6 @@ ipcMain.on('click', async (event, x: number, y: number, action: string) => {
     } else {
       logToFile(`Unknown action: ${action}`);
     }
-    logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
   } catch (error) {
     logToFile(`Error performing click: ${error}`);
     console.log('error performing click', error);

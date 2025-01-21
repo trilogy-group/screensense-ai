@@ -1,6 +1,10 @@
 import { type Tool, SchemaType } from '@google/generative-ai';
 
 // Tool configurations
+
+
+
+
 const translationTools: Tool[] = [
   {
     functionDeclarations: [
@@ -50,6 +54,7 @@ const graphingTools: Tool[] = [
     ],
   },
 ];
+
 export const clickerTools: Tool[] = [
   {
     functionDeclarations: [
@@ -206,6 +211,20 @@ const interactionTools: Tool[] = [
           },
         },
       },
+      {
+        name: "insert_content",
+        description: "Inserts the content at the given coordinates",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            content : {
+              type: SchemaType.STRING,
+              description: "The content that needs to be inserted"
+            }
+          },
+          required: ["content"],
+        }
+      }
     ],
   },
 ]
@@ -220,7 +239,7 @@ export const recorderTools: Tool[] = [
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
-            function_call: {  
+            function_call: {
               type: SchemaType.STRING,
               description: "The function call to record in the conversation file",
             },
@@ -268,6 +287,42 @@ export const actionPlayerTools: Tool[] = [
           required: ["name"],
         },
       },
+      {
+        name: 'click_element',
+        description: 'Clicks the element at the given coordinates',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            coordinates: {
+              type: SchemaType.OBJECT,
+              properties: {
+                x: { type: SchemaType.NUMBER },
+                y: { type: SchemaType.NUMBER },
+              },
+            },
+            action: {
+              type: SchemaType.STRING,
+              description: 'The action to perform on the element',
+              enum: ['click', 'double-click', 'right-click'],
+            },
+          },
+          required : ['coordinates', 'action']
+        }
+      },
+      {
+        name: "insert_content",
+        description: "Inserts the content at the given coordinates",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            content : {
+              type: SchemaType.STRING,
+              description: "The content that needs to be inserted"
+            }
+          },
+          required: ["content"],
+        }
+      }
     ],
   },
 ];
@@ -444,7 +499,7 @@ Your mission: Offer the best possible assistance for the user’s writing and re
   //   1. Whenever the user asks you to perform a click, you must call the click function. Call the function yourself, do not ask the user to do so.
   //   2. Whenever the user asks you to select text, you must call the select_content function. Call the function yourself, do not ask the user to do so.
   //   3. Whenever the user asks you to scroll the screen, you must call the scroll function. Call the function yourself, do not ask the user to do so.
-    
+
   //   You might have to make multiple function calls. This is very likely. Do not miss this please. Make sure to call the functions in the order they are given.  
   //   `
   // },

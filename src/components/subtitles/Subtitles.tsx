@@ -25,7 +25,6 @@ function SubtitlesComponent({
   const [graphJson, setGraphJson] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
   const graphRef = useRef<HTMLDivElement>(null);
-  const [showNamePrompt, setShowNamePrompt] = useState(false);
 
   useEffect(() => {
     setConfig({
@@ -44,6 +43,97 @@ function SubtitlesComponent({
   }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
+    async function find_all_elements_function(onScreenshot: () => string | null, client: any, toolCall: ToolCall): Promise<void> {
+      if (onScreenshot) {
+        const screenshot = onScreenshot();
+        if (screenshot) {
+          try {
+            // Convert base64 to blob
+            const base64Data = screenshot.split(',')[1];
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'image/jpeg' });
+    
+            const video = document.querySelector('video');
+            if (!video) {
+              throw new Error('Video element not found');
+            }
+    
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+            const devicePixelRatio = window.devicePixelRatio || 1;
+            const actualWidth = Math.round(videoWidth / devicePixelRatio);
+            const actualHeight = Math.round(videoHeight / devicePixelRatio);
+    
+            // Get elements from ML model
+            const detectionResult = await omniParser.detectElements(blob);
+            const elements = detectionResult.data[1];
+    
+            // Scale all coordinates to actual screen dimensions
+            const scaledElements = elements.map(element => ({
+              ...element,
+              center: {
+                x: Math.round(element.center.x * actualWidth),
+                y: Math.round(element.center.y * actualHeight),
+              },
+            }));
+    
+            client.sendToolResponse({
+              functionResponses: toolCall.functionCalls.map(fc => ({
+                response: {
+                  output: {
+                    success: true,
+                    // elements: scaledElements
+                  },
+                },
+                id: fc.id,
+              })),
+            });
+            client.send([
+              { text: `Found the following elements: ${JSON.stringify(scaledElements)}` },
+            ]);
+            console.log('sent coordinates');
+    
+            ipcRenderer.send('log-to-file', `Found ${scaledElements.length} elements`);
+          } catch (error) {
+            console.error('Error finding elements:', error);
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error occurred';
+            client.sendToolResponse({
+              functionResponses: toolCall.functionCalls.map(fc => ({
+                response: { output: { success: false, error: errorMessage } },
+                id: fc.id,
+              })),
+            });
+            client.send([{ text: `Error finding elements: ${errorMessage}` }]);
+            ipcRenderer.send('log-to-file', `Error finding elements: ${errorMessage}`);
+          }
+        } else {
+          client.sendToolResponse({
+            functionResponses: toolCall.functionCalls.map(fc => ({
+              response: { output: { success: false, error: 'Failed to capture screenshot' } },
+              id: fc.id,
+            })),
+          });
+          client.send([{ text: `Failed to capture screenshot` }]);
+          ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+        }
+      } else {
+        console.log('no onScreenshot function');
+        client.sendToolResponse({
+          functionResponses: toolCall.functionCalls.map(fc => ({
+            response: { output: { success: false } },
+            id: fc.id,
+          })),
+        });
+        client.send([{ text: `Failed to capture screenshot.` }]);
+        ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
+      }
+    }
     const onToolCall = async (toolCall: ToolCall) => {
       let hasResponded = false;
 
@@ -58,7 +148,7 @@ function SubtitlesComponent({
 
         // Log tool usage to file
         ipcRenderer.send(
-          'log_to_file',
+          'log-to-file',
           `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`
         );
 
@@ -84,7 +174,7 @@ function SubtitlesComponent({
             hasResponded = true;
             break;
           case "record_conversation":
-            ipcRenderer.send('record-conversation', 
+            ipcRenderer.send('record-conversation',
               (fc.args as any).function_call,
               (fc.args as any).description
             );
@@ -93,124 +183,77 @@ function SubtitlesComponent({
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             break;
           case "perform_action":
-            await ipcRenderer.invoke('perform-action', (fc.args as any).name);
+            const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
+            if (actionData) {
+              for (const action of actionData) {
+                if (onScreenshot) {
+                  // Take screenshot and process elements
+                  const screenshot = await onScreenshot();
+                  await find_all_elements_function(onScreenshot, client, toolCall);
+                  
+                  // Handle different action types
+                  switch (action.function_call) {
+                    case "click":
+                      await client.send([{
+                        text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
+
+If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
+
+Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
+
+Please do not give any audio reply to this.`
+                      }]);
+                      break;
+                    case "insert_content":
+                      await client.send([{
+                        text: `You have to call the insert_content function which achieves the following task : ${action.description}
+
+please do not give any audio response to this.`
+                      }]);
+                      break;
+                  }
+                  // Wait for the action to complete
+                  await new Promise(resolve => setTimeout(resolve, 2500));
+                }
+              }
+            }
             hasResponded = true;
             break;
-          case "click":
-            ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
-            break;
+          // case "click":
+          //   ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
+          //   break;
           case "select_content":
-            ipcRenderer.send('select-content', 
-              (fc.args as any).x1 || 500, 
-              (fc.args as any).y1 || 500, 
-              (fc.args as any).x2 || 1000, 
+            ipcRenderer.send('select-content',
+              (fc.args as any).x1 || 500,
+              (fc.args as any).y1 || 500,
+              (fc.args as any).x2 || 1000,
               (fc.args as any).y2 || 1000
             );
+            hasResponded = true
             break;
           case "scroll":
             ipcRenderer.send('scroll', (fc.args as any).direction || "up", (fc.args as any).amount || 50);
+            hasResponded = true
             break;
           case "insert_content":
-            ipcRenderer.send('insert-content', (fc.args as any).x || 500, (fc.args as any).y || 500);
+            console.log(`test message : ${(fc.args as any).content}`)
+            ipcRenderer.send('insert-content', (fc.args as any).content);
+            hasResponded = true
             break;
           case "find_all_elements":
             if (onScreenshot) {
-              const screenshot = onScreenshot();
-              if (screenshot) {
-                try {
-                  // Convert base64 to blob
-                  const base64Data = screenshot.split(',')[1];
-                  const byteCharacters = atob(base64Data);
-                  const byteNumbers = new Array(byteCharacters.length);
-                  for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                  }
-                  const byteArray = new Uint8Array(byteNumbers);
-                  const blob = new Blob([byteArray], { type: 'image/jpeg' });
-  
-                  const video = document.querySelector('video');
-                  if (!video) {
-                    throw new Error('Video element not found');
-                  }
-  
-                  const videoWidth = video.videoWidth;
-                  const videoHeight = video.videoHeight;
-                  const devicePixelRatio = window.devicePixelRatio || 1;
-                  const actualWidth = Math.round(videoWidth / devicePixelRatio);
-                  const actualHeight = Math.round(videoHeight / devicePixelRatio);
-  
-                  // Get elements from ML model
-                  const detectionResult = await omniParser.detectElements(blob);
-                  const elements = detectionResult.data[1];
-  
-                  // Scale all coordinates to actual screen dimensions
-                  const scaledElements = elements.map(element => ({
-                    ...element,
-                    center: {
-                      x: Math.round(element.center.x * actualWidth),
-                      y: Math.round(element.center.y * actualHeight),
-                    },
-                  }));
-  
-                  client.sendToolResponse({
-                    functionResponses: toolCall.functionCalls.map(fc => ({
-                      response: {
-                        output: {
-                          success: true,
-                          // elements: scaledElements
-                        },
-                      },
-                      id: fc.id,
-                    })),
-                  });
-                  client.send([
-                    { text: `Found the following elements: ${JSON.stringify(scaledElements)}` },
-                  ]);
-                  console.log('sent coordinates');
-  
-                  ipcRenderer.send('log_to_file', `Found ${scaledElements.length} elements`);
-                } catch (error) {
-                  console.error('Error finding elements:', error);
-                  const errorMessage =
-                    error instanceof Error ? error.message : 'Unknown error occurred';
-                  client.sendToolResponse({
-                    functionResponses: toolCall.functionCalls.map(fc => ({
-                      response: { output: { success: false, error: errorMessage } },
-                      id: fc.id,
-                    })),
-                  });
-                  client.send([{ text: `Error finding elements: ${errorMessage}` }]);
-                  ipcRenderer.send('log_to_file', `Error finding elements: ${errorMessage}`);
-                }
-              } else {
-                client.sendToolResponse({
-                  functionResponses: toolCall.functionCalls.map(fc => ({
-                    response: { output: { success: false, error: 'Failed to capture screenshot' } },
-                    id: fc.id,
-                  })),
-                });
-                client.send([{ text: `Failed to capture screenshot` }]);
-                ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
-              }
-            } else {
-              console.log('no onScreenshot function');
-              client.sendToolResponse({
-                functionResponses: toolCall.functionCalls.map(fc => ({
-                  response: { output: { success: false } },
-                  id: fc.id,
-                })),
-              });
-              client.send([{ text: `Failed to capture screenshot.` }]);
-              ipcRenderer.send('log_to_file', `Failed to capture screenshot`);
+              await find_all_elements_function(onScreenshot, client, toolCall);
             }
             hasResponded = true;
             break;
           case "highlight_element":
             const coordinates = (fc.args as any).coordinates;
+            console.log(coordinates)
             ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
             break;
           case "click_element":
             const args = fc.args as any;
+            console.log(args.coordinates)
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
         }
@@ -246,57 +289,13 @@ function SubtitlesComponent({
       } catch (error) {
         console.error('Failed to render graph:', error);
         // Log graph rendering errors
-        ipcRenderer.send('log_to_file', `Error rendering graph: ${error}`);
+        ipcRenderer.send('log-to-file', `Error rendering graph: ${error}`);
       }
     }
   }, [graphRef, graphJson]);
 
-  useEffect(() => {
-    const handleSessionNamePrompt = () => {
-      setShowNamePrompt(true);
-    };
-
-    ipcRenderer.on('prompt-session-name', handleSessionNamePrompt);
-
-    return () => {
-      ipcRenderer.removeListener('prompt-session-name', handleSessionNamePrompt);
-    };
-  }, []);
-
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const sessionName = formData.get('sessionName') as string;
-    if (sessionName) {
-      ipcRenderer.send('set-session-name', sessionName);
-      setShowNamePrompt(false);
-    }
-  };
-
   return (
     <>
-      {showNamePrompt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <form onSubmit={handleNameSubmit} className="space-y-4">
-              <h2 className="text-lg font-semibold">Enter Session Name</h2>
-              <input
-                type="text"
-                name="sessionName"
-                className="w-full px-3 py-2 border rounded"
-                placeholder="Enter session name"
-                required
-              />
-              <button
-                type="submit"
-                className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-              >
-                Start Session
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
       <div className="vega-embed" ref={graphRef} />
     </>
   );
