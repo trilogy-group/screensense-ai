@@ -6,12 +6,16 @@ import {
   WebContents,
   clipboard,
   nativeImage,
+  screen as electron_screen
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { keyboard, Key, mouse, Point, straightTo, Button } from '@nut-tree-fork/nut-js';
+import { keyboard, Key, mouse, Point, straightTo, Button, screen as nutscreen } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
+import { electron } from 'process';
+
+
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -26,6 +30,7 @@ let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
@@ -1465,7 +1470,7 @@ ipcMain.on('session-error', (event, errorMessage) => {
 });
 
 // Add handler for logging to file
-ipcMain.on('log_to_file', (event, message) => {
+ipcMain.on('log-to-file', (event, message) => {
   logToFile(message);
 });
 
@@ -1600,6 +1605,78 @@ ipcMain.on('write_text', async (event, content) => {
   }
 });
 
+// ipcMain.on('click', async (event, x: number, y: number) => {
+//   try {
+//     // Move mouse to coordinates and click
+//     await mouse.setPosition(new Point(x, y));
+//     await mouse.leftClick();
+//     logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
+//   } catch (error) {
+//     logToFile(`Error performing click: ${error}`);
+//     console.log("error performing click", error);
+//   }
+// });
+
+ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y2: number) => {
+  try {
+    // Move to start position
+    await mouse.setPosition(new Point(x1, y1));
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Press and hold left mouse button
+    await mouse.pressButton(0); // 0 is left button in nut-js
+    // Small delay to ensure button press registered
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Move to end position
+    await mouse.setPosition(new Point(x2, y2));
+    // Small delay before release
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Release left mouse button
+    await mouse.releaseButton(0);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.C);
+    await keyboard.releaseKey(modifier, Key.C);
+
+    logToFile(`Selected content from (${x1},${y1}) to (${x2},${y2})`);
+  } catch (error) {
+    logToFile(`Error selecting content: ${error}`);
+  }
+});
+
+ipcMain.on('insert-content', async (event, content: string) => {
+  try {
+    // Store previous clipboard content
+    const previousClipboard = clipboard.readText();
+    // Set new content
+    clipboard.writeText(content);
+    // Wait briefly to ensure clipboard is updated
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+    await keyboard.pressKey(modifier, Key.V);
+    await keyboard.releaseKey(modifier, Key.V);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    // Restore previous clipboard content
+    clipboard.writeText(previousClipboard);
+  } catch (error) {
+    logToFile(`Error inserting content: ${error}`);
+  }
+});
+
+ipcMain.on('scroll', async (event, direction: string, amount: number) => {
+  try {
+    if (direction === 'up') {
+      await mouse.scrollUp(amount);
+    } else if (direction === 'down') {
+      await mouse.scrollDown(amount);
+    }
+  } catch (error) {
+    logToFile(`Error scrolling: ${error}`);
+  }
+});
+
 // Update the control-action handler to handle all cases
 ipcMain.on('control-action', async (event, action) => {
   try {
@@ -1609,8 +1686,17 @@ ipcMain.on('control-action', async (event, action) => {
     }
 
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // Show window if screen sharing or webcam is being activated
-      if ((action.type === 'screen' || action.type === 'webcam') && action.value === true) {
+      // Show window if screen sharing is being activated
+      if (action.type === 'screen' && action.value === true) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      // Hide window if screen sharing is being deactivated
+      else if (action.type === 'screen' && action.value === false) {
+        mainWindow.hide();
+      }
+      // Show window if webcam is being activated
+      else if (action.type === 'webcam' && action.value === true) {
         mainWindow.show();
         mainWindow.focus();
       }
@@ -1640,6 +1726,10 @@ ipcMain.on('screen-share-result', (event, success) => {
   try {
     if (controlWindow && !controlWindow.isDestroyed()) {
       controlWindow.webContents.send('screen-share-result', success);
+      // If screen sharing failed, hide the main window
+      if (!success && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
     }
   } catch (error) {
     logToFile(`Error handling screen share result: ${error}`);
@@ -1799,6 +1889,204 @@ ipcMain.handle('get-machine-id', async () => {
   return machineId;
 });
 
+// Add function to handle conversation recording
+function getActionsPath() {
+  return path.join(app.getPath('appData'), 'screensense-ai', 'actions');
+}
+
+function ensureActionsDirectory() {
+  const actionsPath = getActionsPath();
+  if (!fs.existsSync(actionsPath)) {
+    fs.mkdirSync(actionsPath, { recursive: true });
+  }
+  return actionsPath;
+}
+
+// Add function to get the conversations file path
+function getConversationsFilePath() {
+  const actionsPath = ensureActionsDirectory();
+  return path.join(actionsPath, 'conversations.json');
+}
+
+// Add TypeScript interfaces
+interface FunctionCall {
+  name: string;
+  args: {
+    x?: number;
+    y?: number;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    direction?: string;
+    amount?: number;
+  };
+}
+
+interface ConversationEntry {
+  function_call: string;
+  args?: FunctionCall['args'];
+  description: string;
+  delay?: number;
+}
+
+interface Conversations {
+  [key: string]: ConversationEntry[];
+}
+
+// Add function to load or initialize conversations file
+function loadConversations(): Conversations {
+  const filePath = getConversationsFilePath();
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    logToFile(`Error loading conversations: ${error}`);
+  }
+  return {};
+}
+
+// Add function to save conversations
+function saveConversations(conversations: Conversations) {
+  const filePath = getConversationsFilePath();
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(conversations, null, 2));
+    logToFile('Conversations saved successfully');
+  } catch (error) {
+    logToFile(`Error saving conversations: ${error}`);
+  }
+}
+
+// Modified handler for setting session name
+ipcMain.on('set-action-name', (event, name) => {
+  try {
+    const sanitizedName = name.replace(/[^a-zA-Z0-9-_ ]/g, '_');
+    customSessionName = sanitizedName.trim().toLowerCase();
+
+    // Initialize or overwrite the session in the conversations file
+    const conversations = loadConversations();
+    if (customSessionName) {
+      // Overwrite the existing array or create a new one
+      conversations[customSessionName] = [];
+      saveConversations(conversations);
+      logToFile(`Set/Reset session name: ${customSessionName}`);
+    }
+  } catch (error) {
+    logToFile(`Error setting session name: ${error}`);
+  }
+});
+
+// Modified record-conversation handler
+ipcMain.on('record-conversation', (event, function_call, description) => {
+  try {
+    if (!customSessionName) {
+      logToFile('No session name set, cannot record conversation');
+      return;
+    }
+
+    const conversations = loadConversations();
+    const sessionName = customSessionName;
+
+    if (!conversations[sessionName]) {
+      conversations[sessionName] = [];
+    }
+
+    conversations[sessionName].push({
+      function_call,
+      description
+    });
+
+    saveConversations(conversations);
+    logToFile(`Recorded conversation for session: ${sessionName}`);
+  } catch (error) {
+    logToFile(`Error recording conversation: ${error}`);
+  }
+});
+
+// Reset only the session name when app starts or restarts
+app.on('ready', () => {
+  customSessionName = null;
+});
+
+// Remove the currentSessionFile variable since we don't need it anymore
+// And update the control-action handler
+ipcMain.on('control-action', async (event, action) => {
+  if (action.type === 'connect' && action.value === true) {
+    if (!customSessionName) {
+      // Only prompt for name if not already set
+      mainWindow?.webContents.send('prompt-session-name');
+    }
+  }
+  // ... rest of the existing control-action handler
+});
+
+// Add handler for getting action data
+ipcMain.handle('perform-action', async (event, name) => {
+  try {
+    const conversations = loadConversations();
+    const actionName = name.trim().toLowerCase();
+
+    if (conversations[actionName]) {
+      let actions = conversations[actionName];
+      const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+      
+      // Return the actions data before executing them
+      const actionData = actions;
+      return actionData;
+      // Execute the actions
+      // for (let action of actions) {
+      //   switch (action.function_call) {
+      //     case "click":
+      //       if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
+      //         await mouse.setPosition(new Point(action.args.x, action.args.y));
+      //         await mouse.leftClick();
+      //       }
+      //       break;
+      //     case "select_content":
+      //       if (action.args && action.args.x1 !== undefined && action.args.y1 !== undefined &&
+      //         action.args.x2 !== undefined && action.args.y2 !== undefined) {
+      //         await mouse.setPosition(new Point(action.args.x1, action.args.y1));
+      //         await mouse.pressButton(0);
+      //         await mouse.setPosition(new Point(action.args.x2, action.args.y2));
+      //         await mouse.releaseButton(0);
+      //         await keyboard.pressKey(modifier, Key.C);
+      //         await keyboard.releaseKey(modifier, Key.C);
+      //       }
+      //       break;
+      //     case "scroll":
+      //       if (action.args && action.args.direction && action.args.amount !== undefined) {
+      //         if (action.args.direction === "up") {
+      //           await mouse.scrollUp(action.args.amount);
+      //         } else if (action.args.direction === "down") {
+      //           await mouse.scrollDown(action.args.amount);
+      //         }
+      //       }
+      //       break;
+      //     case "insert_content":
+      //       if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
+      //         await mouse.setPosition(new Point(action.args.x, action.args.y));
+      //         await mouse.leftClick();
+      //         await new Promise(resolve => setTimeout(resolve, 50));
+      //         await keyboard.pressKey(modifier, Key.V);
+      //         await keyboard.releaseKey(modifier, Key.V);
+      //       }
+      //       break;
+      //   }
+      //   await new Promise(resolve => setTimeout(resolve, action.delay));
+      // }
+      // return actionData;
+    } else {
+      logToFile(`No action data found for: ${actionName}`);
+      return null;
+    }
+  } catch (error) {
+    logToFile(`Error getting action data: ${error}`);
+    return null;
+  }
+});
+
 function showCoordinateMarker(x: number, y: number) {
   if (markerWindow && !markerWindow.isDestroyed()) {
     markerWindow.close();
@@ -1870,10 +2158,22 @@ ipcMain.on('show-coordinates', (_, x: number, y: number) => {
 
 ipcMain.on('click', async (event, x: number, y: number, action: string) => {
   try {
-    // Move mouse to coordinates and click
-    // await mouse.setPosition(new Point(x, y));
-    await mouse.move(straightTo(new Point(x, y)));
-    logToFile(`Going to perform action: ${action}`);
+    const primaryDisplay = electron_screen.getPrimaryDisplay();
+    const { bounds, workArea, scaleFactor } = primaryDisplay;
+    
+    // Account for taskbar offset and display scaling
+    const x_scaled = Math.round(x * scaleFactor);
+    const y_scaled = Math.round(y * scaleFactor);
+    
+    // Add display bounds offset
+    const x_final = x_scaled + bounds.x;
+    const y_final = y_scaled + bounds.y;
+
+    // await mouse.move(straightTo(new Point(x_final, y_final)));
+    await mouse.setPosition(new Point(x_final, y_final))
+    // await new Promise(resolve => setTimeout(resolve, 100));
+    logToFile(`Going to perform action: ${action} at scaled coordinates: x=${x_final}, y=${y_final}`);
+    console.log(action)
     if (action === 'click') {
       await mouse.leftClick();
     } else if (action === 'double-click') {
@@ -1883,7 +2183,6 @@ ipcMain.on('click', async (event, x: number, y: number, action: string) => {
     } else {
       logToFile(`Unknown action: ${action}`);
     }
-    logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
   } catch (error) {
     logToFile(`Error performing click: ${error}`);
     console.log('error performing click', error);
