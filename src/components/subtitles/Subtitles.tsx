@@ -71,6 +71,76 @@ function SubtitlesComponent({
         }
       }
     }
+    async function get_screenshot(x1: number, y1: number, x2: number, y2: number): Promise<string | null> {
+      if (onScreenshot) {
+        const screenshot = onScreenshot()
+        if(screenshot){
+          const base64Data = screenshot.split(',')[1]
+
+          // Get window dimensions from electron
+          const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
+          
+          const x1_scaled = Math.round(x1 * scaleFactor);
+          const y1_scaled = Math.round(y1 * scaleFactor);
+          const x2_scaled = Math.round(x2 * scaleFactor);
+          const y2_scaled = Math.round(y2 * scaleFactor);
+          
+          // Add display bounds offset
+          const x1_final = x1_scaled + bounds.x;
+          const y1_final = y1_scaled + bounds.y;
+          const x2_final = x2_scaled + bounds.x;
+          const y2_final = y2_scaled + bounds.y;
+          
+          // Convert base64 to blob
+          const byteCharacters = atob(base64Data);
+          const byteArrays = [];
+          for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+            const slice = byteCharacters.slice(offset, offset + 512);
+            const byteNumbers = new Array(slice.length);
+            for (let i = 0; i < slice.length; i++) {
+              byteNumbers[i] = slice.charCodeAt(i);
+            }
+            byteArrays.push(new Uint8Array(byteNumbers));
+          }
+          const blob = new Blob(byteArrays, { type: 'image/jpeg' });
+
+          try {
+            const imageBitmap = await createImageBitmap(blob, x1_final, y1_final, x2_final - x1_final, y2_final - y1_final);
+            
+            // Create temporary canvas for conversion
+            const canvas = document.createElement('canvas');
+            canvas.width = imageBitmap.width;
+            canvas.height = imageBitmap.height;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              ctx.drawImage(imageBitmap, 0, 0);
+              const croppedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+              imageBitmap.close();
+              return croppedBase64;
+            }
+            
+            imageBitmap.close();
+          } catch (error) {
+            console.error('Error processing image:', error);
+          }
+        }
+      }
+      return null;
+    }
+    async function interact(cords: {x: number, y:number}, function_call: string, electron: boolean = true){
+      switch(function_call){
+        case "click":
+          ipcRenderer.send('click', cords?.x, cords?.y, 'click', electron)
+          break;
+        case "double-click":
+          ipcRenderer.send('click', cords?.x, cords?.y, 'double-click', electron)
+          break;
+        case "right-click":
+          ipcRenderer.send('click', cords?.x, cords?.y, 'right-click', electron)
+          break;
+      }
+    }
     async function find_all_elements_function(onScreenshot: () => string | null, client: any, toolCall: ToolCall): Promise<void> {
       if (onScreenshot) {
         const screenshot = onScreenshot();
@@ -216,66 +286,12 @@ function SubtitlesComponent({
             break;
           case "record_action":
             ipcRenderer.send('log-to-file', `Screenshot is being captured`)
-            if (onScreenshot) {
-              const screenshot = onScreenshot()
-              if(screenshot){
-                const {x1, y1, x2, y2} = (fc.args as any).boundingBox
-                const functionCall = (fc.args as any).action
-                const description = (fc.args as any).description
-                const base64Data = screenshot.split(',')[1]
-
-                // Get window dimensions from electron
-                const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
-                
-                const x1_scaled = Math.round(x1 * scaleFactor);
-                const y1_scaled = Math.round(y1 * scaleFactor);
-                const x2_scaled = Math.round(x2 * scaleFactor);
-                const y2_scaled = Math.round(y2 * scaleFactor);
-                
-                // Add display bounds offset
-                const x1_final = x1_scaled + bounds.x;
-                const y1_final = y1_scaled + bounds.y;
-                const x2_final = x2_scaled + bounds.x;
-                const y2_final = y2_scaled + bounds.y;
-                
-                
-                // Get original image dimensions
-                const img = new Image();
-                img.onload = () => {
-                  console.log('Original screenshot dimensions:', { width: img.width, height: img.height });
-                  ipcRenderer.send('log-to-file', `Original screenshot dimensions: ${img.width}x${img.height}`);
-                  
-                  // Convert base64 to blob
-                  const byteCharacters = atob(base64Data);
-                  const byteArrays = [];
-                  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                    const slice = byteCharacters.slice(offset, offset + 512);
-                    const byteNumbers = new Array(slice.length);
-                    for (let i = 0; i < slice.length; i++) {
-                      byteNumbers[i] = slice.charCodeAt(i);
-                    }
-                    byteArrays.push(new Uint8Array(byteNumbers));
-                  }
-                  const blob = new Blob(byteArrays, { type: 'image/jpeg' });
-                  
-                  // Create ImageBitmap from blob with crop region
-                  createImageBitmap(blob, x1_final, y1_final, x2_final - x1_final, y2_final - y1_final)
-                    .then(imageBitmap => {
-                      // Create temporary canvas just for conversion
-                      const canvas = document.createElement('canvas');
-                      canvas.width = imageBitmap.width;
-                      canvas.height = imageBitmap.height;
-                      const ctx = canvas.getContext('2d');
-                      if (ctx) {
-                        ctx.drawImage(imageBitmap, 0, 0);
-                        const croppedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
-                        ipcRenderer.send('record-opencv-action', croppedBase64, functionCall, description);
-                      }
-                      imageBitmap.close();
-                    });
-                };
-                img.src = screenshot;
-              }
+            const {x1, y1, x2, y2} = (fc.args as any).boundingBox
+            const functionCall = (fc.args as any).action
+            const description = (fc.args as any).description
+            const ss = await get_screenshot(x1, y1, x2, y2)
+            if (ss) {
+              ipcRenderer.send('record-opencv-action', ss, functionCall, description);
             }
             break;
           case "record_conversation":
@@ -287,6 +303,47 @@ function SubtitlesComponent({
           case "set_action_name":
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             break;
+          case "record_opencv_action":
+            // Get current mouse position from main process
+            const action_opencv = (fc.args as any).action;
+            const description_opencv = (fc.args as any).description;
+
+            const mousePosition = await ipcRenderer.invoke('get-mouse-position');
+            console.log('Mouse coordinates:', mousePosition);
+            const x1_mouse = mousePosition.x-50;
+            const y1_mouse = mousePosition.y-50;
+            const x2_mouse = mousePosition.x+50;
+            const y2_mouse = mousePosition.y+50;
+
+            try {
+              // Hide cursor using both CSS and system-level
+              document.body.style.cursor = 'none';
+              const originalPosition = await ipcRenderer.invoke('hide-system-cursor');
+              
+              // Add small delay to ensure cursor is hidden
+              await new Promise(resolve => setTimeout(resolve, 100));
+
+              const ss_mouse = await get_screenshot(x1_mouse, y1_mouse, x2_mouse, y2_mouse);
+              
+              // Restore cursor using both CSS and system-level
+              document.body.style.cursor = 'default';
+              if (originalPosition) {
+                await ipcRenderer.invoke('restore-system-cursor', originalPosition);
+                // Call interact after cursor is restored
+                if (ss_mouse) {
+                  ipcRenderer.send('record-opencv-action', ss_mouse, action_opencv, description_opencv);
+                  await interact(mousePosition, action_opencv);
+                }
+              }
+            } catch (error) {
+              // Ensure cursor is restored even if there's an error
+              document.body.style.cursor = 'default';
+              const currentPos = await ipcRenderer.invoke('get-mouse-position');
+              await ipcRenderer.invoke('restore-system-cursor', currentPos);
+              console.error('Error during screenshot capture:', error);
+            }
+            hasResponded = true;
+            break;
           case "opencv_perform_action":
             const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
             if (actionData_opencv) {
@@ -294,16 +351,8 @@ function SubtitlesComponent({
                 const templatePath = action.filepath.replace(/\\/g, '/');
                 console.log(templatePath)
                 const cords = await get_opencv_coordinates(templatePath);
-                switch(action.function_call){
-                  case "click":
-                    ipcRenderer.send('click', cords?.x, cords?.y, 'click', false)
-                    break;
-                  case "double-click":
-                    ipcRenderer.send('click', cords?.x, cords?.y, 'double-click', false)
-                    break;
-                  case "right-click":
-                    ipcRenderer.send('click', cords?.x, cords?.y, 'right-click', false)
-                    break;
+                if(cords){
+                  await interact(cords, action.function_call, false);
                 }
                 await new Promise(resolve => setTimeout(resolve, 2000));
               }
@@ -316,13 +365,12 @@ function SubtitlesComponent({
               for (const action of actionData) {
                 if (onScreenshot) {
                   // Take screenshot and process elements
-                  const screenshot = await onScreenshot();
                   await find_all_elements_function(onScreenshot, client, toolCall);
                   
                   // Handle different action types
                   switch (action.function_call) {
                     case "click":
-                      await client.send([{
+                      client.send([{
                         text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
 
 If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
@@ -333,7 +381,7 @@ Please do not give any audio reply to this.`
                       }]);
                       break;
                     case "insert_content":
-                      await client.send([{
+                      client.send([{
                         text: `You have to call the insert_content function which achieves the following task : ${action.description}
 
 please do not give any audio response to this.`
@@ -426,6 +474,19 @@ please do not give any audio response to this.`
       }
     }
   }, [graphRef, graphJson]);
+
+  // Add effect to handle cursor visibility
+  useEffect(() => {
+    const handleCursorVisibility = (_: any, visibility: string) => {
+      document.body.style.cursor = visibility;
+    };
+
+    ipcRenderer.on('set-cursor-visibility', handleCursorVisibility);
+
+    return () => {
+      ipcRenderer.removeListener('set-cursor-visibility', handleCursorVisibility);
+    };
+  }, []);
 
   return (
     <>

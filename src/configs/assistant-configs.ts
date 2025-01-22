@@ -1,4 +1,5 @@
 import { type Tool, SchemaType } from '@google/generative-ai';
+import { property } from 'lodash';
 
 // Tool configurations
 
@@ -417,6 +418,39 @@ export const opencv_tools: Tool[] = [
             }
           }
         }
+      },
+      {
+        name: "set_action_name",
+        description: "Sets a custom name for the current action that is being recorded",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            name: {
+              type: SchemaType.STRING,
+              description: "The name to give to the action",
+            },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "record_opencv_action",
+        description: "Records the action that needs to be performed as said by the user",
+        parameters:{
+          type: SchemaType.OBJECT,
+          properties: {
+            action: {
+              type: SchemaType.STRING,
+              description: "The function call to record in the conversation file",
+              enum : ["click", "double-click", "right-click", "drag", "insert_content", "select_content", "scroll"]
+            },
+            description: {
+              type: SchemaType.STRING,
+              description: "The description of the request made by the user so that the parameters required for the function call can be extracted  ",
+            },
+          },
+          required: ["action", "description"],
+        }
       }
     ]
   }
@@ -425,11 +459,23 @@ export const opencv_tools: Tool[] = [
 // Mode-based configurations
 export const assistantConfigs = {
   opencv_action_recorder: {
+    display_name: "OpenCV Record",
+    tools: [...opencv_tools],
+    requiresDisplay: true,
+    systemInstruction: `
+When user asks you to set the name of the action, you must call the "set_action_name" function with the "name" as specified by the user. Call this function yourself, do not ask the user to do so.
+
+Whenever user asks you to record some action, run the record_opencv_action function along with the action given by the user and the corresponding description. 
+
+Keep on giving confirmation after every task. 
+`
+  },
+  opencv_action_performer: {
     display_name: "OpenCV Actions",
     tools: [...opencv_tools],
     requiresDisplay: true,
     systemInstruction: `
-whenever the user asks you to perfom some action, call the perform_action function along with the name specified by the user.
+whenever the user asks you to perfom some action, call the opencv_perform_action function along with the name specified by the user.
     `
   },
   record_action: {

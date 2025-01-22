@@ -2270,6 +2270,14 @@ ipcMain.on('click', async (event, x: number, y: number, action: string, electron
 // Add screenshot saving handler
 ipcMain.on('record-opencv-action', async (event, base64Data, function_call, description) => {
   try {
+    // Hide cursor before taking screenshot
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('set-cursor-visibility', 'none');
+    });
+
+    // Add a small delay to ensure cursor is hidden
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     if (!customSessionName) {
       logToFile('No session name set, cannot record conversation');
       return;
@@ -2281,7 +2289,6 @@ ipcMain.on('record-opencv-action', async (event, base64Data, function_call, desc
     if (!conversations[sessionName]) {
       conversations[sessionName] = [];
     }
-
 
     saveConversations(conversations);
     logToFile(`Recorded conversation for session: ${sessionName}`);
@@ -2315,8 +2322,19 @@ ipcMain.on('record-opencv-action', async (event, base64Data, function_call, desc
     });
     saveConversations(conversations);
     logToFile(`Recorded conversation for session: ${sessionName}`);
+
+    // Show cursor after screenshot is saved
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('set-cursor-visibility', 'default');
+    });
+
     return filepath;
   } catch (error) {
+    // Show cursor even if there's an error
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('set-cursor-visibility', 'default');
+    });
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error saving screenshot: ${errorMessage}`);
     console.error('Error saving screenshot:', error);
@@ -2333,4 +2351,50 @@ ipcMain.handle('get-window-dimensions', () => {
     workArea: workArea,
     scaleFactor: scaleFactor,
   };
+});
+
+// Add mouse position handler
+ipcMain.handle('get-mouse-position', () => {
+  const mousePosition = electron_screen.getCursorScreenPoint();
+  return mousePosition;
+});
+
+// Add IPC handlers for cursor visibility
+ipcMain.handle('hide-cursor', () => {
+  // Send message to renderer to hide cursor via CSS
+  BrowserWindow.getAllWindows().forEach(window => {
+    window.webContents.send('set-cursor-visibility', 'none');
+  });
+});
+
+ipcMain.handle('show-cursor', () => {
+  // Send message to renderer to show cursor via CSS
+  BrowserWindow.getAllWindows().forEach(window => {
+    window.webContents.send('set-cursor-visibility', 'default');
+  });
+});
+
+// Add system-level cursor visibility handlers
+ipcMain.handle('hide-system-cursor', async () => {
+  try {
+    // Store current mouse position
+    const currentPos = electron_screen.getCursorScreenPoint();
+    
+    // Move cursor off screen temporarily
+    await mouse.setPosition(new Point(-10000, -10000));
+    
+    return currentPos;
+  } catch (error) {
+    console.error('Error hiding system cursor:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('restore-system-cursor', async (_, position: { x: number, y: number }) => {
+  try {
+    // Restore cursor to original position
+    await mouse.setPosition(new Point(position.x, position.y));
+  } catch (error) {
+    console.error('Error restoring system cursor:', error);
+  }
 });
