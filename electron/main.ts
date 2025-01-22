@@ -6,7 +6,8 @@ import {
   WebContents,
   clipboard,
   nativeImage,
-  screen as electron_screen
+  screen as electron_screen,
+  session
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -1928,6 +1929,7 @@ interface ConversationEntry {
   args?: FunctionCall['args'];
   description: string;
   delay?: number;
+  filepath: string;
 }
 
 interface Conversations {
@@ -1993,9 +1995,11 @@ ipcMain.on('record-conversation', (event, function_call, description) => {
       conversations[sessionName] = [];
     }
 
+    const filepath=""
     conversations[sessionName].push({
       function_call,
-      description
+      description,
+      filepath
     });
 
     saveConversations(conversations);
@@ -2151,9 +2155,78 @@ function showCoordinateMarker(x: number, y: number) {
   markerWindow.setIgnoreMouseEvents(true);
 }
 
+function showBoxMarker(x1: number, y1: number, x2: number, y2: number) {
+  if (markerWindow && !markerWindow.isDestroyed()) {
+    markerWindow.close();
+  }
+
+  const width = x2 - x1;
+  const height = y2 - y1;
+
+  markerWindow = new BrowserWindow({
+    width: width,
+    height: height,
+    x: x1,
+    y: y1,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const markerHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+          }
+          .box-marker {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 0, 0.2);
+            border: 2px solid rgba(255, 0, 0, 0.8);
+            position: absolute;
+            animation: pulse 1s infinite;
+            box-sizing: border-box;
+          }
+          @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.4; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="box-marker"></div>
+        <script>
+          // Auto-close after 5 seconds
+          setTimeout(() => window.close(), 5000);
+        </script>
+      </body>
+    </html>
+  `;
+
+  markerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`);
+  markerWindow.setIgnoreMouseEvents(true);
+}
+
 // Add IPC handler for showing coordinates
 ipcMain.on('show-coordinates', (_, x: number, y: number) => {
   showCoordinateMarker(x, y);
+});
+
+// Add IPC handler for showing bounding box
+ipcMain.on('show-box', (_, x1: number, y1: number, x2: number, y2: number) => {
+  showBoxMarker(x1, y1, x2, y2);
 });
 
 ipcMain.on('click', async (event, x: number, y: number, action: string) => {
@@ -2187,4 +2260,72 @@ ipcMain.on('click', async (event, x: number, y: number, action: string) => {
     logToFile(`Error performing click: ${error}`);
     console.log('error performing click', error);
   }
+});
+
+// Add screenshot saving handler
+ipcMain.on('save-screenshot', async (event, base64Data, function_call, description) => {
+  try {
+    if (!customSessionName) {
+      logToFile('No session name set, cannot record conversation');
+      return;
+    }
+
+    const conversations = loadConversations();
+    const sessionName = customSessionName;
+
+    if (!conversations[sessionName]) {
+      conversations[sessionName] = [];
+    }
+
+    
+    saveConversations(conversations);
+    logToFile(`Recorded conversation for session: ${sessionName}`);
+    
+    logToFile('Starting screenshot save process');
+    // Create screenshots directory if it doesn't exist
+    const screenshotsDir = path.join(app.getPath('appData'), 'screensense-ai','actions', sessionName);
+    if (!fs.existsSync(screenshotsDir)) {
+      logToFile(`Creating screenshots directory at: ${screenshotsDir}`);
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `screenshot-${timestamp}.png`;
+    const filepath = path.join(screenshotsDir, filename);
+    logToFile(`Generated filepath: ${filepath}`);
+    
+    // Convert base64 to buffer and save
+    const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const imageBuffer = Buffer.from(base64Image, 'base64');
+    logToFile(`Created image buffer of size: ${imageBuffer.length} bytes`);
+    
+    fs.writeFileSync(filepath, imageBuffer);
+    logToFile(`Screenshot saved successfully`);
+    
+    conversations[sessionName].push({
+      function_call,
+      description,
+      filepath
+    });
+    saveConversations(conversations);
+    logToFile(`Recorded conversation for session: ${sessionName}`);
+    return filepath;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error saving screenshot: ${errorMessage}`);
+    console.error('Error saving screenshot:', error);
+    throw error;
+  }
+});
+
+// Add this with other ipcMain handlers
+ipcMain.handle('get-window-dimensions', () => {
+  const primaryDisplay = electron_screen.getPrimaryDisplay();
+  const { bounds, workArea, scaleFactor } = primaryDisplay;
+  return { 
+    bounds: bounds,
+    workArea: workArea,
+    scaleFactor: scaleFactor,
+  };
 });

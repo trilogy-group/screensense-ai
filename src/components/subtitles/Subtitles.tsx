@@ -5,6 +5,7 @@ import { ToolCall } from '../../multimodal-live-types';
 import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
+import { ipcMain } from 'electron';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -68,6 +69,11 @@ function SubtitlesComponent({
             const devicePixelRatio = window.devicePixelRatio || 1;
             const actualWidth = Math.round(videoWidth / devicePixelRatio);
             const actualHeight = Math.round(videoHeight / devicePixelRatio);
+
+            // Get the video element's display dimensions
+            const videoRect = video.getBoundingClientRect();
+            const scaleX = videoRect.width / videoWidth;
+            const scaleY = videoRect.height / videoHeight;
     
             // Get elements from ML model
             const detectionResult = await omniParser.detectElements(blob);
@@ -80,6 +86,14 @@ function SubtitlesComponent({
                 x: Math.round(element.center.x * actualWidth),
                 y: Math.round(element.center.y * actualHeight),
               },
+              ...(element.boundingBox && {
+                boundingBox: {
+                  x1: Math.round(element.boundingBox.x1 * actualWidth),
+                  y1: Math.round(element.boundingBox.y1 * actualHeight),
+                  x2: Math.round(element.boundingBox.x2 * actualWidth),
+                  y2: Math.round(element.boundingBox.y2 * actualHeight),
+                }
+              })
             }));
     
             client.sendToolResponse({
@@ -173,6 +187,70 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
+          case "record_action":
+            ipcRenderer.send('log-to-file', `Screenshot is being captured`)
+            if (onScreenshot) {
+              const screenshot = onScreenshot()
+              if(screenshot){
+                const {x1, y1, x2, y2} = (fc.args as any).boundingBox
+                const functionCall = (fc.args as any).action
+                const description = (fc.args as any).description
+                const base64Data = screenshot.split(',')[1]
+
+                // Get window dimensions from electron
+                const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
+                
+                const x1_scaled = Math.round(x1 * scaleFactor);
+                const y1_scaled = Math.round(y1 * scaleFactor);
+                const x2_scaled = Math.round(x2 * scaleFactor);
+                const y2_scaled = Math.round(y2 * scaleFactor);
+                
+                // Add display bounds offset
+                const x1_final = x1_scaled + bounds.x;
+                const y1_final = y1_scaled + bounds.y;
+                const x2_final = x2_scaled + bounds.x;
+                const y2_final = y2_scaled + bounds.y;
+                
+                
+                // Get original image dimensions
+                const img = new Image();
+                img.onload = () => {
+                  console.log('Original screenshot dimensions:', { width: img.width, height: img.height });
+                  ipcRenderer.send('log-to-file', `Original screenshot dimensions: ${img.width}x${img.height}`);
+                  
+                  // Convert base64 to blob
+                  const byteCharacters = atob(base64Data);
+                  const byteArrays = [];
+                  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                    const slice = byteCharacters.slice(offset, offset + 512);
+                    const byteNumbers = new Array(slice.length);
+                    for (let i = 0; i < slice.length; i++) {
+                      byteNumbers[i] = slice.charCodeAt(i);
+                    }
+                    byteArrays.push(new Uint8Array(byteNumbers));
+                  }
+                  const blob = new Blob(byteArrays, { type: 'image/jpeg' });
+                  
+                  // Create ImageBitmap from blob with crop region
+                  createImageBitmap(blob, x1_final, y1_final, x2_final - x1_final, y2_final - y1_final)
+                    .then(imageBitmap => {
+                      // Create temporary canvas just for conversion
+                      const canvas = document.createElement('canvas');
+                      canvas.width = imageBitmap.width;
+                      canvas.height = imageBitmap.height;
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        ctx.drawImage(imageBitmap, 0, 0);
+                        const croppedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+                        ipcRenderer.send('save-screenshot', croppedBase64, functionCall, description);
+                      }
+                      imageBitmap.close();
+                    });
+                };
+                img.src = screenshot;
+              }
+            }
+            break;
           case "record_conversation":
             ipcRenderer.send('record-conversation',
               (fc.args as any).function_call,
@@ -250,6 +328,11 @@ please do not give any audio response to this.`
             const coordinates = (fc.args as any).coordinates;
             console.log(coordinates)
             ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
+            break;
+          case "highlight_element_box":
+            const box = (fc.args as any).boundingBox;
+            console.log('Highlighting box:', box);
+            ipcRenderer.send('show-box', box.x1, box.y1, box.x2, box.y2);
             break;
           case "click_element":
             const args = fc.args as any;
