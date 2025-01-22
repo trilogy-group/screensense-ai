@@ -34,7 +34,7 @@ export class OpenCVService {
   async findTemplate(
     screenImage: string,
     templatePath: string,
-    threshold: number = 0.2,
+    threshold: number = 0.0,
     method: number = cv.TM_CCOEFF_NORMED
   ): Promise<TemplateMatchResult | null> {
     try {

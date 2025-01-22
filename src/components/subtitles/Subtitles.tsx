@@ -46,6 +46,31 @@ function SubtitlesComponent({
   }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
+    async function get_opencv_coordinates(path: string){
+      if (onScreenshot) {
+        const screenshot = onScreenshot();
+        if (screenshot) {
+          try {
+            // Use opencv service to find template directly with base64 image
+            const templatePath = path;
+            const result = await opencvService.findTemplate(screenshot, templatePath);
+            
+            if (result) {
+              console.log('Template found at:', result.location);
+              console.log('Match confidence:', result.confidence);
+              return {
+                x : result.location.x, 
+                y : result.location.y,
+              }
+            } else {
+              console.log('Template not found in the image');
+            }
+          } catch (error) {
+            console.error('Error in template matching:', error);
+          }
+        }
+      }
+    }
     async function find_all_elements_function(onScreenshot: () => string | null, client: any, toolCall: ToolCall): Promise<void> {
       if (onScreenshot) {
         const screenshot = onScreenshot();
@@ -244,7 +269,7 @@ function SubtitlesComponent({
                       if (ctx) {
                         ctx.drawImage(imageBitmap, 0, 0);
                         const croppedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
-                        ipcRenderer.send('save-screenshot', croppedBase64, functionCall, description);
+                        ipcRenderer.send('record-opencv-action', croppedBase64, functionCall, description);
                       }
                       imageBitmap.close();
                     });
@@ -263,24 +288,24 @@ function SubtitlesComponent({
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             break;
           case "opencv_perform_action":
-            if (onScreenshot) {
-              const screenshot = onScreenshot();
-              if (screenshot) {
-                try {
-                  // Use opencv service to find template directly with base64 image
-                  const templatePath = 'C:/Users/ARNAV/AppData/Roaming/screensense-ai/actions/mobile/screenshot-2025-01-22T04-28-45-399Z.png';
-                  const result = await opencvService.findTemplate(screenshot, templatePath);
-                  
-                  if (result) {
-                    console.log('Template found at:', result.location);
-                    ipcRenderer.send('click', result.location.x, result.location.y, 'click', false)
-                    console.log('Match confidence:', result.confidence);
-                  } else {
-                    console.log('Template not found in the image');
-                  }
-                } catch (error) {
-                  console.error('Error in template matching:', error);
+            const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
+            if (actionData_opencv) {
+              for (const action of actionData_opencv) {
+                const templatePath = action.filepath.replace(/\\/g, '/');
+                console.log(templatePath)
+                const cords = await get_opencv_coordinates(templatePath);
+                switch(action.function_call){
+                  case "click":
+                    ipcRenderer.send('click', cords?.x, cords?.y, 'click', false)
+                    break;
+                  case "double-click":
+                    ipcRenderer.send('click', cords?.x, cords?.y, 'double-click', false)
+                    break;
+                  case "right-click":
+                    ipcRenderer.send('click', cords?.x, cords?.y, 'right-click', false)
+                    break;
                 }
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             }
             hasResponded = true;

@@ -2268,7 +2268,7 @@ ipcMain.on('click', async (event, x: number, y: number, action: string, electron
 });
 
 // Add screenshot saving handler
-ipcMain.on('save-screenshot', async (event, base64Data, function_call, description) => {
+ipcMain.on('record-opencv-action', async (event, base64Data, function_call, description) => {
   try {
     if (!customSessionName) {
       logToFile('No session name set, cannot record conversation');
