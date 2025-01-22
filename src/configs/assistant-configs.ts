@@ -217,7 +217,7 @@ const interactionTools: Tool[] = [
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
-            content : {
+            content: {
               type: SchemaType.STRING,
               description: "The content that needs to be inserted"
             }
@@ -306,7 +306,7 @@ export const actionPlayerTools: Tool[] = [
               enum: ['click', 'double-click', 'right-click'],
             },
           },
-          required : ['coordinates', 'action']
+          required: ['coordinates', 'action']
         }
       },
       {
@@ -315,7 +315,7 @@ export const actionPlayerTools: Tool[] = [
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
-            content : {
+            content: {
               type: SchemaType.STRING,
               description: "The content that needs to be inserted"
             }
@@ -390,7 +390,7 @@ export const record_action_tools: Tool[] = [
               description: "The type of action to record",
               enum: ["click", "right-click", "double-click", "select_content", "insert_content"]
             },
-            description:{
+            description: {
               type: SchemaType.STRING,
               description: "The description of what the action should do. This can be infered from client input"
             }
@@ -401,8 +401,37 @@ export const record_action_tools: Tool[] = [
     ]
   }
 ]
+
+export const opencv_tools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "opencv_perform_action",
+        description: "This function calls an action whose name is the one given by the user",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            name: {
+              type: SchemaType.STRING,
+              description: "Name of the action to perform"
+            }
+          }
+        }
+      }
+    ]
+  }
+]
+
 // Mode-based configurations
 export const assistantConfigs = {
+  opencv_action_recorder: {
+    display_name: "OpenCV Actions",
+    tools: [...opencv_tools],
+    requiresDisplay: true,
+    systemInstruction: `
+whenever the user asks you to perfom some action, call the perform_action function along with the name specified by the user.
+    `
+  },
   record_action: {
     display_name: "Record Action",
     tools: [...record_action_tools],

@@ -153,9 +153,9 @@ async function createMainWindow() {
     // For macOS, set the app icon explicitly
     ...(process.platform === 'darwin'
       ? {
-          titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 10, y: 10 },
-        }
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 10, y: 10 },
+      }
       : {}),
     webPreferences: {
       nodeIntegration: true,
@@ -1995,7 +1995,7 @@ ipcMain.on('record-conversation', (event, function_call, description) => {
       conversations[sessionName] = [];
     }
 
-    const filepath=""
+    const filepath = ""
     conversations[sessionName].push({
       function_call,
       description,
@@ -2035,7 +2035,7 @@ ipcMain.handle('perform-action', async (event, name) => {
     if (conversations[actionName]) {
       let actions = conversations[actionName];
       const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
-      
+
       // Return the actions data before executing them
       const actionData = actions;
       return actionData;
@@ -2229,19 +2229,24 @@ ipcMain.on('show-box', (_, x1: number, y1: number, x2: number, y2: number) => {
   showBoxMarker(x1, y1, x2, y2);
 });
 
-ipcMain.on('click', async (event, x: number, y: number, action: string) => {
+ipcMain.on('click', async (event, x: number, y: number, action: string, electron: boolean = true) => {
   try {
     const primaryDisplay = electron_screen.getPrimaryDisplay();
     const { bounds, workArea, scaleFactor } = primaryDisplay;
-    
+
     // Account for taskbar offset and display scaling
     const x_scaled = Math.round(x * scaleFactor);
     const y_scaled = Math.round(y * scaleFactor);
-    
-    // Add display bounds offset
-    const x_final = x_scaled + bounds.x;
-    const y_final = y_scaled + bounds.y;
 
+    // Add display bounds offset
+    let x_final, y_final;
+    if (electron) {
+      x_final = x_scaled + bounds.x;
+      y_final = y_scaled + bounds.y;
+    } else {
+      x_final = Math.round(x)
+      y_final = Math.round(y)
+    }
     // await mouse.move(straightTo(new Point(x_final, y_final)));
     await mouse.setPosition(new Point(x_final, y_final))
     // await new Promise(resolve => setTimeout(resolve, 100));
@@ -2277,32 +2282,32 @@ ipcMain.on('save-screenshot', async (event, base64Data, function_call, descripti
       conversations[sessionName] = [];
     }
 
-    
+
     saveConversations(conversations);
     logToFile(`Recorded conversation for session: ${sessionName}`);
-    
+
     logToFile('Starting screenshot save process');
     // Create screenshots directory if it doesn't exist
-    const screenshotsDir = path.join(app.getPath('appData'), 'screensense-ai','actions', sessionName);
+    const screenshotsDir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', sessionName);
     if (!fs.existsSync(screenshotsDir)) {
       logToFile(`Creating screenshots directory at: ${screenshotsDir}`);
       fs.mkdirSync(screenshotsDir, { recursive: true });
     }
-    
+
     // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `screenshot-${timestamp}.png`;
     const filepath = path.join(screenshotsDir, filename);
     logToFile(`Generated filepath: ${filepath}`);
-    
+
     // Convert base64 to buffer and save
     const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
     const imageBuffer = Buffer.from(base64Image, 'base64');
     logToFile(`Created image buffer of size: ${imageBuffer.length} bytes`);
-    
+
     fs.writeFileSync(filepath, imageBuffer);
     logToFile(`Screenshot saved successfully`);
-    
+
     conversations[sessionName].push({
       function_call,
       description,
@@ -2323,7 +2328,7 @@ ipcMain.on('save-screenshot', async (event, base64Data, function_call, descripti
 ipcMain.handle('get-window-dimensions', () => {
   const primaryDisplay = electron_screen.getPrimaryDisplay();
   const { bounds, workArea, scaleFactor } = primaryDisplay;
-  return { 
+  return {
     bounds: bounds,
     workArea: workArea,
     scaleFactor: scaleFactor,

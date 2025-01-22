@@ -5,7 +5,9 @@ import { ToolCall } from '../../multimodal-live-types';
 import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
+import { opencvService } from '../../services/opencv-service';
 import { ipcMain } from 'electron';
+import { FALSE } from 'sass';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -259,6 +261,29 @@ function SubtitlesComponent({
             break;
           case "set_action_name":
             ipcRenderer.send('set-action-name', (fc.args as any).name);
+            break;
+          case "opencv_perform_action":
+            if (onScreenshot) {
+              const screenshot = onScreenshot();
+              if (screenshot) {
+                try {
+                  // Use opencv service to find template directly with base64 image
+                  const templatePath = 'C:/Users/ARNAV/AppData/Roaming/screensense-ai/actions/mobile/screenshot-2025-01-22T04-28-45-399Z.png';
+                  const result = await opencvService.findTemplate(screenshot, templatePath);
+                  
+                  if (result) {
+                    console.log('Template found at:', result.location);
+                    ipcRenderer.send('click', result.location.x, result.location.y, 'click', false)
+                    console.log('Match confidence:', result.confidence);
+                  } else {
+                    console.log('Template not found in the image');
+                  }
+                } catch (error) {
+                  console.error('Error in template matching:', error);
+                }
+              }
+            }
+            hasResponded = true;
             break;
           case "perform_action":
             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
