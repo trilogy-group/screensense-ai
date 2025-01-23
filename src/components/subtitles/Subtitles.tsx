@@ -28,6 +28,7 @@ function SubtitlesComponent({
   const [graphJson, setGraphJson] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
   const graphRef = useRef<HTMLDivElement>(null);
+  const lastActionTimeRef = useRef<number>(0);
 
   useEffect(() => {
     setConfig({
@@ -128,7 +129,7 @@ function SubtitlesComponent({
       }
       return null;
     }
-    async function interact(cords: {x: number, y:number}, function_call: string, electron: boolean = true){
+    async function interact(cords: {x: number, y:number}, function_call: string, electron: boolean = true, payload: string = ""){
       switch(function_call){
         case "click":
           ipcRenderer.send('click', cords?.x, cords?.y, 'click', electron)
@@ -138,6 +139,12 @@ function SubtitlesComponent({
           break;
         case "right-click":
           ipcRenderer.send('click', cords?.x, cords?.y, 'right-click', electron)
+          break;
+        case "insert_content":
+          ipcRenderer.send('insert-content', payload);
+          break;
+        case "scroll":
+          ipcRenderer.send('scroll', payload);
           break;
       }
     }
@@ -284,28 +291,32 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          case "record_action":
-            ipcRenderer.send('log-to-file', `Screenshot is being captured`)
-            const {x1, y1, x2, y2} = (fc.args as any).boundingBox
-            const functionCall = (fc.args as any).action
-            const description = (fc.args as any).description
-            const ss = await get_screenshot(x1, y1, x2, y2)
-            if (ss) {
-              ipcRenderer.send('record-opencv-action', ss, functionCall, description);
-            }
-            break;
-          case "record_conversation":
-            ipcRenderer.send('record-conversation',
-              (fc.args as any).function_call,
-              (fc.args as any).description
-            );
-            break;
+          // case "record_action":
+          //   ipcRenderer.send('log-to-file', `Screenshot is being captured`)
+          //   const {x1, y1, x2, y2} = (fc.args as any).boundingBox
+          //   const functionCall = (fc.args as any).action
+          //   const description = (fc.args as any).description
+          //   const ss = await get_screenshot(x1, y1, x2, y2)
+          //   if (ss) {
+          //     ipcRenderer.send('record-opencv-action', ss, functionCall, description);
+          //   }
+          //   break;
+          // case "record_conversation":
+          //   ipcRenderer.send('record-conversation',
+          //     (fc.args as any).function_call,
+          //     (fc.args as any).description
+          //   );
+          //   break;
           case "set_action_name":
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             break;
           case "record_opencv_action":
-            // Get current mouse position from main process
+            const currentTime = Date.now();
+            const timeDiff = lastActionTimeRef.current ? currentTime - lastActionTimeRef.current : 0;
+            lastActionTimeRef.current = currentTime;
+
             const action_opencv = (fc.args as any).action;
+            const payload_opencv = (fc.args as any).payload;
             const description_opencv = (fc.args as any).description;
 
             const mousePosition = await ipcRenderer.invoke('get-mouse-position');
@@ -331,8 +342,8 @@ function SubtitlesComponent({
                 await ipcRenderer.invoke('restore-system-cursor', originalPosition);
                 // Call interact after cursor is restored
                 if (ss_mouse) {
-                  ipcRenderer.send('record-opencv-action', ss_mouse, action_opencv, description_opencv);
-                  await interact(mousePosition, action_opencv);
+                  ipcRenderer.send('record-opencv-action', ss_mouse, action_opencv, description_opencv, payload_opencv, timeDiff);
+                  await interact(mousePosition, action_opencv, true, payload_opencv);
                 }
               }
             } catch (error) {
@@ -348,53 +359,53 @@ function SubtitlesComponent({
             const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
             if (actionData_opencv) {
               for (const action of actionData_opencv) {
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction - 2000)));
                 const templatePath = action.filepath.replace(/\\/g, '/');
                 console.log(templatePath)
                 const cords = await get_opencv_coordinates(templatePath);
                 if(cords){
                   await interact(cords, action.function_call, false);
                 }
-                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             }
             hasResponded = true;
             break;
-          case "perform_action":
-            const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
-            if (actionData) {
-              for (const action of actionData) {
-                if (onScreenshot) {
-                  // Take screenshot and process elements
-                  await find_all_elements_function(onScreenshot, client, toolCall);
+//           case "perform_action":
+//             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
+//             if (actionData) {
+//               for (const action of actionData) {
+//                 if (onScreenshot) {
+//                   // Take screenshot and process elements
+//                   await find_all_elements_function(onScreenshot, client, toolCall);
                   
-                  // Handle different action types
-                  switch (action.function_call) {
-                    case "click":
-                      client.send([{
-                        text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
+//                   // Handle different action types
+//                   switch (action.function_call) {
+//                     case "click":
+//                       client.send([{
+//                         text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
 
-If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
+// If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
 
-Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
+// Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
 
-Please do not give any audio reply to this.`
-                      }]);
-                      break;
-                    case "insert_content":
-                      client.send([{
-                        text: `You have to call the insert_content function which achieves the following task : ${action.description}
+// Please do not give any audio reply to this.`
+//                       }]);
+//                       break;
+//                     case "insert_content":
+//                       client.send([{
+//                         text: `You have to call the insert_content function which achieves the following task : ${action.description}
 
-please do not give any audio response to this.`
-                      }]);
-                      break;
-                  }
-                  // Wait for the action to complete
-                  await new Promise(resolve => setTimeout(resolve, 2500));
-                }
-              }
-            }
-            hasResponded = true;
-            break;
+// please do not give any audio response to this.`
+//                       }]);
+//                       break;
+//                   }
+//                   // Wait for the action to complete
+//                   await new Promise(resolve => setTimeout(resolve, 2500));
+//                 }
+//               }
+//             }
+//             hasResponded = true;
+//             break;
           // case "click":
           //   ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
           //   break;

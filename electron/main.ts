@@ -1666,7 +1666,7 @@ ipcMain.on('insert-content', async (event, content: string) => {
   }
 });
 
-ipcMain.on('scroll', async (event, direction: string, amount: number) => {
+ipcMain.on('scroll', async (event, direction: string, amount: number = 200) => {
   try {
     if (direction === 'up') {
       await mouse.scrollUp(amount);
@@ -1930,6 +1930,8 @@ interface ConversationEntry {
   description: string;
   delay?: number;
   filepath: string;
+  payload: string;
+  timeSinceLastAction?: number;
 }
 
 interface Conversations {
@@ -1981,7 +1983,7 @@ ipcMain.on('set-action-name', (event, name) => {
 });
 
 // Modified record-conversation handler
-ipcMain.on('record-conversation', (event, function_call, description) => {
+ipcMain.on('record-conversation', (event, function_call, description, payload = "") => {
   try {
     if (!customSessionName) {
       logToFile('No session name set, cannot record conversation');
@@ -1999,7 +2001,8 @@ ipcMain.on('record-conversation', (event, function_call, description) => {
     conversations[sessionName].push({
       function_call,
       description,
-      filepath
+      filepath,
+      payload
     });
 
     saveConversations(conversations);
@@ -2256,6 +2259,7 @@ ipcMain.on('click', async (event, x: number, y: number, action: string, electron
       await mouse.leftClick();
     } else if (action === 'double-click') {
       await mouse.doubleClick(Button.LEFT);
+      await mouse.releaseButton(Button.LEFT);
     } else if (action === 'right-click') {
       await mouse.rightClick();
     } else {
@@ -2268,7 +2272,7 @@ ipcMain.on('click', async (event, x: number, y: number, action: string, electron
 });
 
 // Add screenshot saving handler
-ipcMain.on('record-opencv-action', async (event, base64Data, function_call, description) => {
+ipcMain.on('record-opencv-action', async (event, base64Data, function_call, description, payload = "", timeSinceLastAction = 0) => {
   try {
     // Hide cursor before taking screenshot
     BrowserWindow.getAllWindows().forEach(window => {
@@ -2318,10 +2322,12 @@ ipcMain.on('record-opencv-action', async (event, base64Data, function_call, desc
     conversations[sessionName].push({
       function_call,
       description,
-      filepath
+      filepath,
+      payload,
+      timeSinceLastAction
     });
     saveConversations(conversations);
-    logToFile(`Recorded conversation for session: ${sessionName}`);
+    logToFile(`Recorded conversation for session: ${sessionName} with time since last action: ${timeSinceLastAction}ms`);
 
     // Show cursor after screenshot is saved
     BrowserWindow.getAllWindows().forEach(window => {
