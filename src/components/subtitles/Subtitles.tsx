@@ -143,9 +143,9 @@ function SubtitlesComponent({
         case "insert_content":
           ipcRenderer.send('insert-content', payload);
           break;
-        case "scroll":
-          ipcRenderer.send('scroll', payload);
-          break;
+        // case "scroll":
+        //   ipcRenderer.send('scroll', payload);
+        //   break;
       }
     }
     async function find_all_elements_function(onScreenshot: () => string | null, client: any, toolCall: ToolCall): Promise<void> {
@@ -364,7 +364,7 @@ function SubtitlesComponent({
                 console.log(templatePath)
                 const cords = await get_opencv_coordinates(templatePath);
                 if(cords){
-                  await interact(cords, action.function_call, false);
+                  await interact(cords, action.function_call, false, action.payload);
                 }
               }
             }
