@@ -8,6 +8,12 @@ interface Element {
     x: number;
     y: number;
   };
+  boundingBox: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  };
 }
 
 interface DetectionResult {
@@ -26,7 +32,7 @@ export class OmniParser {
     const lines = description.split('\n');
     return lines
       .map(line => {
-        // Match the pattern: type: text, content: X, interactivity: Y, center: (0.05, 0.02)
+        // Match the pattern: type: text, content: X, interactivity: Y, center: (0.05, 0.02), box: (0.02, 0.01, 0.08, 0.03)
         const typeMatch = line.match(/type: ([^,]+),/);
         const contentMatch = line.match(/content: ([^,]+),/);
         const interactivityMatch = line.match(/interactivity: ([^,]+),/);
@@ -37,7 +43,7 @@ export class OmniParser {
           return null;
         }
 
-        return {
+        const element: Element = {
           type: typeMatch[1].trim(),
           content: contentMatch[1].trim(),
           interactivity: interactivityMatch[1].trim().toLowerCase() === 'true',
@@ -45,7 +51,15 @@ export class OmniParser {
             x: parseFloat(centerMatch[1]),
             y: parseFloat(centerMatch[2]),
           },
-        };
+          boundingBox: {
+            x1: parseFloat(centerMatch[1]) -  0.02,
+            y1: parseFloat(centerMatch[2]) - 0.02,
+            x2: parseFloat(centerMatch[1]) + 0.02,
+            y2: parseFloat(centerMatch[2]) + 0.02,
+          }
+        }
+
+        return element;
       })
       .filter((element): element is Element => element !== null);
   }
@@ -79,10 +93,10 @@ export class OmniParser {
       console.log('OmniParser: Sending prediction request to endpoint...');
       const result = (await this.client!.predict('/process', {
         image_input: imageBlob,
-        box_threshold: 1,
-        iou_threshold: 1,
-        use_paddleocr: false,
-        imgsz: 640,
+        box_threshold: 0.01,
+        iou_threshold: 0.01,
+        use_paddleocr: true,
+        imgsz: 3200,
         icon_process_batch_size: 256,
       })) as DetectionResult;
 
@@ -91,7 +105,7 @@ export class OmniParser {
       // Parse the elements list into structured data
       const elements = this.parseElementsList(result.data[1]);
       console.log('OmniParser: Parsed elements:', elements);
-
+      // console.log('OmniParser: Parsed elements:', elements);
       return {
         data: [result.data[0], elements],
       };
@@ -99,6 +113,14 @@ export class OmniParser {
       console.error('OmniParser: Error during element detection:', error);
       throw error;
     }
+  }
+
+  async getBoundingBox(element: Element): Promise<Element['boundingBox'] | null> {
+    if (!element.boundingBox) {
+      console.warn('OmniParser: No bounding box information available for element:', element);
+      return null;
+    }
+    return element.boundingBox;
   }
 }
 
