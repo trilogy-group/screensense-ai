@@ -309,6 +309,8 @@ function SubtitlesComponent({
           //   break;
           case "set_action_name":
             ipcRenderer.send('set-action-name', (fc.args as any).name);
+            lastActionTimeRef.current = Date.now();
+            hasResponded = true;
             break;
           case "record_opencv_action":
             const currentTime = Date.now();
@@ -330,9 +332,7 @@ function SubtitlesComponent({
               // Hide cursor using both CSS and system-level
               document.body.style.cursor = 'none';
               const originalPosition = await ipcRenderer.invoke('hide-system-cursor');
-              
-              // Add small delay to ensure cursor is hidden
-              await new Promise(resolve => setTimeout(resolve, 100));
+              await new Promise(resolve => setTimeout(resolve, 600));
 
               const ss_mouse = await get_screenshot(x1_mouse, y1_mouse, x2_mouse, y2_mouse);
               
