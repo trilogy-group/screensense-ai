@@ -123,7 +123,7 @@ ipcMain.on('start-capture-screen', () => {
   captureScreenshot();
 
   // Start periodic screenshots
-  screenshotInterval = setInterval(captureScreenshot, 2000);
+  screenshotInterval = setInterval(captureScreenshot, 800);
 });
 
 ipcMain.on('stop-capture-screen', () => {
