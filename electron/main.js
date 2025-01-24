@@ -222,7 +222,7 @@ electron_1.ipcMain.handle('get-sources', function () {
             4 /*yield*/,
             electron_1.desktopCapturer.getSources({
               types: ['window', 'screen'],
-              thumbnailSize: { width: 150, height: 150 },
+              thumbnailSize: { width: 1920, height: 1080 },
             }),
           ];
         case 1:
