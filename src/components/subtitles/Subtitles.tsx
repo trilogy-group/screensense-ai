@@ -271,6 +271,26 @@ function SubtitlesComponent({
         );
 
         switch (fc.name) {
+          case "start_recording":
+            ipcRenderer.send('start-capture-screen');
+            client.sendToolResponse({
+              functionResponses: toolCall.functionCalls.map(fc => ({
+                response: { output: { success: true, message: "Started recording mouse actions" } },
+                id: fc.id,
+              })),
+            });
+            hasResponded = true;
+            break;
+          case "stop_recording":
+            ipcRenderer.send('stop-capture-screen');
+            client.sendToolResponse({
+              functionResponses: toolCall.functionCalls.map(fc => ({
+                response: { output: { success: true, message: "Stopped recording mouse actions" } },
+                id: fc.id,
+              })),
+            });
+            hasResponded = true;
+            break;
           case "render_subtitles":
             setSubtitles((fc.args as any).subtitles);
             break;
@@ -356,10 +376,12 @@ function SubtitlesComponent({
             hasResponded = true;
             break;
           case "opencv_perform_action":
-            const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
+          case "run_action":
+            // const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
+            const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action')
             if (actionData_opencv) {
               for (const action of actionData_opencv) {
-                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction - 2000)));
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
                 const templatePath = action.filepath.replace(/\\/g, '/');
                 console.log(templatePath)
                 const cords = await get_opencv_coordinates(templatePath);

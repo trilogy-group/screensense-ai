@@ -15,8 +15,8 @@ import { keyboard, Key, mouse, Point, straightTo, Button, screen as nutscreen } 
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 import { electron } from 'process';
-
-
+import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi';
+import sharp from 'sharp';
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -24,6 +24,216 @@ if (!app.isPackaged) {
 } else {
   require('dotenv').config({ path: path.join(process.resourcesPath, '.env') });
 }
+
+// Add recording state flag
+let isRecording = false;
+let screenshotInterval: NodeJS.Timeout | null = null;
+let latestScreenshot: { path: string; timestamp: number } | null = null;
+let lastClickTime: number | null = null;
+
+interface ConversationScreenshot {
+  function_call: string;
+  description: string;
+  filepath: string;
+  payload: string;
+  timeSinceLastAction: number;
+}
+
+interface ConversationsScreenshots {
+  [key: string]: ConversationScreenshot[];
+}
+
+let conversations_screenshots: ConversationsScreenshots = {};
+
+// Function to capture full screenshot
+async function captureScreenshot() {
+  try {
+    const screenshotsDir = path.join(app.getPath('appData'), 'screensense-ai', 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+
+    // Hide cursor before taking screenshot
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('set-cursor-visibility', 'none');
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Capture full screen at 1920x1080
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: {
+        width: 1920,
+        height: 1080
+      }
+    });
+
+    if (sources.length > 0) {
+      const primarySource = sources[0];
+      const fullImage = primarySource.thumbnail;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const screenshotPath = path.join(screenshotsDir, `screen-${timestamp}.png`);
+      
+      // Save the full screenshot
+      fs.writeFileSync(screenshotPath, fullImage.toPNG());
+      
+      // Delete previous screenshot if it exists
+      if (latestScreenshot && fs.existsSync(latestScreenshot.path)) {
+        fs.unlinkSync(latestScreenshot.path);
+      }
+
+      // Update latest screenshot info
+      latestScreenshot = {
+        path: screenshotPath,
+        timestamp: Date.now()
+      };
+
+      console.log('Full screenshot captured:', screenshotPath);
+    }
+
+    // Show cursor after screenshot is taken
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('set-cursor-visibility', 'default');
+    });
+  } catch (error) {
+    console.error('Error capturing screenshot:', error);
+    // Ensure cursor is shown even if there's an error
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('set-cursor-visibility', 'default');
+    });
+  }
+}
+
+// Update IPC handlers for recording control
+ipcMain.on('start-capture-screen', () => {
+  isRecording = true;
+  lastClickTime = null;
+  console.log('Started recording mouse actions');
+  conversations_screenshots = {"action": []};
+  saveConversations(conversations_screenshots);
+  // Clear the actions/action folder
+  const actionDir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', 'action');
+  if (fs.existsSync(actionDir)) {
+    fs.readdirSync(actionDir).forEach(file => {
+      fs.unlinkSync(path.join(actionDir, file));
+    });
+  }
+  // Take first screenshot immediately
+  captureScreenshot();
+
+  // Start periodic screenshots
+  screenshotInterval = setInterval(captureScreenshot, 800);
+});
+
+ipcMain.on('stop-capture-screen', () => {
+  isRecording = false;
+  lastClickTime = null;
+  console.log('Stopped recording mouse actions');
+  
+  // Clear screenshot interval
+  if (screenshotInterval) {
+    clearInterval(screenshotInterval);
+    screenshotInterval = null;
+  }
+
+  // Clean up latest screenshot
+  if (latestScreenshot && fs.existsSync(latestScreenshot.path)) {
+    fs.unlinkSync(latestScreenshot.path);
+    latestScreenshot = null;
+  }
+});
+
+// Initialize global event listener
+uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
+  // Only process clicks if recording is active and we have a screenshot
+  if (!isRecording || !latestScreenshot) return;
+
+  try {
+    // Calculate time since last click
+    const currentTime = Date.now();
+    const timeSinceLastClick = lastClickTime ? currentTime - lastClickTime : 0;
+    lastClickTime = currentTime;
+
+    const primaryDisplay = electron_screen.getPrimaryDisplay();
+    const { bounds } = primaryDisplay;
+    const cursorPos = electron_screen.getCursorScreenPoint();
+    
+    // Get the actual screen dimensions
+    const actualWidth = bounds.width;
+    const actualHeight = bounds.height;
+
+    // Calculate scaling factors
+    const scaleX = 1920 / actualWidth;
+    const scaleY = 1080 / actualHeight;
+
+    // Scale cursor position to 1920x1080 space
+    const scaledX = Math.round(cursorPos.x * scaleX);
+    const scaledY = Math.round(cursorPos.y * scaleY);
+
+    // Calculate crop area (100x100 pixels centered on click)
+    const cropSize = 100;
+    const halfSize = cropSize / 2;
+
+    // Calculate crop bounds, ensuring we stay within image boundaries
+    const cropX = Math.max(0, Math.min(1920 - cropSize, scaledX - halfSize));
+    const cropY = Math.max(0, Math.min(1080 - cropSize, scaledY - halfSize));
+
+    console.log('Coordinates:', {
+      screen: { width: actualWidth, height: actualHeight },
+      cursor: cursorPos,
+      scaled: { x: scaledX, y: scaledY },
+      crop: { x: cropX, y: cropY, size: cropSize },
+      timeSinceLastClick
+    });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const cropped_images_dir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', 'action');
+    if (!fs.existsSync(cropped_images_dir)) {
+      fs.mkdirSync(cropped_images_dir, { recursive: true });
+    }
+    const cropPath = path.join(cropped_images_dir, `click-${timestamp}.png`);
+
+    // Crop from the latest full screenshot
+    await sharp(latestScreenshot.path)
+      .extract({ 
+        left: cropX,
+        top: cropY,
+        width: cropSize,
+        height: cropSize
+      })
+      .toFile(cropPath);
+    
+    console.log(`Click area saved to: ${cropPath}`);
+
+    const sessionName = 'action';
+    if(!conversations_screenshots[sessionName]) {
+      conversations_screenshots[sessionName] = [];
+    }
+    
+    // Determine click type based on button
+    let clickType = 'click';  // default to left click
+    if (e.button === 2) {  // right click
+      clickType = 'right-click';
+    } else if (e.clicks === 2) {  // double click
+      clickType = 'double-click';
+    }
+
+    conversations_screenshots[sessionName].push({
+      function_call: clickType,
+      description: `perform a ${clickType} here`,
+      filepath: cropPath,
+      payload: '',
+      timeSinceLastAction: timeSinceLastClick
+    });
+    saveConversations(conversations_screenshots);
+  } catch (error) {
+    console.error('Error processing click area:', error);
+  }
+});
+
+// Start the listener
+uIOhook.start();
 
 keyboard.config.autoDelayMs = 0;
 
@@ -1493,7 +1703,7 @@ ipcMain.on('save-settings', (event, settings) => {
 
   // Just notify control window about API key availability without starting session
   if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('settings-updated', !!settings.apiKey);
+    controlWindow.webContents.send('settings-updated', settings.apiKey);
   }
 
   // Close settings window
@@ -1511,12 +1721,14 @@ ipcMain.on('close-settings', () => {
 // Initialize app with saved settings
 async function initializeApp() {
   // Load saved settings first
+  console.log("Hello World");
   const savedSettings = loadSettings();
 
   // Create windows
   await createMainWindow();
   createOverlayWindow();
   createControlWindow();
+  console.log("App is ready. Listening for global mouse events...");
 
   // Send saved settings to main window
   if (mainWindow && !mainWindow.isDestroyed()) {

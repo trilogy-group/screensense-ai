@@ -460,8 +460,41 @@ export const opencv_tools: Tool[] = [
   }
 ]
 
+export const screen_capture_tools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: "start_recording",
+        description: "Starts screen recording",
+      },
+      {
+        name: "stop_recording",
+        description: "Stops the screen recording",
+      },
+      {
+        name: "run_action",
+        description: "This function runs a predefined action"
+      }
+    ]
+  }
+]
+
 // Mode-based configurations
 export const assistantConfigs = {
+  screen_capture: {
+    display_name: "Screen Capture",
+    tools: [...screen_capture_tools],
+    requiresDisplay: true,
+    systemInstruction: `
+You are ScreenSense AI, operating in Screen Capture Mode.
+
+When the user asks you to start screen capturing, you must call the start_recording function.
+When the user asks you to stop screen capturing, you must call the stop_recording function.
+When the user asks you to run action, you must call the run_action function.
+
+Give a confirmation message to the user after every message.
+    `
+  },
   opencv_action_recorder: {
     display_name: "Action Recorder",
     tools: [...opencv_tools],
