@@ -17,6 +17,7 @@ import * as crypto from 'crypto';
 import { electron } from 'process';
 import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi';
 import sharp from 'sharp';
+// import { omniParser } from './omni-parser';
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -192,10 +193,13 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     if (!fs.existsSync(cropped_images_dir)) {
       fs.mkdirSync(cropped_images_dir, { recursive: true });
     }
-    const cropPath = path.join(cropped_images_dir, `click-${timestamp}.png`);
+    const cropPath = path.join(cropped_images_dir, `cropped-${timestamp}.png`);
+    const originalPath = path.join(cropped_images_dir, `original-${timestamp}.png`);
+    
 
+    await fs.promises.copyFile(latestScreenshot.path, originalPath);
     // Crop from the latest full screenshot
-    await sharp(latestScreenshot.path)
+    await sharp(originalPath)
       .extract({ 
         left: cropX,
         top: cropY,
@@ -204,7 +208,10 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
       })
       .toFile(cropPath);
     
+    // Copy the full screenshot to original path
+    
     console.log(`Click area saved to: ${cropPath}`);
+    console.log(`Original screenshot saved to: ${originalPath}`);
 
     const sessionName = 'action';
     if(!conversations_screenshots[sessionName]) {
@@ -243,6 +250,7 @@ let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
+let actionWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -2614,5 +2622,186 @@ ipcMain.handle('restore-system-cursor', async (_, position: { x: number, y: numb
     await mouse.setPosition(new Point(position.x, position.y));
   } catch (error) {
     console.error('Error restoring system cursor:', error);
+  }
+});
+
+// Add function to process image with OmniParser
+// async function processImageWithOmniParser(imagePath: string) {
+//   try {
+//     logToFile(`Processing image with OmniParser: ${imagePath}`);
+    
+//     // Read the PNG file into a buffer
+//     const imageBuffer = fs.readFileSync(imagePath);
+    
+//     // Create a Blob with the correct MIME type
+//     const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
+    
+//     // Process the image with OmniParser
+//     const result = await omniParser.detectElements(imageBlob);
+    
+//     // Log the results
+//     logToFile('OmniParser detection results:');
+//     if (result && result.data && result.data[1]) {
+//       logToFile('Detected elements:');
+//       result.data[1].forEach((element, index: number) => {
+//         logToFile(`\nElement ${index + 1}:`);
+//         logToFile(`Type: ${element.type}`);
+//         logToFile(`Content: ${element.content}`);
+//         logToFile(`Interactive: ${element.interactivity}`);
+//         logToFile(`Position: (${element.center.x}, ${element.center.y})`);
+//         logToFile(`Bounding Box: (${element.boundingBox.x1}, ${element.boundingBox.y1}) to (${element.boundingBox.x2}, ${element.boundingBox.y2})`);
+//       });
+//     } else {
+//       logToFile('No detection results available');
+//     }
+    
+//     return result;
+//   } catch (error) {
+//     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+//     logToFile(`Error processing image with OmniParser: ${errorMessage}`);
+//     throw error;
+//   }
+// }
+
+async function createActionWindow() {
+  if (actionWindow && !actionWindow.isDestroyed()) {
+    return actionWindow;
+  }
+
+  actionWindow = new BrowserWindow({
+    width: 120,  // Slightly wider than image to account for padding
+    height: 150, // Height for image plus text and padding
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    focusable: false,  // Prevents the window from taking focus
+    skipTaskbar: true, // Keeps it out of the taskbar
+    type: 'toolbar',   // Makes it appear above most system windows
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      webSecurity: false  // Allow loading local resources
+    },
+  });
+
+  // Ensure window stays on top even when other windows request always-on-top
+  actionWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' file: data:">
+        <style>
+          body {
+            margin: 0;
+            padding: 12px;
+            background: rgba(28, 28, 32, 0.95);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            border-radius: 12px;
+            overflow: hidden;
+            -webkit-app-region: drag;
+            user-select: none;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+          }
+          #action-image {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+          }
+          #action-image:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+          }
+          #action-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.2px;
+          }
+        </style>
+      </head>
+      <body>
+        <img id="action-image" src="" alt="Action preview" />
+        <p id="action-text"></p>
+        <script>
+          const { ipcRenderer } = require('electron');
+          
+          ipcRenderer.on('update-action', (event, { imagePath, text }) => {
+            console.log('Updating action window:', { imagePath, text });
+            document.getElementById('action-image').src = imagePath;
+            document.getElementById('action-text').textContent = text;
+          });
+        </script>
+      </body>
+    </html>
+  `;
+
+  actionWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  actionWindow.setIgnoreMouseEvents(true);
+
+  actionWindow.on('closed', () => {
+    actionWindow = null;
+  });
+
+  return actionWindow;
+}
+
+// Add IPC handler to show action window with image and text
+ipcMain.on('show-action', async () => {
+  const window = await createActionWindow();
+  if (window && !window.isDestroyed()) {
+    // Get the primary display dimensions
+    const primaryDisplay = electron_screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    
+    // Get window size
+    const windowBounds = window.getBounds();
+    
+    // Calculate position (right bottom with 20px padding)
+    const x = screenWidth - windowBounds.width - 20;
+    const y = screenHeight - windowBounds.height - 20;
+    
+    window.setPosition(x, y);
+    window.showInactive(); // Use showInactive to prevent focus
+  }
+});
+
+// Add IPC handler to update action window content
+ipcMain.on('update-action', async (event, { imagePath, text }) => {
+  if (actionWindow && !actionWindow.isDestroyed()) {
+    // Convert local path to file URL
+    const fileUrl = `file://${imagePath.replace(/\\/g, '/')}`;
+    actionWindow.webContents.send('update-action', { 
+      imagePath: fileUrl, 
+      text 
+    });
+  }
+});
+
+// Add IPC handler to hide action window
+ipcMain.on('hide-action', () => {
+  if (actionWindow && !actionWindow.isDestroyed()) {
+    actionWindow.hide();
   }
 });
