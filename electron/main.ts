@@ -172,21 +172,16 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     const scaledX = Math.round(cursorPos.x * scaleX);
     const scaledY = Math.round(cursorPos.y * scaleY);
 
+    const ImageX = scaledX+100;
+    const ImageY = scaledY+100;
+
     // Calculate crop area (100x100 pixels centered on click)
     const cropSize = 100;
     const halfSize = cropSize / 2;
 
     // Calculate crop bounds, ensuring we stay within image boundaries
-    const cropX = Math.max(0, Math.min(1920 - cropSize, scaledX - halfSize));
-    const cropY = Math.max(0, Math.min(1080 - cropSize, scaledY - halfSize));
-
-    console.log('Coordinates:', {
-      screen: { width: actualWidth, height: actualHeight },
-      cursor: cursorPos,
-      scaled: { x: scaledX, y: scaledY },
-      crop: { x: cropX, y: cropY, size: cropSize },
-      timeSinceLastClick
-    });
+    const cropX = Math.max(0, Math.min(2020, ImageX - halfSize));
+    const cropY = Math.max(0, Math.min(1180, ImageY - halfSize));
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const cropped_images_dir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', 'action');
@@ -198,17 +193,31 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     
 
     await fs.promises.copyFile(latestScreenshot.path, originalPath);
-    // Crop from the latest full screenshot
-    await sharp(originalPath)
-      .extract({ 
-        left: cropX,
-        top: cropY,
-        width: cropSize,
-        height: cropSize
-      })
-      .toFile(cropPath);
     
-    // Copy the full screenshot to original path
+    // First add blue border to the original screenshot
+    await sharp(originalPath)
+      .extend({
+        top: 100,
+        bottom: 100,
+        left: 100,
+        right: 100,
+        background: { r: 0, g: 0, b: 0, alpha: 1 }
+      })
+      .toBuffer()
+      .then(async buffer => {
+        // Write the bordered image
+        await fs.promises.writeFile(originalPath, buffer);
+        
+        // Then crop from the bordered image
+        await sharp(originalPath)
+          .extract({ 
+            left: cropX,
+            top: cropY,
+            width: cropSize,
+            height: cropSize
+          })
+          .toFile(cropPath);
+      });
     
     console.log(`Click area saved to: ${cropPath}`);
     console.log(`Original screenshot saved to: ${originalPath}`);
@@ -2803,5 +2812,33 @@ ipcMain.on('update-action', async (event, { imagePath, text }) => {
 ipcMain.on('hide-action', () => {
   if (actionWindow && !actionWindow.isDestroyed()) {
     actionWindow.hide();
+  }
+});
+
+ipcMain.handle('get-screenshot', async () => {
+  try {
+    await captureScreenshot();
+    
+    if (latestScreenshot && fs.existsSync(latestScreenshot.path)) {
+      // Add border to the screenshot
+      const borderedBuffer = await sharp(latestScreenshot.path)
+        .extend({
+          top: 100,
+          bottom: 100,
+          left: 100,
+          right: 100,
+          background: { r: 0, g: 0, b: 0, alpha: 1 }
+        })
+        .toBuffer();
+
+      // Convert bordered buffer to base64
+      const base64String = borderedBuffer.toString('base64');
+      // Return with proper data URL format
+      return `data:image/png;base64,${base64String}`;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting screenshot:', error);
+    return null;
   }
 });

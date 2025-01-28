@@ -56,8 +56,8 @@ function SubtitlesComponent({
             console.log('Template found at:', result.location);
             console.log('Match confidence:', result.confidence);
             return {
-              x: result.location.x,
-              y: result.location.y,
+              x: result.location.x -100,
+              y: result.location.y -100,
               confidence: result.confidence
             }
           } else {
@@ -386,7 +386,7 @@ function SubtitlesComponent({
                   ipcRenderer.send('hide-action');
                   // Add delay to ensure window is hidden
                   await new Promise(resolve => setTimeout(resolve, 200));
-                  const screenshot = onScreenshot();
+                  const screenshot = await ipcRenderer.invoke('get-screenshot');
                   ipcRenderer.send('show-action');
                   ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
                   const cords = await get_opencv_coordinates(templatePath, screenshot);

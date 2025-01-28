@@ -485,42 +485,53 @@ export const screen_capture_tools: Tool[] = [
 
 // Mode-based configurations
 export const assistantConfigs = {
-  screen_capture: {
-    display_name: "Screen Capture",
+  screen_capture_record: {
+    display_name: "Action Recorder",
     tools: [...screen_capture_tools],
-    requiresDisplay: true,
+    requiresDisplay: false,
     systemInstruction: `
 You are ScreenSense AI, operating in Screen Capture Mode.
 
 When the user asks you to start screen capturing, you must call the start_recording function.
 When the user asks you to stop screen capturing, you must call the stop_recording function.
+
+Give a confirmation message to the user after every message.
+    `
+  },
+  screen_capture_play: {
+    display_name: "Action Player",
+    tools: [...screen_capture_tools],
+    requiresDisplay: false,
+    systemInstruction: `
+You are ScreenSense AI, operating in Action Player Mode.
+
 When the user asks you to run action, you must call the run_action function.
 When the user asks you to continue the action, you must call the continue_action function.  
 
 Give a confirmation message to the user after every message.
     `
   },
-  opencv_action_recorder: {
-    display_name: "Action Recorder",
-    tools: [...opencv_tools],
-    requiresDisplay: true,
-    systemInstruction: `
-When user asks you to set the name of the action, you must call the "set_action_name" function with the "name" as specified by the user. Call this function yourself, do not ask the user to do so. Give a confirmation message to the user after this that you have set the action name.
+//   opencv_action_recorder: {
+//     display_name: "Action Recorder",
+//     tools: [...opencv_tools],
+//     requiresDisplay: true,
+//     systemInstruction: `
+// When user asks you to set the name of the action, you must call the "set_action_name" function with the "name" as specified by the user. Call this function yourself, do not ask the user to do so. Give a confirmation message to the user after this that you have set the action name.
 
-Whenever user asks you to perform or record some mouse or keyboard action, run the record_opencv_action function along with the action given by the user and the corresponding description. Give the user a confirmation message after this that you have recorded the action.
-If the action is insert_content, you must also insert the content given by the user. In other cases, you must keep the content as an empty string. 
+// Whenever user asks you to perform or record some mouse or keyboard action, run the record_opencv_action function along with the action given by the user and the corresponding description. Give the user a confirmation message after this that you have recorded the action.
+// If the action is insert_content, you must also insert the content given by the user. In other cases, you must keep the content as an empty string. 
 
 
-`
-  },
-  opencv_action_performer: {
-    display_name: "Action Player",
-    tools: [...opencv_tools],
-    requiresDisplay: true,
-    systemInstruction: `
-whenever the user asks you to perfom some action, call the opencv_perform_action function along with the name specified by the user.
-    `
-  },
+// `
+//   },
+//   opencv_action_performer: {
+//     display_name: "Action Player",
+//     tools: [...opencv_tools],
+//     requiresDisplay: true,
+//     systemInstruction: `
+// whenever the user asks you to perfom some action, call the opencv_perform_action function along with the name specified by the user.
+//     `
+//   },
 //   record_action: {
 //     display_name: "Record Action",
 //     tools: [...record_action_tools],
