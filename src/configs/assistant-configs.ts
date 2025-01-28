@@ -474,6 +474,10 @@ export const screen_capture_tools: Tool[] = [
       {
         name: "run_action",
         description: "This function runs a predefined action"
+      },
+      {
+        name: "continue_action",
+        description: "This function continues the action that is being performed"
       }
     ]
   }
@@ -491,6 +495,7 @@ You are ScreenSense AI, operating in Screen Capture Mode.
 When the user asks you to start screen capturing, you must call the start_recording function.
 When the user asks you to stop screen capturing, you must call the stop_recording function.
 When the user asks you to run action, you must call the run_action function.
+When the user asks you to continue the action, you must call the continue_action function.  
 
 Give a confirmation message to the user after every message.
     `

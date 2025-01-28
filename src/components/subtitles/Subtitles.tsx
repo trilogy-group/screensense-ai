@@ -14,7 +14,7 @@ interface SubtitlesProps {
   assistantMode: string;
   onScreenshot?: () => string | null;
 }
-
+let play_action = true; 
 // Default tool configuration
 function SubtitlesComponent({
   tools,
@@ -45,28 +45,26 @@ function SubtitlesComponent({
   }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
-    async function get_opencv_coordinates(path: string) {
-      if (onScreenshot) {
-        const screenshot = onScreenshot();
-        if (screenshot) {
-          try {
-            // Use opencv service to find template directly with base64 image
-            const templatePath = path;
-            const result = await opencvService.findTemplate(screenshot, templatePath);
+    async function get_opencv_coordinates(path: string, screenshot: any) {
+      if (screenshot) {
+        try {
+          // Use opencv service to find template directly with base64 image
+          const templatePath = path;
+          const result = await opencvService.findTemplate(screenshot, templatePath);
 
-            if (result) {
-              console.log('Template found at:', result.location);
-              console.log('Match confidence:', result.confidence);
-              return {
-                x: result.location.x,
-                y: result.location.y,
-              }
-            } else {
-              console.log('Template not found in the image');
+          if (result) {
+            console.log('Template found at:', result.location);
+            console.log('Match confidence:', result.confidence);
+            return {
+              x: result.location.x,
+              y: result.location.y,
+              confidence: result.confidence
             }
-          } catch (error) {
-            console.error('Error in template matching:', error);
+          } else {
+            console.log('Template not found in the image');
           }
+        } catch (error) {
+          console.error('Error in template matching:', error);
         }
       }
     }
@@ -380,18 +378,40 @@ function SubtitlesComponent({
             if (actionData_opencv) {
               ipcRenderer.send('show-action');
               for (const action of actionData_opencv) {
-                ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call} );   
-                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
+                ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 2000)));
                 const templatePath = action.filepath.replace(/\\/g, '/');
                 console.log(templatePath)
-                const cords = await get_opencv_coordinates(templatePath);
-                if (cords) {
-                  await interact(cords, action.function_call, false, action.payload);
+                if (onScreenshot) {
+                  ipcRenderer.send('hide-action');
+                  // Add delay to ensure window is hidden
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  const screenshot = onScreenshot();
+                  ipcRenderer.send('show-action');
+                  ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
+                  const cords = await get_opencv_coordinates(templatePath, screenshot);
+                  
+                  if (cords) {
+                    console.log(cords.confidence)
+                    if(cords.confidence < 0.5) {
+                      client.send([{text: "Say the following sentence : 'I am not able to find the element on your screen. Please perform the current action youself and when you are done, tell me to continue the action'. When user asks you to continue the action, call the continue_action function."}]);
+                      play_action = false;
+                    }
+                    if(play_action) {
+                      await interact(cords, action.function_call, false, action.payload);
+                    }
+                  }
+                  while(!play_action) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                  }
                 }
               }
               ipcRenderer.send('hide-action');
             }
             hasResponded = true;
+            break;
+          case "continue_action":
+            play_action = true;
             break;
           //           case "perform_action":
           //             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
