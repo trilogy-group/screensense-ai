@@ -292,16 +292,16 @@ function SubtitlesComponent({
             break;
           case "remove_subtitles":
             setSubtitles("");
-            ipcRenderer.send('remove-subtitles');
+            ipcRenderer.send('remove_subtitles');
             break;
           case "render_graph":
             setGraphJson((fc.args as any).json_graph);
             break;
           case "write_text":
-            ipcRenderer.send('write-text', (fc.args as any).content);
+            ipcRenderer.send('write_text', (fc.args as any).content);
             break;
           case "read_text":
-            const selectedText = await ipcRenderer.invoke('read-selection');
+            const selectedText = await ipcRenderer.invoke('read_selection');
             console.log("selectedText received", selectedText);
             client.send([{ text: `Found the following text: ${selectedText}` }]);
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
