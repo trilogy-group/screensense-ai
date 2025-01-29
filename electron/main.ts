@@ -2842,38 +2842,3 @@ ipcMain.handle('get-screenshot', async () => {
     return null;
   }
 });
-
-ipcMain.handle('read-selection', async () => {
-  try {
-    // Save current clipboard content
-    const previousClipboard = clipboard.readText();
-
-    // Simulate Ctrl+C to copy selected text
-    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
-    await keyboard.pressKey(modifier, Key.C);
-    await keyboard.releaseKey(modifier, Key.C);
-
-    // Give a small delay for the clipboard to update
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Get the copied text from clipboard
-    const selection = clipboard.readText();
-
-    // Restore previous clipboard content
-    clipboard.writeText(previousClipboard);
-    return selection;
-  } catch (error) {
-    console.error('Error reading selection:', error);
-    return null;
-  }
-});
-
-ipcMain.on('write-text', async (event, text: string) => {
-  const previousClipboard = clipboard.readText();
-  clipboard.writeText(text);
-  await new Promise(resolve => setTimeout(resolve, 100));
-  const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
-  await keyboard.pressKey(modifier, Key.V);
-  await keyboard.releaseKey(modifier, Key.V);
-  clipboard.writeText(previousClipboard);
-});
