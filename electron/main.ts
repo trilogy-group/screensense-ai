@@ -7,11 +7,19 @@ import {
   clipboard,
   nativeImage,
   screen as electron_screen,
-  session
+  session,
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { keyboard, Key, mouse, Point, straightTo, Button, screen as nutscreen } from '@nut-tree-fork/nut-js';
+import {
+  keyboard,
+  Key,
+  mouse,
+  Point,
+  straightTo,
+  Button,
+  screen as nutscreen,
+} from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 import { electron } from 'process';
@@ -66,8 +74,8 @@ async function captureScreenshot() {
       types: ['screen'],
       thumbnailSize: {
         width: 1920,
-        height: 1080
-      }
+        height: 1080,
+      },
     });
 
     if (sources.length > 0) {
@@ -75,10 +83,10 @@ async function captureScreenshot() {
       const fullImage = primarySource.thumbnail;
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const screenshotPath = path.join(screenshotsDir, `screen-${timestamp}.png`);
-      
+
       // Save the full screenshot
       fs.writeFileSync(screenshotPath, fullImage.toPNG());
-      
+
       // Delete previous screenshot if it exists
       if (latestScreenshot && fs.existsSync(latestScreenshot.path)) {
         fs.unlinkSync(latestScreenshot.path);
@@ -87,7 +95,7 @@ async function captureScreenshot() {
       // Update latest screenshot info
       latestScreenshot = {
         path: screenshotPath,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       console.log('Full screenshot captured:', screenshotPath);
@@ -111,7 +119,7 @@ ipcMain.on('start-capture-screen', () => {
   isRecording = true;
   lastClickTime = null;
   console.log('Started recording mouse actions');
-  conversations_screenshots = {"action": []};
+  conversations_screenshots = { action: [] };
   saveConversations(conversations_screenshots);
   // Clear the actions/action folder
   const actionDir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', 'action');
@@ -131,7 +139,7 @@ ipcMain.on('stop-capture-screen', () => {
   isRecording = false;
   lastClickTime = null;
   console.log('Stopped recording mouse actions');
-  
+
   // Clear screenshot interval
   if (screenshotInterval) {
     clearInterval(screenshotInterval);
@@ -159,7 +167,7 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     const primaryDisplay = electron_screen.getPrimaryDisplay();
     const { bounds } = primaryDisplay;
     const cursorPos = electron_screen.getCursorScreenPoint();
-    
+
     // Get the actual screen dimensions
     const actualWidth = bounds.width;
     const actualHeight = bounds.height;
@@ -172,8 +180,8 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     const scaledX = Math.round(cursorPos.x * scaleX);
     const scaledY = Math.round(cursorPos.y * scaleY);
 
-    const ImageX = scaledX+100;
-    const ImageY = scaledY+100;
+    const ImageX = scaledX + 100;
+    const ImageY = scaledY + 100;
 
     // Calculate crop area (100x100 pixels centered on click)
     const cropSize = 100;
@@ -184,16 +192,20 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     const cropY = Math.max(0, Math.min(1180, ImageY - halfSize));
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const cropped_images_dir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', 'action');
+    const cropped_images_dir = path.join(
+      app.getPath('appData'),
+      'screensense-ai',
+      'actions',
+      'action'
+    );
     if (!fs.existsSync(cropped_images_dir)) {
       fs.mkdirSync(cropped_images_dir, { recursive: true });
     }
     const cropPath = path.join(cropped_images_dir, `cropped-${timestamp}.png`);
     const originalPath = path.join(cropped_images_dir, `original-${timestamp}.png`);
-    
 
     await fs.promises.copyFile(latestScreenshot.path, originalPath);
-    
+
     // First add blue border to the original screenshot
     await sharp(originalPath)
       .extend({
@@ -201,37 +213,39 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
         bottom: 100,
         left: 100,
         right: 100,
-        background: { r: 0, g: 0, b: 0, alpha: 1 }
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
       })
       .toBuffer()
       .then(async buffer => {
         // Write the bordered image
         await fs.promises.writeFile(originalPath, buffer);
-        
+
         // Then crop from the bordered image
         await sharp(originalPath)
-          .extract({ 
+          .extract({
             left: cropX,
             top: cropY,
             width: cropSize,
-            height: cropSize
+            height: cropSize,
           })
           .toFile(cropPath);
       });
-    
+
     console.log(`Click area saved to: ${cropPath}`);
     console.log(`Original screenshot saved to: ${originalPath}`);
 
     const sessionName = 'action';
-    if(!conversations_screenshots[sessionName]) {
+    if (!conversations_screenshots[sessionName]) {
       conversations_screenshots[sessionName] = [];
     }
-    
+
     // Determine click type based on button
-    let clickType = 'click';  // default to left click
-    if (e.button === 2) {  // right click
+    let clickType = 'click'; // default to left click
+    if (e.button === 2) {
+      // right click
       clickType = 'right-click';
-    } else if (e.clicks === 2) {  // double click
+    } else if (e.clicks === 2) {
+      // double click
       clickType = 'double-click';
     }
 
@@ -240,7 +254,7 @@ uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
       description: `perform a ${clickType} here`,
       filepath: cropPath,
       payload: '',
-      timeSinceLastAction: timeSinceLastClick
+      timeSinceLastAction: timeSinceLastClick,
     });
     saveConversations(conversations_screenshots);
   } catch (error) {
@@ -380,9 +394,9 @@ async function createMainWindow() {
     // For macOS, set the app icon explicitly
     ...(process.platform === 'darwin'
       ? {
-        titleBarStyle: 'hiddenInset',
-        trafficLightPosition: { x: 10, y: 10 },
-      }
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 10, y: 10 },
+        }
       : {}),
     webPreferences: {
       nodeIntegration: true,
@@ -1738,14 +1752,14 @@ ipcMain.on('close-settings', () => {
 // Initialize app with saved settings
 async function initializeApp() {
   // Load saved settings first
-  console.log("Hello World");
+  console.log('Hello World');
   const savedSettings = loadSettings();
 
   // Create windows
   await createMainWindow();
   createOverlayWindow();
   createControlWindow();
-  console.log("App is ready. Listening for global mouse events...");
+  console.log('App is ready. Listening for global mouse events...');
 
   // Send saved settings to main window
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1792,7 +1806,7 @@ ipcMain.on('update-subtitles', (event, text) => {
   }
 });
 
-ipcMain.on('remove-subtitles', () => {
+ipcMain.on('remove_subtitles', () => {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.hide();
   }
@@ -2212,7 +2226,7 @@ ipcMain.on('set-action-name', (event, name) => {
 });
 
 // Modified record-conversation handler
-ipcMain.on('record-conversation', (event, function_call, description, payload = "") => {
+ipcMain.on('record-conversation', (event, function_call, description, payload = '') => {
   try {
     if (!customSessionName) {
       logToFile('No session name set, cannot record conversation');
@@ -2226,12 +2240,12 @@ ipcMain.on('record-conversation', (event, function_call, description, payload = 
       conversations[sessionName] = [];
     }
 
-    const filepath = ""
+    const filepath = '';
     conversations[sessionName].push({
       function_call,
       description,
       filepath,
-      payload
+      payload,
     });
 
     saveConversations(conversations);
@@ -2461,121 +2475,136 @@ ipcMain.on('show-box', (_, x1: number, y1: number, x2: number, y2: number) => {
   showBoxMarker(x1, y1, x2, y2);
 });
 
-ipcMain.on('click', async (event, x: number, y: number, action: string, electron: boolean = true) => {
-  try {
-    const primaryDisplay = electron_screen.getPrimaryDisplay();
-    const { bounds, workArea, scaleFactor } = primaryDisplay;
+ipcMain.on(
+  'click',
+  async (event, x: number, y: number, action: string, electron: boolean = true) => {
+    try {
+      const primaryDisplay = electron_screen.getPrimaryDisplay();
+      const { bounds, workArea, scaleFactor } = primaryDisplay;
 
-    // Account for taskbar offset and display scaling
-    const x_scaled = Math.round(x * scaleFactor);
-    const y_scaled = Math.round(y * scaleFactor);
+      // Account for taskbar offset and display scaling
+      const x_scaled = Math.round(x * scaleFactor);
+      const y_scaled = Math.round(y * scaleFactor);
 
-    // Add display bounds offset
-    let x_final, y_final;
-    if (electron) {
-      x_final = x_scaled + bounds.x;
-      y_final = y_scaled + bounds.y;
-    } else {
-      x_final = Math.round(x)
-      y_final = Math.round(y)
+      // Add display bounds offset
+      let x_final, y_final;
+      if (electron) {
+        x_final = x_scaled + bounds.x;
+        y_final = y_scaled + bounds.y;
+      } else {
+        x_final = Math.round(x);
+        y_final = Math.round(y);
+      }
+      // await mouse.move(straightTo(new Point(x_final, y_final)));
+      await mouse.setPosition(new Point(x_final, y_final));
+      // await new Promise(resolve => setTimeout(resolve, 100));
+      logToFile(
+        `Going to perform action: ${action} at scaled coordinates: x=${x_final}, y=${y_final}`
+      );
+      console.log(action);
+      if (action === 'click') {
+        await mouse.leftClick();
+      } else if (action === 'double-click') {
+        await mouse.doubleClick(Button.LEFT);
+        await mouse.releaseButton(Button.LEFT);
+      } else if (action === 'right-click') {
+        await mouse.rightClick();
+      } else {
+        logToFile(`Unknown action: ${action}`);
+      }
+    } catch (error) {
+      logToFile(`Error performing click: ${error}`);
+      console.log('error performing click', error);
     }
-    // await mouse.move(straightTo(new Point(x_final, y_final)));
-    await mouse.setPosition(new Point(x_final, y_final))
-    // await new Promise(resolve => setTimeout(resolve, 100));
-    logToFile(`Going to perform action: ${action} at scaled coordinates: x=${x_final}, y=${y_final}`);
-    console.log(action)
-    if (action === 'click') {
-      await mouse.leftClick();
-    } else if (action === 'double-click') {
-      await mouse.doubleClick(Button.LEFT);
-      await mouse.releaseButton(Button.LEFT);
-    } else if (action === 'right-click') {
-      await mouse.rightClick();
-    } else {
-      logToFile(`Unknown action: ${action}`);
-    }
-  } catch (error) {
-    logToFile(`Error performing click: ${error}`);
-    console.log('error performing click', error);
   }
-});
+);
 
 // Add screenshot saving handler
-ipcMain.on('record-opencv-action', async (event, base64Data, function_call, description, payload = "", timeSinceLastAction = 0) => {
-  try {
-    // Hide cursor before taking screenshot
-    BrowserWindow.getAllWindows().forEach(window => {
-      window.webContents.send('set-cursor-visibility', 'none');
-    });
+ipcMain.on(
+  'record-opencv-action',
+  async (event, base64Data, function_call, description, payload = '', timeSinceLastAction = 0) => {
+    try {
+      // Hide cursor before taking screenshot
+      BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('set-cursor-visibility', 'none');
+      });
 
-    // Add a small delay to ensure cursor is hidden
-    await new Promise(resolve => setTimeout(resolve, 100));
+      // Add a small delay to ensure cursor is hidden
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-    if (!customSessionName) {
-      logToFile('No session name set, cannot record conversation');
-      return;
+      if (!customSessionName) {
+        logToFile('No session name set, cannot record conversation');
+        return;
+      }
+
+      const conversations = loadConversations();
+      const sessionName = customSessionName;
+
+      if (!conversations[sessionName]) {
+        conversations[sessionName] = [];
+      }
+
+      saveConversations(conversations);
+      logToFile(`Recorded conversation for session: ${sessionName}`);
+
+      logToFile('Starting screenshot save process');
+      // Create screenshots directory if it doesn't exist
+      const screenshotsDir = path.join(
+        app.getPath('appData'),
+        'screensense-ai',
+        'actions',
+        sessionName
+      );
+      if (!fs.existsSync(screenshotsDir)) {
+        logToFile(`Creating screenshots directory at: ${screenshotsDir}`);
+        fs.mkdirSync(screenshotsDir, { recursive: true });
+      }
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `screenshot-${timestamp}.png`;
+      const filepath = path.join(screenshotsDir, filename);
+      logToFile(`Generated filepath: ${filepath}`);
+
+      // Convert base64 to buffer and save
+      const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Image, 'base64');
+      logToFile(`Created image buffer of size: ${imageBuffer.length} bytes`);
+
+      fs.writeFileSync(filepath, imageBuffer);
+      logToFile(`Screenshot saved successfully`);
+
+      conversations[sessionName].push({
+        function_call,
+        description,
+        filepath,
+        payload,
+        timeSinceLastAction,
+      });
+      saveConversations(conversations);
+      logToFile(
+        `Recorded conversation for session: ${sessionName} with time since last action: ${timeSinceLastAction}ms`
+      );
+
+      // Show cursor after screenshot is saved
+      BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('set-cursor-visibility', 'default');
+      });
+
+      return filepath;
+    } catch (error) {
+      // Show cursor even if there's an error
+      BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('set-cursor-visibility', 'default');
+      });
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error saving screenshot: ${errorMessage}`);
+      console.error('Error saving screenshot:', error);
+      throw error;
     }
-
-    const conversations = loadConversations();
-    const sessionName = customSessionName;
-
-    if (!conversations[sessionName]) {
-      conversations[sessionName] = [];
-    }
-
-    saveConversations(conversations);
-    logToFile(`Recorded conversation for session: ${sessionName}`);
-
-    logToFile('Starting screenshot save process');
-    // Create screenshots directory if it doesn't exist
-    const screenshotsDir = path.join(app.getPath('appData'), 'screensense-ai', 'actions', sessionName);
-    if (!fs.existsSync(screenshotsDir)) {
-      logToFile(`Creating screenshots directory at: ${screenshotsDir}`);
-      fs.mkdirSync(screenshotsDir, { recursive: true });
-    }
-
-    // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `screenshot-${timestamp}.png`;
-    const filepath = path.join(screenshotsDir, filename);
-    logToFile(`Generated filepath: ${filepath}`);
-
-    // Convert base64 to buffer and save
-    const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
-    const imageBuffer = Buffer.from(base64Image, 'base64');
-    logToFile(`Created image buffer of size: ${imageBuffer.length} bytes`);
-
-    fs.writeFileSync(filepath, imageBuffer);
-    logToFile(`Screenshot saved successfully`);
-
-    conversations[sessionName].push({
-      function_call,
-      description,
-      filepath,
-      payload,
-      timeSinceLastAction
-    });
-    saveConversations(conversations);
-    logToFile(`Recorded conversation for session: ${sessionName} with time since last action: ${timeSinceLastAction}ms`);
-
-    // Show cursor after screenshot is saved
-    BrowserWindow.getAllWindows().forEach(window => {
-      window.webContents.send('set-cursor-visibility', 'default');
-    });
-
-    return filepath;
-  } catch (error) {
-    // Show cursor even if there's an error
-    BrowserWindow.getAllWindows().forEach(window => {
-      window.webContents.send('set-cursor-visibility', 'default');
-    });
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logToFile(`Error saving screenshot: ${errorMessage}`);
-    console.error('Error saving screenshot:', error);
-    throw error;
   }
-});
+);
 
 // Add this with other ipcMain handlers
 ipcMain.handle('get-window-dimensions', () => {
@@ -2614,10 +2643,10 @@ ipcMain.handle('hide-system-cursor', async () => {
   try {
     // Store current mouse position
     const currentPos = electron_screen.getCursorScreenPoint();
-    
+
     // Move cursor off screen temporarily
     await mouse.setPosition(new Point(-10000, -10000));
-    
+
     return currentPos;
   } catch (error) {
     console.error('Error hiding system cursor:', error);
@@ -2625,7 +2654,7 @@ ipcMain.handle('hide-system-cursor', async () => {
   }
 });
 
-ipcMain.handle('restore-system-cursor', async (_, position: { x: number, y: number }) => {
+ipcMain.handle('restore-system-cursor', async (_, position: { x: number; y: number }) => {
   try {
     // Restore cursor to original position
     await mouse.setPosition(new Point(position.x, position.y));
@@ -2638,16 +2667,16 @@ ipcMain.handle('restore-system-cursor', async (_, position: { x: number, y: numb
 // async function processImageWithOmniParser(imagePath: string) {
 //   try {
 //     logToFile(`Processing image with OmniParser: ${imagePath}`);
-    
+
 //     // Read the PNG file into a buffer
 //     const imageBuffer = fs.readFileSync(imagePath);
-    
+
 //     // Create a Blob with the correct MIME type
 //     const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
-    
+
 //     // Process the image with OmniParser
 //     const result = await omniParser.detectElements(imageBlob);
-    
+
 //     // Log the results
 //     logToFile('OmniParser detection results:');
 //     if (result && result.data && result.data[1]) {
@@ -2663,7 +2692,7 @@ ipcMain.handle('restore-system-cursor', async (_, position: { x: number, y: numb
 //     } else {
 //       logToFile('No detection results available');
 //     }
-    
+
 //     return result;
 //   } catch (error) {
 //     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -2678,19 +2707,19 @@ async function createActionWindow() {
   }
 
   actionWindow = new BrowserWindow({
-    width: 120,  // Slightly wider than image to account for padding
+    width: 120, // Slightly wider than image to account for padding
     height: 150, // Height for image plus text and padding
     frame: false,
     transparent: true,
     resizable: false,
     alwaysOnTop: true,
-    focusable: false,  // Prevents the window from taking focus
+    focusable: false, // Prevents the window from taking focus
     skipTaskbar: true, // Keeps it out of the taskbar
-    type: 'toolbar',   // Makes it appear above most system windows
+    type: 'toolbar', // Makes it appear above most system windows
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: false  // Allow loading local resources
+      webSecurity: false, // Allow loading local resources
     },
   });
 
@@ -2783,14 +2812,14 @@ ipcMain.on('show-action', async () => {
     // Get the primary display dimensions
     const primaryDisplay = electron_screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-    
+
     // Get window size
     const windowBounds = window.getBounds();
-    
+
     // Calculate position (right bottom with 20px padding)
     const x = screenWidth - windowBounds.width - 20;
     const y = screenHeight - windowBounds.height - 20;
-    
+
     window.setPosition(x, y);
     window.showInactive(); // Use showInactive to prevent focus
   }
@@ -2801,9 +2830,9 @@ ipcMain.on('update-action', async (event, { imagePath, text }) => {
   if (actionWindow && !actionWindow.isDestroyed()) {
     // Convert local path to file URL
     const fileUrl = `file://${imagePath.replace(/\\/g, '/')}`;
-    actionWindow.webContents.send('update-action', { 
-      imagePath: fileUrl, 
-      text 
+    actionWindow.webContents.send('update-action', {
+      imagePath: fileUrl,
+      text,
     });
   }
 });
@@ -2818,7 +2847,7 @@ ipcMain.on('hide-action', () => {
 ipcMain.handle('get-screenshot', async () => {
   try {
     await captureScreenshot();
-    
+
     if (latestScreenshot && fs.existsSync(latestScreenshot.path)) {
       // Add border to the screenshot
       const borderedBuffer = await sharp(latestScreenshot.path)
@@ -2827,7 +2856,7 @@ ipcMain.handle('get-screenshot', async () => {
           bottom: 100,
           left: 100,
           right: 100,
-          background: { r: 0, g: 0, b: 0, alpha: 1 }
+          background: { r: 0, g: 0, b: 0, alpha: 1 },
         })
         .toBuffer();
 
