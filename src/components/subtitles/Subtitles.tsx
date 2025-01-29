@@ -6,8 +6,6 @@ import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
 import { opencvService } from '../../services/opencv-service';
-import { ipcMain } from 'electron';
-import { FALSE } from 'sass';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -16,7 +14,7 @@ interface SubtitlesProps {
   assistantMode: string;
   onScreenshot?: () => string | null;
 }
-
+let play_action = true; 
 // Default tool configuration
 function SubtitlesComponent({
   tools,
@@ -47,51 +45,49 @@ function SubtitlesComponent({
   }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
-    async function get_opencv_coordinates(path: string){
-      if (onScreenshot) {
-        const screenshot = onScreenshot();
-        if (screenshot) {
-          try {
-            // Use opencv service to find template directly with base64 image
-            const templatePath = path;
-            const result = await opencvService.findTemplate(screenshot, templatePath);
-            
-            if (result) {
-              console.log('Template found at:', result.location);
-              console.log('Match confidence:', result.confidence);
-              return {
-                x : result.location.x, 
-                y : result.location.y,
-              }
-            } else {
-              console.log('Template not found in the image');
+    async function get_opencv_coordinates(path: string, screenshot: any) {
+      if (screenshot) {
+        try {
+          // Use opencv service to find template directly with base64 image
+          const templatePath = path;
+          const result = await opencvService.findTemplate(screenshot, templatePath);
+
+          if (result) {
+            console.log('Template found at:', result.location);
+            console.log('Match confidence:', result.confidence);
+            return {
+              x: result.location.x -100,
+              y: result.location.y -100,
+              confidence: result.confidence
             }
-          } catch (error) {
-            console.error('Error in template matching:', error);
+          } else {
+            console.log('Template not found in the image');
           }
+        } catch (error) {
+          console.error('Error in template matching:', error);
         }
       }
     }
     async function get_screenshot(x1: number, y1: number, x2: number, y2: number): Promise<string | null> {
       if (onScreenshot) {
         const screenshot = onScreenshot()
-        if(screenshot){
+        if (screenshot) {
           const base64Data = screenshot.split(',')[1]
 
           // Get window dimensions from electron
           const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
-          
+
           const x1_scaled = Math.round(x1 * scaleFactor);
           const y1_scaled = Math.round(y1 * scaleFactor);
           const x2_scaled = Math.round(x2 * scaleFactor);
           const y2_scaled = Math.round(y2 * scaleFactor);
-          
+
           // Add display bounds offset
           const x1_final = x1_scaled + bounds.x;
           const y1_final = y1_scaled + bounds.y;
           const x2_final = x2_scaled + bounds.x;
           const y2_final = y2_scaled + bounds.y;
-          
+
           // Convert base64 to blob
           const byteCharacters = atob(base64Data);
           const byteArrays = [];
@@ -107,20 +103,20 @@ function SubtitlesComponent({
 
           try {
             const imageBitmap = await createImageBitmap(blob, x1_final, y1_final, x2_final - x1_final, y2_final - y1_final);
-            
+
             // Create temporary canvas for conversion
             const canvas = document.createElement('canvas');
             canvas.width = imageBitmap.width;
             canvas.height = imageBitmap.height;
             const ctx = canvas.getContext('2d');
-            
+
             if (ctx) {
               ctx.drawImage(imageBitmap, 0, 0);
               const croppedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
               imageBitmap.close();
               return croppedBase64;
             }
-            
+
             imageBitmap.close();
           } catch (error) {
             console.error('Error processing image:', error);
@@ -129,8 +125,8 @@ function SubtitlesComponent({
       }
       return null;
     }
-    async function interact(cords: {x: number, y:number}, function_call: string, electron: boolean = true, payload: string = ""){
-      switch(function_call){
+    async function interact(cords: { x: number, y: number }, function_call: string, electron: boolean = true, payload: string = "") {
+      switch (function_call) {
         case "click":
           ipcRenderer.send('click', cords?.x, cords?.y, 'click', electron)
           break;
@@ -162,12 +158,12 @@ function SubtitlesComponent({
             }
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: 'image/jpeg' });
-    
+
             const video = document.querySelector('video');
             if (!video) {
               throw new Error('Video element not found');
             }
-    
+
             const videoWidth = video.videoWidth;
             const videoHeight = video.videoHeight;
             const devicePixelRatio = window.devicePixelRatio || 1;
@@ -178,11 +174,11 @@ function SubtitlesComponent({
             const videoRect = video.getBoundingClientRect();
             const scaleX = videoRect.width / videoWidth;
             const scaleY = videoRect.height / videoHeight;
-    
+
             // Get elements from ML model
             const detectionResult = await omniParser.detectElements(blob);
             const elements = detectionResult.data[1];
-    
+
             // Scale all coordinates to actual screen dimensions
             const scaledElements = elements.map(element => ({
               ...element,
@@ -199,7 +195,7 @@ function SubtitlesComponent({
                 }
               })
             }));
-    
+
             client.sendToolResponse({
               functionResponses: toolCall.functionCalls.map(fc => ({
                 response: {
@@ -215,7 +211,7 @@ function SubtitlesComponent({
               { text: `Found the following elements: ${JSON.stringify(scaledElements)}` },
             ]);
             console.log('sent coordinates');
-    
+
             ipcRenderer.send('log-to-file', `Found ${scaledElements.length} elements`);
           } catch (error) {
             console.error('Error finding elements:', error);
@@ -343,10 +339,10 @@ function SubtitlesComponent({
 
             const mousePosition = await ipcRenderer.invoke('get-mouse-position');
             console.log('Mouse coordinates:', mousePosition);
-            const x1_mouse = mousePosition.x-50;
-            const y1_mouse = mousePosition.y-50;
-            const x2_mouse = mousePosition.x+50;
-            const y2_mouse = mousePosition.y+50;
+            const x1_mouse = mousePosition.x - 50;
+            const y1_mouse = mousePosition.y - 50;
+            const x2_mouse = mousePosition.x + 50;
+            const y2_mouse = mousePosition.y + 50;
 
             try {
               // Hide cursor using both CSS and system-level
@@ -355,7 +351,7 @@ function SubtitlesComponent({
               await new Promise(resolve => setTimeout(resolve, 600));
 
               const ss_mouse = await get_screenshot(x1_mouse, y1_mouse, x2_mouse, y2_mouse);
-              
+
               // Restore cursor using both CSS and system-level
               document.body.style.cursor = 'default';
               if (originalPosition) {
@@ -380,54 +376,79 @@ function SubtitlesComponent({
             // const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
             const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action')
             if (actionData_opencv) {
+              ipcRenderer.send('show-action');
               for (const action of actionData_opencv) {
-                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
+                ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 2000)));
                 const templatePath = action.filepath.replace(/\\/g, '/');
                 console.log(templatePath)
-                const cords = await get_opencv_coordinates(templatePath);
-                if(cords){
-                  await interact(cords, action.function_call, false, action.payload);
+                if (onScreenshot) {
+                  ipcRenderer.send('hide-action');
+                  // Add delay to ensure window is hidden
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  const screenshot = await ipcRenderer.invoke('get-screenshot');
+                  ipcRenderer.send('show-action');
+                  ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
+                  const cords = await get_opencv_coordinates(templatePath, screenshot);
+                  
+                  if (cords) {
+                    console.log(cords.confidence)
+                    if(cords.confidence < 0.5) {
+                      client.send([{text: "Say the following sentence : 'I am not able to find the element on your screen. Please perform the current action youself and when you are done, tell me to continue the action'. When user asks you to continue the action, call the continue_action function."}]);
+                      play_action = false;
+                    }
+                    if(play_action) {
+                      await interact(cords, action.function_call, false, action.payload);
+                    }
+                  }
+                  while(!play_action) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                  }
                 }
               }
+              ipcRenderer.send('hide-action');
             }
             hasResponded = true;
             break;
-//           case "perform_action":
-//             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
-//             if (actionData) {
-//               for (const action of actionData) {
-//                 if (onScreenshot) {
-//                   // Take screenshot and process elements
-//                   await find_all_elements_function(onScreenshot, client, toolCall);
-                  
-//                   // Handle different action types
-//                   switch (action.function_call) {
-//                     case "click":
-//                       client.send([{
-//                         text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
+          case "continue_action":
+            play_action = true;
+            break;
+          //           case "perform_action":
+          //             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
+          //             if (actionData) {
+          //               for (const action of actionData) {
+          //                 if (onScreenshot) {
+          //                   // Take screenshot and process elements
+          //                   await find_all_elements_function(onScreenshot, client, toolCall);
 
-// If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
+          //                   // Handle different action types
+          //                   switch (action.function_call) {
+          //                     case "click":
+          //                       client.send([{
+          //                         text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
 
-// Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
+          // If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
 
-// Please do not give any audio reply to this.`
-//                       }]);
-//                       break;
-//                     case "insert_content":
-//                       client.send([{
-//                         text: `You have to call the insert_content function which achieves the following task : ${action.description}
+          // Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
 
-// please do not give any audio response to this.`
-//                       }]);
-//                       break;
-//                   }
-//                   // Wait for the action to complete
-//                   await new Promise(resolve => setTimeout(resolve, 2500));
-//                 }
-//               }
-//             }
-//             hasResponded = true;
-//             break;
+          // Please do not give any audio reply to this.`
+          //                       }]);
+          //                       break;
+          //                     case "insert_content":
+          //                       client.send([{
+          //                         text: `You have to call the insert_content function which achieves the following task : ${action.description}
+
+          // please do not give any audio response to this.`
+          //                       }]);
+          //                       break;
+          //                   }
+          //                   // Wait for the action to complete
+          //                   await new Promise(resolve => setTimeout(resolve, 2500));
+          //                 }
+          //               }
+          //             }
+          //             hasResponded = true;
+          //             break;
           // case "click":
           //   ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
           //   break;
