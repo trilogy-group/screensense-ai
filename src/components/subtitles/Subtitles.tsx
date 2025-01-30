@@ -491,6 +491,57 @@ function SubtitlesComponent({
             console.log(args.coordinates)
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
+          case "create_template":
+            const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
+            if (result.success) {
+              // Store the filename for future use
+              client.send([{ 
+                text: `Template created successfully. Use filename "${result.filename}" for future operations.` 
+              }]);
+            } else {
+              client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "get_next_unanswered_question":
+            const nextQuestion = await ipcRenderer.invoke('get_next_unanswered_question', (fc.args as any).filename);
+            if (nextQuestion.success) {
+              client.send([{ 
+                text: nextQuestion.patentContent
+              }]);
+            } else if (nextQuestion.completed) {
+              client.send([{ text: `All questions answered.` }]);
+            } else {
+              client.send([{ text: `Failed to get next question: ${nextQuestion.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "record_answer":
+            const recordResult = await ipcRenderer.invoke('record_answer', {
+              filename: (fc.args as any).filename,
+              questionId: (fc.args as any).questionId,
+              answer: (fc.args as any).answer
+            });
+            if (recordResult.success) {
+              client.send([{ text: 'Answer recorded successfully.' }]);
+            } else {
+              client.send([{ text: `Failed to record answer: ${recordResult.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "add_follow_up_questions":
+            const addResult = await ipcRenderer.invoke('add_follow_up_questions', {
+              filename: (fc.args as any).filename,
+              questionId: (fc.args as any).questionId,
+              questions: (fc.args as any).questions
+            });
+            if (addResult.success) {
+              client.send([{ text: 'Follow-up questions added successfully.' }]);
+            } else {
+              client.send([{ text: `Failed to add follow-up questions: ${addResult.error}` }]);
+            }
+            hasResponded = true;
+            break;
         }
       }
       // Add delay between function calls

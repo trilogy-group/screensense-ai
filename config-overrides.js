@@ -19,11 +19,5 @@ module.exports = function override(config, env) {
     util: require.resolve('util/'),
   };
 
-  // Add externals for electron
-  // config.externals = {
-  //   ...config.externals,
-  //   electron: 'require("electron")',
-  // };
-
   return config;
 };

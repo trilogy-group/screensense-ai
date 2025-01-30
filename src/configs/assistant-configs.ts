@@ -1,5 +1,4 @@
 import { type Tool, SchemaType } from '@google/generative-ai';
-import { property } from 'lodash';
 
 // Tool configurations
 
@@ -326,7 +325,7 @@ export const actionPlayerTools: Tool[] = [
   },
 ];
 
-export const record_action_tools: Tool[] = [
+export const recordActionTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -401,7 +400,7 @@ export const record_action_tools: Tool[] = [
   },
 ];
 
-export const opencv_tools: Tool[] = [
+export const opencvTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -468,7 +467,7 @@ export const opencv_tools: Tool[] = [
   },
 ];
 
-export const screen_capture_tools: Tool[] = [
+export const screenCaptureTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -491,11 +490,67 @@ export const screen_capture_tools: Tool[] = [
   },
 ];
 
+export const patentGeneratorTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: 'create_template',
+        description: 'Creates a blank patent from the template',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            title: { type: SchemaType.STRING },
+          },
+          required: ['title'],
+        },
+      },
+      {
+        name: 'get_next_unanswered_question',
+        description: 'Gets the next unanswered question from the list of questions',
+      },
+      {
+        name: 'record_answer',
+        description: 'Records the answer to the question',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            questionId: { type: SchemaType.STRING },
+            answer: { type: SchemaType.STRING },
+          },
+          required: ['questionId', 'answer'],
+        },
+      },
+      {
+        name: 'add_follow_up_questions',
+        description: 'Adds follow up questions to the patent. Add at most 3 questions',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            questionId: {
+              type: SchemaType.STRING,
+              description: 'The id of the question for which follow up questions are being added',
+            },
+            questions: {
+              type: SchemaType.ARRAY,
+              description: 'List of follow-up questions to ask',
+              items: {
+                type: SchemaType.STRING,
+                description: 'The question to ask as a follow up',
+              },
+            },
+          },
+          required: ['questionId', 'questions'],
+        },
+      },
+    ],
+  },
+];
+
 // Mode-based configurations
 export const assistantConfigs = {
   screen_capture_record: {
     display_name: 'Action Recorder',
-    tools: [...screen_capture_tools],
+    tools: [...screenCaptureTools],
     requiresDisplay: false,
     systemInstruction: `
 You are ScreenSense AI, operating in Screen Capture Mode.
@@ -508,7 +563,7 @@ Give a confirmation message to the user after every message.
   },
   screen_capture_play: {
     display_name: 'Action Player',
-    tools: [...screen_capture_tools],
+    tools: [...screenCaptureTools],
     requiresDisplay: false,
     systemInstruction: `
 You are ScreenSense AI, operating in Action Player Mode.
@@ -811,6 +866,28 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
   //     6. Be patient during analysis and keep the user informed.
   //     `,
   //   },
+  patent_generator: {
+    display_name: 'Patent Generator',
+    tools: [...patentGeneratorTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in Patent Generator Mode.
+
+    Your task is to generate a patent disclosure for the user by asking the user some questions to get the information you need.
+
+    There is a predefined template for the patent disclosure, that includes the questions you need to ask the user.
+    
+    You must follow these steps when the user asks you to generate the patent disclosure:
+    1. Create a new template for the patent disclosure, using the appropriate title.
+    2. Find the next unanswered question that needs to be asked. Ask this question to the user.
+    3. In case the user uses screen sharing to explain some context, make sure you convert this context to text while recording the answer in the template.
+    4. You are free to ask follow up questions to clarify the user's response. You need to ensure that the user's response satisfies the question, so you can ask follow up questions to clarify the user's response.
+    5. If you think the user's response gives rise to new questions, add those questions to the list.
+    6. If you think the user's response is complete, record the answer to the question.
+    7. If you have answered all the questions, inform the user that you have generated the patent disclosure.
+
+    Remember, discuss with the user till you are satisfied that the question is answered, and add follow up questions if required (not more than 3).
+    `,
+  },
 } as const;
 
 // Type for the configuration modes

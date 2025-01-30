@@ -1,30 +1,22 @@
+import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js';
+import { execSync } from 'child_process';
+import * as crypto from 'crypto';
 import {
   app,
   BrowserWindow,
-  ipcMain,
-  desktopCapturer,
-  WebContents,
   clipboard,
-  nativeImage,
+  desktopCapturer,
   screen as electron_screen,
-  session,
+  ipcMain,
+  nativeImage,
+  WebContents,
 } from 'electron';
-import * as path from 'path';
 import * as fs from 'fs';
-import {
-  keyboard,
-  Key,
-  mouse,
-  Point,
-  straightTo,
-  Button,
-  screen as nutscreen,
-} from '@nut-tree-fork/nut-js';
-import { execSync } from 'child_process';
-import * as crypto from 'crypto';
-import { electron } from 'process';
-import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi';
+import * as path from 'path';
 import sharp from 'sharp';
+import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
+import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
+import { PatentQuestion, PatentTemplate, PatentSection } from '../shared/types/patent';
 // import { omniParser } from './omni-parser';
 
 // Set environment variables for the packaged app
@@ -1752,7 +1744,6 @@ ipcMain.on('close-settings', () => {
 // Initialize app with saved settings
 async function initializeApp() {
   // Load saved settings first
-  console.log('Hello World');
   const savedSettings = loadSettings();
 
   // Create windows
@@ -1767,8 +1758,29 @@ async function initializeApp() {
   }
 }
 
-// Single app initialization point
-app.whenReady().then(initializeApp);
+// Add this after your imports
+function logRegisteredHandlers() {
+  const handlers = (ipcMain as any)._invokeHandlers;
+  console.log('Registered IPC Handlers:');
+  for (const [channel] of handlers) {
+    console.log(`- ${channel}`);
+  }
+}
+
+function logRegisteredListeners() {
+  const listeners = (ipcMain as any)._events;
+  console.log('Registered IPC Listeners:');
+  for (const channel of Object.keys(listeners)) {
+    console.log(`- ${channel}`);
+  }
+}
+
+// Call it after registering all handlers
+app.whenReady().then(async () => {
+  await initializeApp();
+  logRegisteredHandlers();
+  logRegisteredListeners();
+});
 
 app.on('window-all-closed', () => {
   app.quit();
@@ -2869,5 +2881,206 @@ ipcMain.handle('get-screenshot', async () => {
   } catch (error) {
     console.error('Error getting screenshot:', error);
     return null;
+  }
+});
+
+// Add this handler with the other ipcMain handlers
+ipcMain.handle('create_template', async (event, title) => {
+  try {
+    // Sanitize the title for use as filename
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9-_ ]/g, '_').toLowerCase();
+
+    // Create patents directory in appData if it doesn't exist
+    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
+    if (!fs.existsSync(patentsDir)) {
+      fs.mkdirSync(patentsDir, { recursive: true });
+    }
+
+    // Create the patent template file
+    const templatePath = path.join(patentsDir, `${sanitizedTitle}.json`);
+
+    // Create a copy of the template and update the title
+    const template = {
+      ...patentGeneratorTemplate,
+      title: title,
+    };
+
+    // Write the template content
+    fs.writeFileSync(templatePath, JSON.stringify(template, null, 2));
+
+    logToFile(`Created patent template at: ${templatePath}`);
+    return {
+      success: true,
+      path: templatePath,
+      filename: sanitizedTitle, // Return the sanitized filename for future use
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error creating patent template: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+});
+
+ipcMain.handle('get_next_unanswered_question', async (event, filename) => {
+  try {
+    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
+    const filePath = path.join(patentsDir, `${filename}.json`);
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Template file not found' };
+    }
+
+    const fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+    let patentContent = '';
+
+    // Check each section for unanswered questions
+    for (const section of Object.keys(fileContent)) {
+      if (Array.isArray(fileContent[section])) {
+        if (!patentContent) {
+          patentContent += '# Answered Questions\n\n';
+        }
+        patentContent += `\n\n## ${section}\n\n`;
+        for (const question of fileContent[section]) {
+          if (!question.answer) {
+            patentContent += `### Question to ask\n${question.questionId}: ${question.question}\n\n`;
+            return {
+              success: true,
+              patentContent: patentContent,
+            };
+          } else {
+            patentContent += `${question.questionId}: ${question.question}\n${question.answer}\n\n`;
+          }
+        }
+      }
+    }
+
+    return { success: false, completed: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error getting next question: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+});
+
+ipcMain.handle('record_answer', async (event, { filename, questionId, answer }) => {
+  try {
+    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
+    const filePath = path.join(patentsDir, `${filename}.json`);
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Template file not found' };
+    }
+
+    const fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    let answerRecorded = false;
+
+    // Find and update the question with the answer
+    for (const section of Object.keys(fileContent)) {
+      if (Array.isArray(fileContent[section])) {
+        const questionIndex = fileContent[section].findIndex(
+          (q: PatentQuestion) => q.questionId === questionId
+        );
+        if (questionIndex !== -1) {
+          fileContent[section][questionIndex].answer = answer;
+          answerRecorded = true;
+          break;
+        }
+      }
+    }
+
+    if (!answerRecorded) {
+      return { success: false, error: 'Question not found' };
+    }
+
+    // Write updated content back to file
+    fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error recording answer: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+});
+
+ipcMain.handle('add_follow_up_questions', async (event, { filename, questionId, questions }) => {
+  try {
+    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
+    const filePath = path.join(patentsDir, `${filename}.json`);
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Template file not found' };
+    }
+
+    const fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8')) as PatentTemplate;
+    let questionsAdded = false;
+
+    for (const section of Object.keys(fileContent)) {
+      let sectionContent = fileContent[section];
+      if (!Array.isArray(sectionContent)) {
+        continue;
+      }
+      const baseQuestionIndex = sectionContent.findIndex(
+        (q: PatentQuestion) => q.questionId === questionId
+      );
+
+      // Find all questions in the same series
+      const seriesQuestions = sectionContent.filter((q: PatentQuestion) =>
+        q.questionId.startsWith(questionId.split('.')[0] + '.')
+      );
+
+      // Create new questions with incremented IDs
+      const newQuestions = questions.map(
+        (question: string, index: number) =>
+          ({
+            questionId: `${questionId.split('.')[0]}.${parseFloat(questionId.split('.')[1]) + index + 1}`,
+            question: question,
+          }) as PatentQuestion
+      );
+
+      // Shift existing questions that would overlap with new ones
+      const questionsToShift = seriesQuestions.filter(
+        (q: PatentQuestion) =>
+          parseFloat(q.questionId.split('.')[1]) > parseFloat(questionId.split('.')[1])
+      );
+
+      // Remove questions that will be shifted
+      sectionContent = sectionContent.filter(
+        (q: PatentQuestion) =>
+          !questionsToShift.some((sq: PatentQuestion) => sq.questionId === q.questionId)
+      );
+
+      // Insert new questions after the base question
+      sectionContent.splice(baseQuestionIndex + 1, 0, ...newQuestions);
+
+      // Add shifted questions with updated IDs
+      const shiftAmount = newQuestions.length;
+      questionsToShift.forEach((q: PatentQuestion) => {
+        const [prefix, num] = q.questionId.split('.');
+        const newId = `${prefix}.${parseFloat(num) + shiftAmount}`;
+        if (Array.isArray(sectionContent)) {
+          sectionContent.push({
+            ...q,
+            questionId: newId,
+          });
+        }
+      });
+
+      fileContent[section] = sectionContent;
+      questionsAdded = true;
+      break;
+    }
+
+    if (!questionsAdded) {
+      return { success: false, error: 'Base question not found' };
+    }
+
+    // Write updated content back to file
+    fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error adding follow-up questions: ${errorMessage}`);
+    return { success: false, error: errorMessage };
   }
 });

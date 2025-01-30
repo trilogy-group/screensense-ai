@@ -7,12 +7,12 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "outDir": "../build/electron",
-    "rootDir": ".",
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
       "*": ["../node_modules/*"]
-    }
+    },
+    "rootDirs": [".", "../shared"]
   },
   "include": ["./**/*"]
 }
