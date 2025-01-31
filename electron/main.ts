@@ -10,6 +10,7 @@ import {
   ipcMain,
   nativeImage,
   WebContents,
+  shell,
 } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -2868,7 +2869,7 @@ ipcMain.handle('get-screenshot', async () => {
 ipcMain.handle('create_template', async (event, title) => {
   try {
     // Sanitize the title for use as filename
-    const sanitizedTitle = title.replace(/[^a-zA-Z0-9-_ ]/g, '_').toLowerCase();
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 
     // Create patents directory in appData if it doesn't exist
     const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
@@ -3062,6 +3063,28 @@ ipcMain.handle('add_follow_up_questions', async (event, { filename, questionId, 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error adding follow-up questions: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+});
+
+// Add this handler with other ipcMain handlers
+ipcMain.handle('display_patent', async (event, filename) => {
+  try {
+    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
+    const filePath = path.join(patentsDir, `${filename}.json`);
+
+    logToFile(`Attempting to open patent file on ${process.platform}: ${filePath}`);
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'Patent file not found' };
+    }
+
+    await shell.openPath(filePath);
+    logToFile(`Successfully opened patent file: ${filePath}`);
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error displaying patent: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
 });

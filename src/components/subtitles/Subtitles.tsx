@@ -527,7 +527,7 @@ function SubtitlesComponent({
               //     id: fc.id,
               //   })),
               // });
-              client.send([{ text: `All questions answered.` }]);
+              client.send([{ text: `All questions answered. Ask the user if they would like to view the patent disclosure.` }]);
             } else {
               // client.sendToolResponse({
               //   functionResponses: toolCall.functionCalls.map(fc => ({
@@ -576,6 +576,15 @@ function SubtitlesComponent({
               client.send([{ text: `Failed to add follow-up questions: ${addResult.error}` }]);
             }
             // hasResponded = true;
+            break;
+          case "display_patent":
+            const displayResult = await ipcRenderer.invoke('display_patent', (fc.args as any).filename);
+            if (displayResult.success) {
+              client.send([{ text: 'Patent file opened in default editor.' }]);
+            } else {
+              client.send([{ text: `Failed to open patent file: ${displayResult.error}` }]);
+            }
+            hasResponded = true;
             break;
         }
       }

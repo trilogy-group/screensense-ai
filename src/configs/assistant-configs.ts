@@ -552,6 +552,17 @@ export const patentGeneratorTools: Tool[] = [
           required: ['questionId', 'questions'],
         },
       },
+      {
+        name: 'display_patent',
+        description: 'Opens the completed patent for the user to view',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            filename: { type: SchemaType.STRING },
+          },
+          required: ['filename'],
+        },
+      },
     ],
   },
 ];
@@ -891,7 +902,7 @@ Your Tools:
 - Do not repeatedly invoke the same tool with the same arguments in a loop.
 
 You must follow these steps when the user asks you to generate the patent disclosure:
-1. Create a new template for the patent disclosure, using the appropriate title.
+1. Create a new template for the patent disclosure, using the appropriate title. Ask the user for the title of the patent.
 2. Get the next question that needs to be asked from the user by invoking the get_next_question_to_ask tool.
 3. Ask the user this question.
 4. In case the user uses screen sharing to explain some context, make sure you convert this context to text while recording the answer in the template.
@@ -899,6 +910,7 @@ You must follow these steps when the user asks you to generate the patent disclo
 6. If you think the user's response gives rise to new questions that are not covered under the current question, add those questions to the list as follow up questions.
 7. If you think the user's response is complete, record the answer to the question. Be extremely thorough in recording the answer, mention all the details.
 8. If you have answered all the questions, inform the user that you have generated the patent disclosure.
+9. Ask the user if they would like to view the patent disclosure. If they do, call the display_patent tool with the filename of the patent disclosure.
 
 Important Instructions:
 - ALWAYS use the get_next_question_to_ask tool to fetch the next question to ask. Do not try and come up with your own questions.
