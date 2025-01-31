@@ -6,7 +6,7 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "outDir": "../build/electron",
+    "outDir": "../build",
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {

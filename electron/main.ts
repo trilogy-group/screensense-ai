@@ -1758,29 +1758,8 @@ async function initializeApp() {
   }
 }
 
-// Add this after your imports
-function logRegisteredHandlers() {
-  const handlers = (ipcMain as any)._invokeHandlers;
-  console.log('Registered IPC Handlers:');
-  for (const [channel] of handlers) {
-    console.log(`- ${channel}`);
-  }
-}
-
-function logRegisteredListeners() {
-  const listeners = (ipcMain as any)._events;
-  console.log('Registered IPC Listeners:');
-  for (const channel of Object.keys(listeners)) {
-    console.log(`- ${channel}`);
-  }
-}
-
 // Call it after registering all handlers
-app.whenReady().then(async () => {
-  await initializeApp();
-  logRegisteredHandlers();
-  logRegisteredListeners();
-});
+app.whenReady().then(initializeApp);
 
 app.on('window-all-closed', () => {
   app.quit();
@@ -2492,6 +2471,7 @@ ipcMain.on(
   async (event, x: number, y: number, action: string, electron: boolean = true) => {
     try {
       const primaryDisplay = electron_screen.getPrimaryDisplay();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { bounds, workArea, scaleFactor } = primaryDisplay;
 
       // Account for taskbar offset and display scaling
@@ -2908,7 +2888,7 @@ ipcMain.handle('create_template', async (event, title) => {
     // Write the template content
     fs.writeFileSync(templatePath, JSON.stringify(template, null, 2));
 
-    logToFile(`Created patent template at: ${templatePath}`);
+    logToFile(`Created patent template from: ${templatePath} at ${sanitizedTitle}`);
     return {
       success: true,
       path: templatePath,
@@ -2921,7 +2901,7 @@ ipcMain.handle('create_template', async (event, title) => {
   }
 });
 
-ipcMain.handle('get_next_unanswered_question', async (event, filename) => {
+ipcMain.handle('get_next_question_to_ask', async (event, filename) => {
   try {
     const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
     const filePath = path.join(patentsDir, `${filename}.json`);
@@ -2944,6 +2924,7 @@ ipcMain.handle('get_next_unanswered_question', async (event, filename) => {
         for (const question of fileContent[section]) {
           if (!question.answer) {
             patentContent += `### Question to ask\n${question.questionId}: ${question.question}\n\n`;
+            logToFile(`Question to ask: ${question.questionId}: ${question.question}`);
             return {
               success: true,
               patentContent: patentContent,

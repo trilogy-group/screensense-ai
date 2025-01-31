@@ -150,6 +150,7 @@ export const readWriteTools: Tool[] = [
   },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const interactionTools: Tool[] = [
   {
     functionDeclarations: [
@@ -505,8 +506,15 @@ export const patentGeneratorTools: Tool[] = [
         },
       },
       {
-        name: 'get_next_unanswered_question',
-        description: 'Gets the next unanswered question from the list of questions',
+        name: 'get_next_question_to_ask',
+        description: 'Gets the next question that must be asked to the user',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            filename: { type: SchemaType.STRING },
+          },
+          required: ['filename'],
+        },
       },
       {
         name: 'record_answer',
@@ -514,10 +522,11 @@ export const patentGeneratorTools: Tool[] = [
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
+            filename: { type: SchemaType.STRING },
             questionId: { type: SchemaType.STRING },
             answer: { type: SchemaType.STRING },
           },
-          required: ['questionId', 'answer'],
+          required: ['filename', 'questionId', 'answer'],
         },
       },
       {
@@ -526,6 +535,7 @@ export const patentGeneratorTools: Tool[] = [
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
+            filename: { type: SchemaType.STRING },
             questionId: {
               type: SchemaType.STRING,
               description: 'The id of the question for which follow up questions are being added',
@@ -871,22 +881,31 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     tools: [...patentGeneratorTools],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Patent Generator Mode.
+Your task is to generate a patent disclosure for the user by asking the user some questions to get the information you need.
 
-    Your task is to generate a patent disclosure for the user by asking the user some questions to get the information you need.
+There is a predefined template for the patent disclosure, that includes the questions you need to ask the user.
 
-    There is a predefined template for the patent disclosure, that includes the questions you need to ask the user.
-    
-    You must follow these steps when the user asks you to generate the patent disclosure:
-    1. Create a new template for the patent disclosure, using the appropriate title.
-    2. Find the next unanswered question that needs to be asked. Ask this question to the user.
-    3. In case the user uses screen sharing to explain some context, make sure you convert this context to text while recording the answer in the template.
-    4. You are free to ask follow up questions to clarify the user's response. You need to ensure that the user's response satisfies the question, so you can ask follow up questions to clarify the user's response.
-    5. If you think the user's response gives rise to new questions, add those questions to the list.
-    6. If you think the user's response is complete, record the answer to the question.
-    7. If you have answered all the questions, inform the user that you have generated the patent disclosure.
+Your Tools:
+- You have access to the create_template, get_next_question_to_ask, record_answer and add_follow_up_questions functions. Only you should invoke these tools; do not instruct the user to use them.
+- Your tools may take a few seconds to process, so be patient and keep the user informed.
+- Do not repeatedly invoke the same tool with the same arguments in a loop.
 
-    Remember, discuss with the user till you are satisfied that the question is answered, and add follow up questions if required (not more than 3).
-    `,
+You must follow these steps when the user asks you to generate the patent disclosure:
+1. Create a new template for the patent disclosure, using the appropriate title.
+2. Get the next question that needs to be asked from the user by invoking the get_next_question_to_ask tool.
+3. Ask the user this question.
+4. In case the user uses screen sharing to explain some context, make sure you convert this context to text while recording the answer in the template.
+5. You are free to ask further questions to clarify the user's response. You need to ensure that the user's response satisfies the question, so you can ask follow up questions to clarify the user's response.
+6. If you think the user's response gives rise to new questions that are not covered under the current question, add those questions to the list as follow up questions.
+7. If you think the user's response is complete, record the answer to the question. Be extremely thorough in recording the answer, mention all the details.
+8. If you have answered all the questions, inform the user that you have generated the patent disclosure.
+
+Important Instructions:
+- ALWAYS use the get_next_question_to_ask tool to fetch the next question to ask. Do not try and come up with your own questions.
+- Do NOT repeat the user's response back to them. Ask them any further questions if required, or move on to the next question.
+- After recording the answer to a question, automatically fetch the next question to ask.
+- Remember, discuss and clarify with the user till you are satisfied that the question is answered, and add follow up questions if required (not more than 3).
+`,
   },
 } as const;
 

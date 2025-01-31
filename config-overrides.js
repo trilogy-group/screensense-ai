@@ -1,6 +1,4 @@
 module.exports = function override(config, env) {
-  console.log('Applying Webpack Overrides...');
-  console.log('Fallback before:', config.resolve?.fallback);
   // Add fallbacks for node core modules
   config.resolve.fallback = {
     ...config.resolve.fallback,

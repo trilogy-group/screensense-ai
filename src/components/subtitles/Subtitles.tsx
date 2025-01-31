@@ -75,6 +75,7 @@ function SubtitlesComponent({
           const base64Data = screenshot.split(',')[1]
 
           // Get window dimensions from electron
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
 
           const x1_scaled = Math.round(x1 * scaleFactor);
@@ -172,7 +173,9 @@ function SubtitlesComponent({
 
             // Get the video element's display dimensions
             const videoRect = video.getBoundingClientRect();
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const scaleX = videoRect.width / videoWidth;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const scaleY = videoRect.height / videoHeight;
 
             // Get elements from ML model
@@ -496,22 +499,42 @@ function SubtitlesComponent({
             if (result.success) {
               // Store the filename for future use
               client.send([{ 
-                text: `Template created successfully. Use filename "${result.filename}" for future operations.` 
+                text: `Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.` 
               }]);
+              console.log(`Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.`)
             } else {
               client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
             }
-            hasResponded = true;
+            // hasResponded = true;
             break;
-          case "get_next_unanswered_question":
-            const nextQuestion = await ipcRenderer.invoke('get_next_unanswered_question', (fc.args as any).filename);
+          case "get_next_question_to_ask":
+            const nextQuestion = await ipcRenderer.invoke('get_next_question_to_ask', (fc.args as any).filename);
+            console.log(`Found the: ${JSON.stringify(nextQuestion)}`)
             if (nextQuestion.success) {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: true } },
+              //     id: fc.id,
+              //   })),
+              // });
               client.send([{ 
-                text: nextQuestion.patentContent
+                text: `Found the content for the next question: ${nextQuestion.patentContent}`
               }]);
             } else if (nextQuestion.completed) {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: true } },
+              //     id: fc.id,
+              //   })),
+              // });
               client.send([{ text: `All questions answered.` }]);
             } else {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: false } },
+              //     id: fc.id,
+              //   })),
+              // });
               client.send([{ text: `Failed to get next question: ${nextQuestion.error}` }]);
             }
             hasResponded = true;
@@ -523,8 +546,20 @@ function SubtitlesComponent({
               answer: (fc.args as any).answer
             });
             if (recordResult.success) {
-              client.send([{ text: 'Answer recorded successfully.' }]);
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: true } },
+              //     id: fc.id,
+              //   })),
+              // });
+              client.send([{ text: 'Answer recorded successfully. Move on to the next question.' }]);
             } else {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: false } },
+              //     id: fc.id,
+              //   })),
+              // });
               client.send([{ text: `Failed to record answer: ${recordResult.error}` }]);
             }
             hasResponded = true;
@@ -540,7 +575,7 @@ function SubtitlesComponent({
             } else {
               client.send([{ text: `Failed to add follow-up questions: ${addResult.error}` }]);
             }
-            hasResponded = true;
+            // hasResponded = true;
             break;
         }
       }
