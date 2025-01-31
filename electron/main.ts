@@ -17,6 +17,12 @@ import * as crypto from 'crypto';
 import { electron } from 'process';
 import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi';
 import sharp from 'sharp';
+import { SpeechClient } from '@google-cloud/speech';
+import ffmpeg from 'fluent-ffmpeg';
+import axios from 'axios';
+import OpenAI from "openai";
+import * as dotenv from 'dotenv';
+dotenv.config();
 // import { omniParser } from './omni-parser';
 
 // Set environment variables for the packaged app
@@ -1102,10 +1108,22 @@ async function createControlWindow() {
           }
 
           connectButton.addEventListener('click', () => {
-            if (!isConnecting) {
+            if (!isConnected) {
+              ipcRenderer.send('session-start');
+              console.log('Session started');
+              isConnected = true;
               isConnecting = true;
-              // Request API key check before connecting
-              ipcRenderer.send('check-api-key');
+              connectButton.querySelector('span').textContent = 'pause';
+              connectButton.querySelector('span').classList.add('filled');
+              actionsNav.classList.remove('disabled');
+              ipcRenderer.send('control-action', { type: 'connect', value: true });
+            } else {
+              isConnected = false;
+              isConnecting = false;
+              connectButton.querySelector('span').textContent = 'play_arrow';
+              connectButton.querySelector('span').classList.remove('filled');
+              actionsNav.classList.add('disabled');
+              ipcRenderer.send('control-action', { type: 'connect', value: false });
             }
           });
 
@@ -2841,4 +2859,112 @@ ipcMain.handle('get-screenshot', async () => {
     console.error('Error getting screenshot:', error);
     return null;
   }
+});
+
+// Replace with your API endpoint and key
+// Load settings to get the API key
+
+ipcMain.on('save-audio', async (event, audioBuffer) => {
+  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+
+  // Ensure the directory exists
+  if (!fs.existsSync(contextDir)) {
+    fs.mkdirSync(contextDir, { recursive: true });
+  }
+
+  // Generate a unique filename for the audio file
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const audioFilePath = path.join(contextDir, `audio-${timestamp}.wav`);
+
+  // Write the audio buffer to a file
+  fs.writeFile(audioFilePath, audioBuffer, async err => {
+    if (err) {
+      console.error('Failed to save audio file:', err);
+    } else {
+      console.log('Audio file saved:', audioFilePath);
+
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        
+        const transcription = await openai.audio.transcriptions.create({
+          file: fs.createReadStream(audioFilePath), // Use the file path
+          model: "whisper-1",
+        });
+        
+        const textFilePath = path.join(contextDir, 'transcriptions.txt');
+        let olderConversation = '';
+
+        if (fs.existsSync(textFilePath)) {
+          olderConversation = ` 
+${fs.readFileSync(textFilePath, 'utf8')}`;
+        } else{
+          olderConversation = 'There is no older conversation. This is start of new conversation.';
+        }
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+              { role: "developer", content: `
+You are a great content paraphrase. The user will provide you with a question and answer session between an AI(Who asks the questions) and a human(Who answers the questions). You will be given the transcript of the conversation. However, the transcript is not very correct as the user is not great english speaker. I want you to paraphrase the transcript into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+
+It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
+
+Here is the older conversation:
+${olderConversation}
+
+I want you to return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. I want you to return the corrected conversation in the following format:
+Q. What is you taste in music?
+A. I am a fan of pop music and rock music. 
+
+Q. What is your favorite song?
+A. My favorite song is "Shape of You" by Ed Sheeran.` },
+              {
+                  role: "user",
+                  content: transcription.text,
+              },
+          ],
+          store: true,
+      });
+      
+        // Append transcription to a single text file
+        fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
+          if (err) {
+            console.error('Failed to write transcription to file:', err);
+          } else {
+            console.log('Transcription written to file:', textFilePath);
+          }
+        });
+      } catch (error: any) {
+        console.error('Error during speech-to-text conversion:', error.response ? error.response.data : error.message);
+      }
+    }
+  });
+});
+
+ipcMain.on('session-start', () => {
+  console.log('Session started');
+
+  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+
+  // Ensure the directory exists
+  if (fs.existsSync(contextDir)) {
+    // Clear the contents of the directory
+    fs.readdir(contextDir, (err, files) => {
+      if (err) throw err;
+
+      for (const file of files) {
+        fs.unlink(path.join(contextDir, file), err => {
+          if (err) throw err;
+        });
+      }
+    });
+  } else {
+    fs.mkdirSync(contextDir, { recursive: true });
+  }
+});
+
+ipcMain.handle('get-context', async (event) => {
+  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+  const textFilePath = path.join(contextDir, 'transcriptions.txt');
+  return fs.readFileSync(textFilePath, 'utf8');
 });

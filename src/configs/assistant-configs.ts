@@ -595,6 +595,14 @@ Give a confirmation message to the user after every message.
 
   // `
   //   },
+  audio_record: {
+    display_name: 'Audio Recorder',
+    tools: [],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in Audio Recorder Mode.
+
+    `
+  },
   daily_helper: {
     display_name: 'Daily Guide',
     tools: [{ googleSearch: {} } as Tool],

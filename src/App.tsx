@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import './App.scss';
 import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
-// import SidePanel from "./components/side-panel/SidePanel";
 import { Subtitles } from './components/subtitles/Subtitles';
 import ControlTray from './components/control-tray/ControlTray';
 import cn from 'classnames';
