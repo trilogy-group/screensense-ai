@@ -333,6 +333,82 @@ function ControlTray({
     };
   }, []);
 
+  useEffect(() => {
+    let mediaRecorder: MediaRecorder | null = null;
+    let isRecording = false;
+
+    const startAudioRecording = async () => {
+      try {
+        // Request access to both user and system audio
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            sampleRate: 44100,
+            channelCount: 2,
+          },
+        });
+
+        const recordChunk = () => {
+          if (!isRecording) return;
+          let audioChunks: Blob[] = [];
+
+          mediaRecorder = new MediaRecorder(audioStream);
+
+          mediaRecorder.ondataavailable = event => {
+            audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            // Send the audio buffer to the main process to save the file
+            console.log('Saving audio');
+            ipcRenderer.send('save-audio', buffer);
+
+            // Start a new recording after stopping
+            if (isRecording) {
+              recordChunk();
+            }
+          };
+
+          // Start the recording
+          mediaRecorder.start();
+
+          // Stop the recording after 20 seconds
+          setTimeout(() => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+              mediaRecorder.stop();
+            }
+          }, 30000);
+        };
+
+        // Start the first recording chunk
+        isRecording = true;
+        recordChunk();
+      } catch (error) {
+        console.error('Error capturing audio:', error);
+      }
+    };
+
+    if (connected && client) {
+      // Start audio recording when a specific option is selected
+      if (selectedOption.value === 'audio_record') {
+        startAudioRecording();
+      }
+    }
+
+    return () => {
+      // Stop the media recorder if it's active
+      isRecording = false;
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    };
+  }, [connected, client, selectedOption.value]);
+
   return (
     <>
       <section className="control-tray">
@@ -406,7 +482,11 @@ function ControlTray({
             <button
               ref={connectButtonRef}
               className={cn('action-button connect-toggle', { connected })}
-              onClick={handleConnect}
+              onClick={() => {
+                ipcRenderer.send('session-start');
+                console.log('Session started');
+                handleConnect();
+              }}
             >
               <span className="material-symbols-outlined filled">
                 {connected ? 'pause' : 'play_arrow'}
