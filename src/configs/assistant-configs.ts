@@ -1,5 +1,4 @@
 import { type Tool, SchemaType } from '@google/generative-ai';
-import { property } from 'lodash';
 
 // Tool configurations
 
@@ -151,6 +150,7 @@ export const readWriteTools: Tool[] = [
   },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const interactionTools: Tool[] = [
   {
     functionDeclarations: [
@@ -326,7 +326,7 @@ export const actionPlayerTools: Tool[] = [
   },
 ];
 
-export const record_action_tools: Tool[] = [
+export const recordActionTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -401,7 +401,7 @@ export const record_action_tools: Tool[] = [
   },
 ];
 
-export const opencv_tools: Tool[] = [
+export const opencvTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -468,7 +468,7 @@ export const opencv_tools: Tool[] = [
   },
 ];
 
-export const screen_capture_tools: Tool[] = [
+export const screenCaptureTools: Tool[] = [
   {
     functionDeclarations: [
       {
@@ -491,11 +491,87 @@ export const screen_capture_tools: Tool[] = [
   },
 ];
 
+export const patentGeneratorTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: 'create_template',
+        description: 'Creates a blank patent from the template',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            title: { type: SchemaType.STRING },
+          },
+          required: ['title'],
+        },
+      },
+      {
+        name: 'get_next_question_to_ask',
+        description: 'Gets the next question that must be asked to the user',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            filename: { type: SchemaType.STRING },
+          },
+          required: ['filename'],
+        },
+      },
+      {
+        name: 'record_answer',
+        description: 'Records the answer to the question',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            filename: { type: SchemaType.STRING },
+            questionId: { type: SchemaType.STRING },
+            answer: { type: SchemaType.STRING },
+          },
+          required: ['filename', 'questionId', 'answer'],
+        },
+      },
+      {
+        name: 'add_follow_up_questions',
+        description: 'Adds follow up questions to the patent. Add at most 3 questions',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            filename: { type: SchemaType.STRING },
+            questionId: {
+              type: SchemaType.STRING,
+              description: 'The id of the question for which follow up questions are being added',
+            },
+            questions: {
+              type: SchemaType.ARRAY,
+              description: 'List of follow-up questions to ask',
+              items: {
+                type: SchemaType.STRING,
+                description: 'The question to ask as a follow up',
+              },
+            },
+          },
+          required: ['questionId', 'questions'],
+        },
+      },
+      {
+        name: 'display_patent',
+        description: 'Opens the completed patent for the user to view',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            filename: { type: SchemaType.STRING },
+          },
+          required: ['filename'],
+        },
+      },
+    ],
+  },
+];
+
 // Mode-based configurations
 export const assistantConfigs = {
   screen_capture_record: {
     display_name: 'Action Recorder',
-    tools: [...screen_capture_tools],
+    tools: [...screenCaptureTools],
     requiresDisplay: false,
     systemInstruction: `
 You are ScreenSense AI, operating in Screen Capture Mode.
@@ -508,7 +584,7 @@ Give a confirmation message to the user after every message.
   },
   screen_capture_play: {
     display_name: 'Action Player',
-    tools: [...screen_capture_tools],
+    tools: [...screenCaptureTools],
     requiresDisplay: false,
     systemInstruction: `
 You are ScreenSense AI, operating in Action Player Mode.
@@ -811,6 +887,67 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
   //     6. Be patient during analysis and keep the user informed.
   //     `,
   //   },
+  patent_generator: {
+    display_name: 'Patent Generator',
+    tools: [...patentGeneratorTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in Patent Generator Mode.
+Your task is to generate a patent disclosure for the user by asking the user some questions to get the information you need.
+
+There is a predefined template for the patent disclosure, that includes the questions you need to ask the user.
+
+Your Tools:
+- You have access to the create_template, get_next_question_to_ask, record_answer and add_follow_up_questions functions. Only you should invoke these tools; do not instruct the user to use them.
+- Your tools may take a few seconds to process, so be patient and keep the user informed.
+- Do not repeatedly invoke the same tool with the same arguments in a loop.
+
+You must follow these steps when the user asks you to generate the patent disclosure:
+1. Create a new template for the patent disclosure, using the appropriate title. Ask the user for the title of the patent.
+2. Get the next question that needs to be asked from the user by invoking the get_next_question_to_ask tool.
+3. Ask the user this question.
+4. In case the user uses screen sharing to explain some context, make sure you convert this context to text while recording the answer in the template.
+5. You are free to ask further questions to clarify the user's response. You need to ensure that the user's response satisfies the question, so you can ask follow up questions to clarify the user's response.
+6. If you think the user's response gives rise to new questions that are not covered under the current question, add those questions to the list as follow up questions.
+7. If you think the user's response is complete, record the answer to the question. Be extremely thorough in recording the answer, mention all the details.
+8. If you have answered all the questions, inform the user that you have generated the patent disclosure.
+9. Ask the user if they would like to view the patent disclosure. If they do, call the display_patent tool with the filename of the patent disclosure.
+
+Important Instructions:
+- ALWAYS use the get_next_question_to_ask tool to fetch the next question to ask. Do not try and come up with your own questions.
+- Do NOT repeat the user's response back to them. Ask them any further questions if required, or move on to the next question.
+- After recording the answer to a question, automatically fetch the next question to ask.
+- Remember, discuss and clarify with the user till you are satisfied that the question is answered, and add follow up questions if required (not more than 3).
+`,
+  },
+  insight_generator: {
+    display_name: 'Insight Generator',
+    tools: [...readWriteTools, { googleSearch: {} } as Tool],
+    requiresDisplay: false,
+    systemInstruction: `You are ScreenSense AI, operating in Insight Generator Mode.
+Your task is to help the user frame an insight they can share with their audience.
+
+Your Tools:
+- You have access to read_text and write_text functions. Only you should invoke these tools; do not instruct the user to use them.
+- Do not repeatedly invoke the same tool with the same arguments in a loop.
+
+Important Instructions:
+1. A Good Insight can be written as advice that can be shared with general audience who don't have project specific context. It should be presentable and actionable. It should be possible to state it as "If you are in <this situation> and faced with <this scenario> I recommend that you do solve it <this way>, because <backing facts>". It it doesn't meet this bar specify whatIsMissing.
+2. You must evaluate the insight on the following criteria:
+  - Not Well Known: true if the insight is part of well known and published best practices that you know about or the google search tool can find.
+  - Is Supported By Evidence: true if the original text includes facts backing the claim or opinion
+  - Is Novel: True if the insight is novel.
+  - Known Supporting Views: list of views that support the insight.
+  - Known Counter Views: list of views that counter the insight.
+  These criteria shouldn't be a part of the insight. They are just to help you evaluate and improve the insight for the user. Use them to evaluate whether the insight is good or not.
+3. If the user tells you they are trying to create this for a social media post, you must frame the insight in a way that is suitable for a social media post such as a tweet. 
+  - Start with a catchy, attention-grabbing line. This could be about the problem. For example: "Facing <this problem>? Use <this insight> to solve it." or "Using <this approach>? Enhance it with <this insight>."
+  - Use relevant emojis to add visual appeal. You should have 2-4 emojis in the post.
+  - Add the #insight tag to the end of the post, and any other relevant tags. Ask the user for any other tags they would like to add.
+  - Add blank lines to better separate the different parts of the post and make it more readable.
+4. Sometimes, it is possible that the user does not have the solution to the problem. In that case, frame it as a challenge rather than an insight. And if creating a social media post, use #challenge instead of #insight.
+5. When you and the user are satisfied with the insight, you must use the write_text tool to write the insight to the user's screen.
+`,
+  },
 } as const;
 
 // Type for the configuration modes

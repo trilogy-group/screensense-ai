@@ -6,13 +6,13 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "outDir": "../build/electron",
-    "rootDir": ".",
+    "outDir": "../build",
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
       "*": ["../node_modules/*"]
-    }
+    },
+    "rootDirs": [".", "../shared"]
   },
   "include": ["./**/*"]
 }

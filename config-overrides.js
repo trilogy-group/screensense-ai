@@ -1,6 +1,4 @@
 module.exports = function override(config, env) {
-  console.log('Applying Webpack Overrides...');
-  console.log('Fallback before:', config.resolve?.fallback);
   // Add fallbacks for node core modules
   config.resolve.fallback = {
     ...config.resolve.fallback,
@@ -18,12 +16,6 @@ module.exports = function override(config, env) {
     assert: require.resolve('assert/'),
     util: require.resolve('util/'),
   };
-
-  // Add externals for electron
-  // config.externals = {
-  //   ...config.externals,
-  //   electron: 'require("electron")',
-  // };
 
   return config;
 };

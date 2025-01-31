@@ -75,6 +75,7 @@ function SubtitlesComponent({
           const base64Data = screenshot.split(',')[1]
 
           // Get window dimensions from electron
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
 
           const x1_scaled = Math.round(x1 * scaleFactor);
@@ -172,7 +173,9 @@ function SubtitlesComponent({
 
             // Get the video element's display dimensions
             const videoRect = video.getBoundingClientRect();
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const scaleX = videoRect.width / videoWidth;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const scaleY = videoRect.height / videoHeight;
 
             // Get elements from ML model
@@ -490,6 +493,98 @@ function SubtitlesComponent({
             const args = fc.args as any;
             console.log(args.coordinates)
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
+            break;
+          case "create_template":
+            const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
+            if (result.success) {
+              // Store the filename for future use
+              client.send([{ 
+                text: `Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.` 
+              }]);
+              console.log(`Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.`)
+            } else {
+              client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
+            }
+            // hasResponded = true;
+            break;
+          case "get_next_question_to_ask":
+            const nextQuestion = await ipcRenderer.invoke('get_next_question_to_ask', (fc.args as any).filename);
+            console.log(`Found the: ${JSON.stringify(nextQuestion)}`)
+            if (nextQuestion.success) {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: true } },
+              //     id: fc.id,
+              //   })),
+              // });
+              client.send([{ 
+                text: `Found the content for the next question: ${nextQuestion.patentContent}`
+              }]);
+            } else if (nextQuestion.completed) {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: true } },
+              //     id: fc.id,
+              //   })),
+              // });
+              client.send([{ text: `All questions answered. Ask the user if they would like to view the patent disclosure.` }]);
+            } else {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: false } },
+              //     id: fc.id,
+              //   })),
+              // });
+              client.send([{ text: `Failed to get next question: ${nextQuestion.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "record_answer":
+            const recordResult = await ipcRenderer.invoke('record_answer', {
+              filename: (fc.args as any).filename,
+              questionId: (fc.args as any).questionId,
+              answer: (fc.args as any).answer
+            });
+            if (recordResult.success) {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: true } },
+              //     id: fc.id,
+              //   })),
+              // });
+              client.send([{ text: 'Answer recorded successfully. Move on to the next question.' }]);
+            } else {
+              // client.sendToolResponse({
+              //   functionResponses: toolCall.functionCalls.map(fc => ({
+              //     response: { output: { success: false } },
+              //     id: fc.id,
+              //   })),
+              // });
+              client.send([{ text: `Failed to record answer: ${recordResult.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "add_follow_up_questions":
+            const addResult = await ipcRenderer.invoke('add_follow_up_questions', {
+              filename: (fc.args as any).filename,
+              questionId: (fc.args as any).questionId,
+              questions: (fc.args as any).questions
+            });
+            if (addResult.success) {
+              client.send([{ text: 'Follow-up questions added successfully.' }]);
+            } else {
+              client.send([{ text: `Failed to add follow-up questions: ${addResult.error}` }]);
+            }
+            // hasResponded = true;
+            break;
+          case "display_patent":
+            const displayResult = await ipcRenderer.invoke('display_patent', (fc.args as any).filename);
+            if (displayResult.success) {
+              client.send([{ text: 'Patent file opened in default editor.' }]);
+            } else {
+              client.send([{ text: `Failed to open patent file: ${displayResult.error}` }]);
+            }
+            hasResponded = true;
             break;
         }
       }
