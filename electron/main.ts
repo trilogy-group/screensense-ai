@@ -2912,7 +2912,7 @@ It is possible that sometimes the conversation is incomplete, but you should not
 Here is the older conversation:
 ${olderConversation}
 
-I want you to return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. I want you to return the corrected conversation in the form of AI(Question) and User(Answer):
+I want you to return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. I want you to return the corrected conversation in the form of AI(Question) and User(Answer) and Context(You might see this in the conversation. Do not change this at all. It is very important):
 ` },
               {
                   role: "user",
@@ -2968,3 +2968,24 @@ ipcMain.handle('get-context', async (event) => {
     return '';
   }
 });
+
+ipcMain.on('save-user-message-context', (event, text: string) => {
+  console.log('save-user-message-context', text);
+  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+  const textFilePath = path.join(contextDir, 'transcriptions.txt');
+
+  // Ensure the directory exists
+  if (!fs.existsSync(contextDir)) {
+    fs.mkdirSync(contextDir, { recursive: true });
+  }
+
+  // Append the string "User : event" to the transcripts file
+  fs.appendFile(textFilePath, `Context: ${text}\n`, err => {
+    if (err) {
+      console.error('Failed to append user message to file:', err);
+    } else {
+      console.log('User message appended to file:', textFilePath);
+    }
+  });
+});
+

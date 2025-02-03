@@ -99,7 +99,7 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
             if (context && context.length > 0) {
               client.send([
                 { text: context },
-              ]);
+              ], true, false);
             }
             console.log('Reconnection attempt successful');
           } catch (err) {
@@ -146,3 +146,5 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
     volume,
   };
 }
+
+
