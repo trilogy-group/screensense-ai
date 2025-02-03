@@ -1107,9 +1107,9 @@ async function createControlWindow() {
             }, duration);
           }
 
-          connectButton.addEventListener('click', () => {
+          connectButton.addEventListener('click', async () => {
             if (!isConnected) {
-              ipcRenderer.send('session-start');
+              await ipcRenderer.send('session-start');
               console.log('Session started');
               isConnected = true;
               isConnecting = true;
@@ -2912,12 +2912,8 @@ It is possible that sometimes the conversation is incomplete, but you should not
 Here is the older conversation:
 ${olderConversation}
 
-I want you to return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. I want you to return the corrected conversation in the following format:
-Q. What is you taste in music?
-A. I am a fan of pop music and rock music. 
-
-Q. What is your favorite song?
-A. My favorite song is "Shape of You" by Ed Sheeran.` },
+I want you to return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. I want you to return the corrected conversation in the form of AI(Question) and User(Answer):
+` },
               {
                   role: "user",
                   content: transcription.text,
@@ -2966,5 +2962,9 @@ ipcMain.on('session-start', () => {
 ipcMain.handle('get-context', async (event) => {
   const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
   const textFilePath = path.join(contextDir, 'transcriptions.txt');
-  return fs.readFileSync(textFilePath, 'utf8');
+  if (fs.existsSync(textFilePath)) {
+    return fs.readFileSync(textFilePath, 'utf8');
+  } else {
+    return '';
+  }
 });
