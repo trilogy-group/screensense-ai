@@ -1115,9 +1115,9 @@ async function createControlWindow() {
             }, duration);
           }
 
-          connectButton.addEventListener('click', () => {
+          connectButton.addEventListener('click', async () => {
             if (!isConnected) {
-              ipcRenderer.send('session-start');
+              await ipcRenderer.send('session-start');
               console.log('Session started');
               isConnected = true;
               isConnecting = true;
@@ -2996,7 +2996,11 @@ ipcMain.on('session-start', () => {
 ipcMain.handle('get-context', async event => {
   const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
   const textFilePath = path.join(contextDir, 'transcriptions.txt');
-  return fs.readFileSync(textFilePath, 'utf8');
+  if (fs.existsSync(textFilePath)) {
+    return fs.readFileSync(textFilePath, 'utf8');
+  } else {
+    return '';
+  }
 });
 
 // Add this handler with the other ipcMain handlers
