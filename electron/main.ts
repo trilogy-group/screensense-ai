@@ -17,8 +17,9 @@ import * as path from 'path';
 import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
-import { PatentQuestion, PatentTemplate, PatentSection } from '../shared/types/patent';
-// import { omniParser } from './omni-parser';
+import { PatentQuestion } from '../shared/types/patent';
+import anthropic_completion from '../shared/services/anthropic';
+import { randomUUID } from 'crypto';
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -2250,6 +2251,7 @@ ipcMain.on('record-conversation', (event, function_call, description, payload = 
 // Reset only the session name when app starts or restarts
 app.on('ready', () => {
   customSessionName = null;
+  loadSession();
 });
 
 // Remove the currentSessionFile variable since we don't need it anymore
@@ -2868,33 +2870,29 @@ ipcMain.handle('get-screenshot', async () => {
 // Add this handler with the other ipcMain handlers
 ipcMain.handle('create_template', async (event, title) => {
   try {
-    // Sanitize the title for use as filename
-    const sanitizedTitle = title.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    const session = createPatentSession(title);
 
-    // Create patents directory in appData if it doesn't exist
-    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
-    if (!fs.existsSync(patentsDir)) {
-      fs.mkdirSync(patentsDir, { recursive: true });
-    }
+    // Create markdown file
+    const mdPath = path.join(session.path, 'main.md');
+    let initialMd = `# ${title}\n\n`;
+    // for (const section of patentGeneratorTemplate.sections) {
+    //   initialMd += `## ${section.name}\n${section.details}\n\n`;
+    // }
+    fs.writeFileSync(mdPath, initialMd);
 
-    // Create the patent template file
-    const templatePath = path.join(patentsDir, `${sanitizedTitle}.json`);
+    // Create JSON state tracker
+    // const jsonPath = path.join(session.path, 'metadata.json');
+    // const template = {
+    //   ...patentGeneratorTemplate,
+    //   title: title,
+    // };
+    // fs.writeFileSync(jsonPath, JSON.stringify(template, null, 2));
 
-    // Create a copy of the template and update the title
-    const template = {
-      ...patentGeneratorTemplate,
-      title: title,
-    };
+    // Create assets directory
+    fs.mkdirSync(path.join(session.path, 'assets'), { recursive: true });
 
-    // Write the template content
-    fs.writeFileSync(templatePath, JSON.stringify(template, null, 2));
-
-    logToFile(`Created patent template from: ${templatePath} at ${sanitizedTitle}`);
-    return {
-      success: true,
-      path: templatePath,
-      filename: sanitizedTitle, // Return the sanitized filename for future use
-    };
+    logToFile(`Created patent template at: ${session.path}`);
+    return { success: true, path: session.path };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error creating patent template: ${errorMessage}`);
@@ -2902,42 +2900,82 @@ ipcMain.handle('create_template', async (event, title) => {
   }
 });
 
-ipcMain.handle('get_next_question_to_ask', async (event, filename) => {
+// Add handler for getting next unanswered section
+ipcMain.handle('get_next_question', async event => {
   try {
-    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
-    const filePath = path.join(patentsDir, `${filename}.json`);
+    const session = getCurrentSession();
+    const mdPath = path.join(session.path, 'main.md');
 
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(mdPath)) {
       return { success: false, error: 'Template file not found' };
     }
 
-    const fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    // const template = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as PatentTemplate;
+    // let content = '';
+    // for (const section of template.sections) {
+    //   if (section.completed === true) {
+    //     content
+    //   }
+    // }
 
-    let patentContent = '';
+    // const nextSection = template.sections.find((s: PatentSection) => s.completed !== true);
 
-    // Check each section for unanswered questions
-    for (const section of Object.keys(fileContent)) {
-      if (Array.isArray(fileContent[section])) {
-        if (!patentContent) {
-          patentContent += '# Answered Questions\n\n';
-        }
-        patentContent += `\n\n## ${section}\n\n`;
-        for (const question of fileContent[section]) {
-          if (!question.answer) {
-            patentContent += `### Question to ask\n${question.questionId}: ${question.question}\n\n`;
-            logToFile(`Question to ask: ${question.questionId}: ${question.question}`);
-            return {
-              success: true,
-              patentContent: patentContent,
-            };
-          } else {
-            patentContent += `${question.questionId}: ${question.question}\n${question.answer}\n\n`;
-          }
-        }
-      }
+    // if (!nextSection) {
+    //   return { success: true, section: null }; // All sections are completed
+    // }
+
+    // return { success: true, section: nextSection };
+    // const contents = fs.readFileSync(mdPath, 'utf8');
+    // return { success: true, contents };
+    const mdContent = fs.readFileSync(mdPath, 'utf8');
+    const prompt = `
+You are a an expert at creating patents.
+Your task is to find the correct question to ask the user to help them document their invention.
+
+<instructions>
+- You are provided with a partial markdown document that contains the information provided by the user so far.
+- You are also provided with a base checklist of what all information needs to be documented for a patent. Note that this is not exhaustive, this is just a starting point. You are free to ask whatever questions you think are required.
+- You must return the question that you think is the most important to ask the user next.
+- Your response must be a json format explaining why you think another question is required, and what that question is. If you think no more questions are required, return an empty string.
+</instructions>
+
+<existing_markdown>
+${mdContent}
+</existing_markdown>
+
+<base_checklist>
+${patentGeneratorTemplate.sections.map(section => section.name + '\n' + section.details).join('\n\n')}
+</base_checklist>
+
+Your output must be a JSON object with the following format:
+{
+    "question_required_reasoning": "<explanation of why you think this question is required to be asked or why you think all questions have been answered>",
+    "question_required": "<the question that you think is the most important to ask the user next>",
+    "question": "<the question that you think is the most important to ask the user next, or an empty string if no more questions are required>"
+}
+`;
+    console.log(`Going to ask anthropic for the next question`);
+    const response = await anthropic_completion(prompt, true);
+    console.log(`Received response from anthropic: ${response}`);
+    const jsonResponse = JSON.parse(response);
+    if (!jsonResponse.question_required) {
+      return {
+        success: true,
+        question: `No further questions are required.\n\n${jsonResponse.question_required_reasoning}`,
+      };
+    } else {
+      return {
+        success: true,
+        question: jsonResponse.question,
+      };
     }
 
-    return { success: false, completed: true };
+    // // Update section completion status in metadata
+    // const template = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    // const sectionIndex = template.sections.findIndex((s: PatentSection) => s.name === section);
+    // if (sectionIndex !== -1) {
+    //   template.sections[sectionIndex].completed = true;
+    //   fs.writeFileSync(jsonPath, JSON.stringify(template, null, 2));
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error getting next question: ${errorMessage}`);
@@ -2945,142 +2983,87 @@ ipcMain.handle('get_next_question_to_ask', async (event, filename) => {
   }
 });
 
-ipcMain.handle('record_answer', async (event, { filename, questionId, answer }) => {
+// Update the add_content handler to mark sections as completed
+ipcMain.handle('add_content', async (event, { content, section }) => {
   try {
-    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
-    const filePath = path.join(patentsDir, `${filename}.json`);
+    const session = getCurrentSession();
+    const mdPath = path.join(session.path, 'main.md');
+    // const jsonPath = path.join(session.path, 'metadata.json');
 
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: 'Template file not found' };
-    }
+    // Update markdown content
+    let mdContent = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf8') : '';
+    // const sectionRegex = new RegExp(`## ${section}.*?(?=## |$)`, 's');
+    // const sectionMatch = mdContent.match(sectionRegex);
 
-    const fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    let answerRecorded = false;
+    // if (mode === 'append' && sectionMatch) {
+    //   const updatedSection = `${sectionMatch[0].trim()}\n\n${content}`;
+    //   mdContent = mdContent.replace(sectionRegex, updatedSection);
+    // } else if (mode === 'replace' || !sectionMatch) {
+    //   const newSection = `## ${section}\n\n${content}\n\n`;
+    //   if (sectionMatch) {
+    //     mdContent = mdContent.replace(sectionRegex, newSection);
+    //   } else {
+    //     mdContent = `${mdContent.trim()}\n\n${newSection}`;
+    //   }
+    // }
+    const prompt = `
+You are a an expert at creating patents.
+Your task is to update an existing partial markdown document with new information.
 
-    // Find and update the question with the answer
-    for (const section of Object.keys(fileContent)) {
-      if (Array.isArray(fileContent[section])) {
-        const questionIndex = fileContent[section].findIndex(
-          (q: PatentQuestion) => q.questionId === questionId
-        );
-        if (questionIndex !== -1) {
-          fileContent[section][questionIndex].answer = answer;
-          answerRecorded = true;
-          break;
-        }
-      }
-    }
+<instructions>
+- You must return the entire updated markdown document.
+- You must try to add the new information in the section that is provided, but if it doesn't fit, create a new section.
+- If the information gives rise to new questions, add them to the document.
+- Do not modify any sections that you are not updating.
+</instructions>
 
-    if (!answerRecorded) {
-      return { success: false, error: 'Question not found' };
-    }
+<existing_markdown>
+${mdContent}
+</existing_markdown>
 
-    // Write updated content back to file
-    fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
+<new_content>
+${content}
+</new_content>
+
+<section>
+${section}
+</section>
+`;
+    const response = await anthropic_completion(prompt);
+    console.log(`Received response from anthropic: ${response}`);
+    fs.writeFileSync(mdPath, response);
+
+    // // Update section completion status in metadata
+    // const template = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    // const sectionIndex = template.sections.findIndex((s: PatentSection) => s.name === section);
+    // if (sectionIndex !== -1) {
+    //   template.sections[sectionIndex].completed = true;
+    //   fs.writeFileSync(jsonPath, JSON.stringify(template, null, 2));
+    // }
+
+    updateSessionModified();
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logToFile(`Error recording answer: ${errorMessage}`);
+    logToFile(`Error updating markdown: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
 });
 
-ipcMain.handle('add_follow_up_questions', async (event, { filename, questionId, questions }) => {
+// Update the display_patent handler
+ipcMain.handle('display_patent', async event => {
   try {
-    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
-    const filePath = path.join(patentsDir, `${filename}.json`);
+    const session = getCurrentSession();
+    const mdPath = path.join(session.path, 'main.md');
 
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: 'Template file not found' };
-    }
+    logToFile(`Attempting to open patent file on ${process.platform}: ${mdPath}`);
 
-    const fileContent = JSON.parse(fs.readFileSync(filePath, 'utf8')) as PatentTemplate;
-    let questionsAdded = false;
-
-    for (const section of Object.keys(fileContent)) {
-      let sectionContent = fileContent[section];
-      if (!Array.isArray(sectionContent)) {
-        continue;
-      }
-      const baseQuestionIndex = sectionContent.findIndex(
-        (q: PatentQuestion) => q.questionId === questionId
-      );
-
-      // Find all questions in the same series
-      const seriesQuestions = sectionContent.filter((q: PatentQuestion) =>
-        q.questionId.startsWith(questionId.split('.')[0] + '.')
-      );
-
-      // Create new questions with incremented IDs
-      const newQuestions = questions.map(
-        (question: string, index: number) =>
-          ({
-            questionId: `${questionId.split('.')[0]}.${parseFloat(questionId.split('.')[1]) + index + 1}`,
-            question: question,
-          }) as PatentQuestion
-      );
-
-      // Shift existing questions that would overlap with new ones
-      const questionsToShift = seriesQuestions.filter(
-        (q: PatentQuestion) =>
-          parseFloat(q.questionId.split('.')[1]) > parseFloat(questionId.split('.')[1])
-      );
-
-      // Remove questions that will be shifted
-      sectionContent = sectionContent.filter(
-        (q: PatentQuestion) =>
-          !questionsToShift.some((sq: PatentQuestion) => sq.questionId === q.questionId)
-      );
-
-      // Insert new questions after the base question
-      sectionContent.splice(baseQuestionIndex + 1, 0, ...newQuestions);
-
-      // Add shifted questions with updated IDs
-      const shiftAmount = newQuestions.length;
-      questionsToShift.forEach((q: PatentQuestion) => {
-        const [prefix, num] = q.questionId.split('.');
-        const newId = `${prefix}.${parseFloat(num) + shiftAmount}`;
-        if (Array.isArray(sectionContent)) {
-          sectionContent.push({
-            ...q,
-            questionId: newId,
-          });
-        }
-      });
-
-      fileContent[section] = sectionContent;
-      questionsAdded = true;
-      break;
-    }
-
-    if (!questionsAdded) {
-      return { success: false, error: 'Base question not found' };
-    }
-
-    // Write updated content back to file
-    fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
-    return { success: true };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logToFile(`Error adding follow-up questions: ${errorMessage}`);
-    return { success: false, error: errorMessage };
-  }
-});
-
-// Add this handler with other ipcMain handlers
-ipcMain.handle('display_patent', async (event, filename) => {
-  try {
-    const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents');
-    const filePath = path.join(patentsDir, `${filename}.json`);
-
-    logToFile(`Attempting to open patent file on ${process.platform}: ${filePath}`);
-
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(mdPath)) {
       return { success: false, error: 'Patent file not found' };
     }
 
-    await shell.openPath(filePath);
-    logToFile(`Successfully opened patent file: ${filePath}`);
+    await shell.openPath(mdPath);
+    logToFile(`Successfully opened patent file: ${mdPath}`);
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -3088,3 +3071,94 @@ ipcMain.handle('display_patent', async (event, filename) => {
     return { success: false, error: errorMessage };
   }
 });
+
+// Add function to get patent directory path
+function getPatentDir(filename: string) {
+  const patentsDir = path.join(app.getPath('appData'), 'screensense-ai', 'patents', filename);
+  if (!fs.existsSync(patentsDir)) {
+    fs.mkdirSync(patentsDir, { recursive: true });
+  }
+  return patentsDir;
+}
+
+// Add types for session management
+interface PatentSession {
+  id: string;
+  title: string;
+  path: string;
+  createdAt: Date;
+  lastModified: Date;
+}
+
+// Add with other global variables
+let currentPatentSession: PatentSession | null = null;
+
+// Add functions for session management
+function getSessionStorePath() {
+  return path.join(app.getPath('appData'), 'screensense-ai', 'session-store.json');
+}
+
+function saveSession() {
+  const storePath = getSessionStorePath();
+  try {
+    fs.writeFileSync(storePath, JSON.stringify(currentPatentSession, null, 2));
+    logToFile('Session saved successfully');
+  } catch (error) {
+    logToFile(`Error saving session: ${error}`);
+  }
+}
+
+function loadSession() {
+  const storePath = getSessionStorePath();
+  try {
+    if (fs.existsSync(storePath)) {
+      const data = fs.readFileSync(storePath, 'utf8');
+      const session = JSON.parse(data);
+      // Rehydrate dates
+      session.createdAt = new Date(session.createdAt);
+      session.lastModified = new Date(session.lastModified);
+      currentPatentSession = session;
+      logToFile('Session loaded successfully');
+    }
+  } catch (error) {
+    logToFile(`Error loading session: ${error}`);
+    currentPatentSession = null;
+  }
+}
+
+// Modify createPatentSession to include timestamps and persistence
+function createPatentSession(title: string): PatentSession {
+  const sessionId = randomUUID();
+  const patentDir = getPatentDir(sessionId);
+  const now = new Date();
+
+  currentPatentSession = {
+    id: sessionId,
+    title,
+    path: patentDir,
+    createdAt: now,
+    lastModified: now,
+  };
+
+  saveSession();
+  return currentPatentSession;
+}
+
+// Modify getCurrentSession to handle missing sessions
+function getCurrentSession(): PatentSession {
+  if (!currentPatentSession) {
+    loadSession();
+    if (!currentPatentSession) {
+      throw new Error('No active patent session');
+    }
+  }
+  return currentPatentSession;
+}
+
+// Add function to update last modified time
+function updateSessionModified() {
+  if (currentPatentSession) {
+    currentPatentSession.lastModified = new Date();
+    saveSession();
+  }
+}

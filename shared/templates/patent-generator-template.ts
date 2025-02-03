@@ -2,100 +2,70 @@ import { PatentTemplate } from '../types/patent';
 
 export const patentGeneratorTemplate: PatentTemplate = {
   title: 'New Patent',
-  executiveSummary: [
+  sections: [
     {
-      questionId: '1.1',
-      question: 'What is the brief overview of the invention?',
+      name: 'Executive Summary',
+      details: `- Clearly conveys the core invention and value proposition 
+- Touches on key elements like problem solved, novelty, benefits
+- Is concise yet informative - can stand on its own
+- Uses clear, non-technical language suitable for executives`,
     },
     {
-      questionId: '1.2',
-      question: 'What are the key benefits of the invention?',
+      name: 'Context/Environment',
+      details: `- Specifies the domain and use case(s) 
+- Differentiates where invention is used vs. potential applicability
+- Provides relevant context to understand invention's purpose`,
     },
-    {
-      questionId: '1.3',
-      question: 'What is the value proposition of the invention?',
-    },
-  ],
-  context: [
-    {
-      questionId: '2.1',
-      question: 'What is the domain of the invention?',
-    },
-    {
-      questionId: '2.2',
-      question: 'What use cases does the invention address?',
-    },
-    {
-      questionId: '2.3',
-      question: 'What is the potential applicability of the invention?',
-    },
-  ],
-  problemsSolved: [
-    {
-      questionId: '3.1',
-      question:
-        'What problem does the invention solve? For every problem, include the problem, prior approaches, and how the invention improves the situation.',
-    },
-  ],
-  introduction: [
-    {
-      questionId: '4.1',
-      question:
-        'Find out all the concepts required by the description. Describe each concept in detail.',
-    },
-  ],
-  whatAndHow: [
-    {
-      questionId: '5.1',
-      question: 'What are the processing steps in the invention?',
-    },
-    {
-      questionId: '5.2',
-      question: 'What are some case studies that show the benefits of the invention?',
-    },
-  ],
-  pseudoCode: [
-    {
-      questionId: '6.1',
-      question:
-        'What is the pseudo code for the invention? You must come up with this after understanding the details from the user.',
-    },
-    {
-      questionId: '6.2',
-      question: 'What are the comments for the pseudo code?',
-    },
-    {
-      questionId: '6.3',
-      question:
-        'What is the flowchart for the invention? Use graphviz DOT language to create the flowchart. You must come up with this after understanding the details from the user.',
-    },
-  ],
-  dataStructures: [
-    {
-      questionId: '7.1',
-      question:
-        'What are the data structures used in the invention? For each, identify the name, fields and diagram in graphviz DOT language if applicable. You must come up with this after understanding the details from the user.',
-    },
-  ],
-  implementationDetails: [
-    {
-      questionId: '8.1',
-      question: 'What are the configuration settings of the invention?',
-    },
-    {
-      questionId: '8.2',
-      question: 'What are the AI training details of the invention?',
-    },
-    {
-      questionId: '8.3',
-      question: 'What is the implementation choice rationale?',
-    },
-  ],
-  alternatives: [
-    {
-      questionId: '9.1',
-      question:
-        'What are the alternative to the invention? For each alternative, include the name, description, and disadvantage of that alternative',
-    },
+    //     {
+    //       name: 'Problems Solved',
+    //       details: `- Articulates specific shortcomings in prior approaches
+    // - Contrasts how invention improves on the state of the art
+    // - Demonstrates insight into the problem space and customer needs`,
+    //     },
+    //     {
+    //       name: 'Introduction',
+    //       details: `- Provides relevant background for core concepts used (e.g. algorithms)
+    // - Explains key building blocks at an appropriate level of detail
+    // - Sets the stage to understand implementation details`,
+    //     },
+    //     {
+    //       name: 'What and How',
+    //       details: `- Details each processing step from input to output
+    // - Specifies data sources, formats, and models
+    // - Describes key algorithms, operations, and modules
+    // - Provides working code samples or detailed pseudo-code
+    // - Includes case studies demonstrating real-world usage
+    // - Specifies key constraints, settings and configuration details
+    // - Covers failure modes and error handling`,
+    //     },
+    //     {
+    //       name: 'Pseudo Code',
+    //       details: `- Captures core logic and flow of the invention
+    // - Uses clear naming for variables and functions
+    // - Includes comments explaining key steps
+    // - Is syntactically correct and complete
+    // - Matches details provided in What & How`,
+    //     },
+    //     {
+    //       name: 'Data Structures',
+    //       details: `- Covers all core data structures used in implementation
+    // - Specifies fields and data types
+    // - Provides visual representations (e.g. schema diagrams)
+    // - Explains how data structures are used in the invention`,
+    //     },
+    //     {
+    //       name: 'Implementation Details',
+    //       details: `- Provides implementation specifics beyond high-level What & How
+    // - Details key configuration settings and rationale
+    // - Covers training details for ML/AI components
+    // - Discusses tradeoffs and rationale for implementation choices`,
+    //     },
+    //     {
+    //       name: 'Alternatives',
+    //       details: `- Surveys prior art and alternative approaches
+    // - Demonstrates awareness of the competitive landscape
+    // - Articulates specific disadvantages of each alternative
+    // - Highlights invention's advantages over alternatives`,
+    //     },
   ],
 };

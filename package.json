@@ -7,6 +7,7 @@
   },
   "main": "./build/electron/main.js",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
     "@nut-tree-fork/nut-js": "^4.2.3",
     "@parcel/watcher": "^2.1.0",
     "@techstark/opencv-js": "^4.10.0-release.1",
