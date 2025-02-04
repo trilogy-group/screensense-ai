@@ -496,7 +496,7 @@ export const patentGeneratorTools: Tool[] = [
     functionDeclarations: [
       {
         name: 'create_template',
-        description: 'Creates a blank patent from the template',
+        description: 'Creates a blank patent markdown file with initial sections',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -506,62 +506,34 @@ export const patentGeneratorTools: Tool[] = [
         },
       },
       {
-        name: 'get_next_question_to_ask',
-        description: 'Gets the next question that must be asked to the user',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            filename: { type: SchemaType.STRING },
-          },
-          required: ['filename'],
-        },
+        name: 'get_next_question',
+        description: 'Gets the next question to ask the user to fill the patent document',
       },
       {
-        name: 'record_answer',
-        description: 'Records the answer to the question',
+        name: 'add_content',
+        description: 'Updates the markdown file with new content or modifications',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
-            filename: { type: SchemaType.STRING },
-            questionId: { type: SchemaType.STRING },
-            answer: { type: SchemaType.STRING },
-          },
-          required: ['filename', 'questionId', 'answer'],
-        },
-      },
-      {
-        name: 'add_follow_up_questions',
-        description: 'Adds follow up questions to the patent. Add at most 3 questions',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            filename: { type: SchemaType.STRING },
-            questionId: {
+            content: { type: SchemaType.STRING },
+            section: {
               type: SchemaType.STRING,
-              description: 'The id of the question for which follow up questions are being added',
+              description:
+                'The name of the section to add the content to. Can be an existing section or a new section.',
             },
-            questions: {
-              type: SchemaType.ARRAY,
-              description: 'List of follow-up questions to ask',
-              items: {
-                type: SchemaType.STRING,
-                description: 'The question to ask as a follow up',
-              },
-            },
+            // mode: {
+            //   type: SchemaType.STRING,
+            //   description: 'Whether to append or replace the section',
+            //   enum: ['append', 'replace'],
+            // },
           },
-          required: ['questionId', 'questions'],
+          // required: ['content', 'section', 'mode'],
+          required: ['content', 'section'],
         },
       },
       {
         name: 'display_patent',
-        description: 'Opens the completed patent for the user to view',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            filename: { type: SchemaType.STRING },
-          },
-          required: ['filename'],
-        },
+        description: 'Opens the markdown file for the user to view',
       },
     ],
   },
@@ -886,38 +858,42 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
   //     5. Use the highlight_element tool to highlight the element at the given coordinates
   //     6. Be patient during analysis and keep the user informed.
   //     `,
-  //   },
   patent_generator: {
     display_name: 'Patent Generator',
     tools: [...patentGeneratorTools],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Patent Generator Mode.
-Your task is to generate a patent disclosure for the user by asking the user some questions to get the information you need.
-
-There is a predefined template for the patent disclosure, that includes the questions you need to ask the user.
+Your task is to help users document their inventions in detail through natural conversation.
 
 Your Tools:
-- You have access to the create_template, get_next_question_to_ask, record_answer and add_follow_up_questions functions. Only you should invoke these tools; do not instruct the user to use them.
-- Your tools may take a few seconds to process, so be patient and keep the user informed.
-- Do not repeatedly invoke the same tool with the same arguments in a loop.
+- You have access to the create_template function to create a new patent document.
+- You have access to the get_next_question function to get the next question to ask the user to fill the patent document.
+- You have access to the add_content function to add content to the markdown document.
+- You have access to the display_patent function to display the markdown document to the user.
+- These tools are only to be used by you. Do not ask the user to use them.
+- These tools may take a few seconds to complete. Be patient and keep the user informed. Wait to receive the tool response before.proceeding to the next step. Do not repeatedly call the tools without waiting for the response.
+- Only use the tools you have to perform the task. Do not try to perform the task yourself.
 
-You must follow these steps when the user asks you to generate the patent disclosure:
-1. Create a new template for the patent disclosure, using the appropriate title. Ask the user for the title of the patent.
-2. Get the next question that needs to be asked from the user by invoking the get_next_question_to_ask tool.
-3. Ask the user this question.
-4. In case the user uses screen sharing to explain some context, make sure you convert this context to text while recording the answer in the template.
-5. You are free to ask further questions to clarify the user's response. You need to ensure that the user's response satisfies the question, so you can ask follow up questions to clarify the user's response.
-6. If you think the user's response gives rise to new questions that are not covered under the current question, add those questions to the list as follow up questions.
-7. If you think the user's response is complete, record the answer to the question. Be extremely thorough in recording the answer, mention all the details.
-8. If you have answered all the questions, inform the user that you have generated the patent disclosure.
-9. Ask the user if they would like to view the patent disclosure. If they do, call the display_patent tool with the filename of the patent disclosure.
+Key Responsibilities:
+1. Guide the conversation naturally through each section of the patent
+2. Ask relevant questions to gather comprehensive information
+3. Maintain context throughout the conversation
+4. Ensure each section covers all required details
 
-Important Instructions:
-- ALWAYS use the get_next_question_to_ask tool to fetch the next question to ask. Do not try and come up with your own questions.
-- Do NOT repeat the user's response back to them. Ask them any further questions if required, or move on to the next question.
-- After recording the answer to a question, automatically fetch the next question to ask.
-- Remember, discuss and clarify with the user till you are satisfied that the question is answered, and add follow up questions if required (not more than 3).
-`,
+Process:
+1. Start by creating a new patent document with a title
+2. Get the next question to ask the user using the get_next_question function. You must never try to get this question yourself, only using the get_next_question function.
+3. For each question:
+   - Feel free to ask relevant questions to gather more information to comprehensively fill the patent document
+   - Guide the user through providing comprehensive details
+   - Update the markdown document with their responses using the add_content function
+4. Ensure all required information is captured
+
+Important Guidelines:
+- Make the conversation feel natural, not like filling out a form
+- Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete.
+- Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document.
+- Make sure to use the get_next_question function to get the next question to ask the user after completing the current question. Do not try to get this question yourself.`,
   },
   insight_generator: {
     display_name: 'Insight Generator',

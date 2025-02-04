@@ -14,6 +14,7 @@ interface SubtitlesProps {
   assistantMode: string;
   onScreenshot?: () => string | null;
 }
+
 let play_action = true; 
 // Default tool configuration
 function SubtitlesComponent({
@@ -498,106 +499,77 @@ function SubtitlesComponent({
             const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
             if (result.success) {
               // Store the filename for future use
+              client.sendToolResponse({
+                functionResponses: toolCall.functionCalls.map(fc => ({
+                  response: { output: { success: true } },
+                  id: fc.id,
+                })),
+              });
               client.send([{ 
-                text: `Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.` 
+                text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
               }]);
-              console.log(`Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.`)
+              console.log(`Created template at ${result.path}`)
             } else {
               client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
             }
-            // hasResponded = true;
+            hasResponded = true;
             break;
-          case "get_next_question_to_ask":
-            const nextQuestion = await ipcRenderer.invoke('get_next_question_to_ask', (fc.args as any).filename);
-            console.log(`Found the: ${JSON.stringify(nextQuestion)}`)
-            if (nextQuestion.success) {
-              // client.sendToolResponse({
-              //   functionResponses: toolCall.functionCalls.map(fc => ({
-              //     response: { output: { success: true } },
-              //     id: fc.id,
-              //   })),
-              // });
-              client.send([{ 
-                text: `Found the content for the next question: ${nextQuestion.patentContent}`
-              }]);
-            } else if (nextQuestion.completed) {
-              // client.sendToolResponse({
-              //   functionResponses: toolCall.functionCalls.map(fc => ({
-              //     response: { output: { success: true } },
-              //     id: fc.id,
-              //   })),
-              // });
-              client.send([{ text: `All questions answered. Ask the user if they would like to view the patent disclosure.` }]);
+          case "get_next_question":
+            console.log(`Going to ask anthropic for the next question`);
+            const nextQuestionResponse = await ipcRenderer.invoke('get_next_question');
+            if (nextQuestionResponse.success) {
+              client.send([{ text: `Received the next question to ask the user: ${nextQuestionResponse.question}` }]);
             } else {
-              // client.sendToolResponse({
-              //   functionResponses: toolCall.functionCalls.map(fc => ({
-              //     response: { output: { success: false } },
-              //     id: fc.id,
-              //   })),
-              // });
-              client.send([{ text: `Failed to get next question: ${nextQuestion.error}` }]);
+              client.send([{ text: `Failed to get next question: ${nextQuestionResponse.error}` }]);
             }
             hasResponded = true;
             break;
-          case "record_answer":
-            const recordResult = await ipcRenderer.invoke('record_answer', {
-              filename: (fc.args as any).filename,
-              questionId: (fc.args as any).questionId,
-              answer: (fc.args as any).answer
+          case "add_content":
+            const updateResult = await ipcRenderer.invoke('add_content', {
+              content: (fc.args as any).content,
+              section: (fc.args as any).section,
+              // mode: (fc.args as any).mode
             });
-            if (recordResult.success) {
-              // client.sendToolResponse({
-              //   functionResponses: toolCall.functionCalls.map(fc => ({
-              //     response: { output: { success: true } },
-              //     id: fc.id,
-              //   })),
-              // });
-              client.send([{ text: 'Answer recorded successfully. Move on to the next question.' }]);
+            if (!updateResult.success) {
+              client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
             } else {
-              // client.sendToolResponse({
-              //   functionResponses: toolCall.functionCalls.map(fc => ({
-              //     response: { output: { success: false } },
-              //     id: fc.id,
-              //   })),
-              // });
-              client.send([{ text: `Failed to record answer: ${recordResult.error}` }]);
+              client.send([{ text: `Updated the document. Use the get_next_question function to get the next question to ask the user.` }]);
             }
             hasResponded = true;
-            break;
-          case "add_follow_up_questions":
-            const addResult = await ipcRenderer.invoke('add_follow_up_questions', {
-              filename: (fc.args as any).filename,
-              questionId: (fc.args as any).questionId,
-              questions: (fc.args as any).questions
-            });
-            if (addResult.success) {
-              client.send([{ text: 'Follow-up questions added successfully.' }]);
-            } else {
-              client.send([{ text: `Failed to add follow-up questions: ${addResult.error}` }]);
-            }
-            // hasResponded = true;
             break;
           case "display_patent":
             const displayResult = await ipcRenderer.invoke('display_patent', (fc.args as any).filename);
             if (displayResult.success) {
-              client.send([{ text: 'Patent file opened in default editor.' }]);
+              client.send([{ text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?" }]);
             } else {
-              client.send([{ text: `Failed to open patent file: ${displayResult.error}` }]);
+              client.send([{ text: `Failed to open document: ${displayResult.error}` }]);
             }
             hasResponded = true;
             break;
         }
+        if (!hasResponded) {
+          // new Promise(resolve => setTimeout(resolve, 2000)).then()
+          client.sendToolResponse({
+            functionResponses:[ 
+            {
+              response: {
+                output: {success: true}
+              },
+              id: fc.id
+            }]
+          });
+        }
       }
       // Add delay between function calls
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      if (toolCall.functionCalls.length && !hasResponded) {
-        client.sendToolResponse({
-          functionResponses: toolCall.functionCalls.map(fc => ({
-            response: { output: { success: true } },
-            id: fc.id,
-          })),
-        });
-      }
+      // await new Promise(resolve => setTimeout(resolve, 2000));
+      // if (toolCall.functionCalls.length && !hasResponded) {
+      //   client.sendToolResponse({
+      //     functionResponses: toolCall.functionCalls.map(fc => ({
+      //       response: { output: { success: true } },
+      //       id: fc.id,
+      //     })),
+      //   });
+      // }
     };
     client.on('toolcall', onToolCall);
     return () => {

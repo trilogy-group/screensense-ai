@@ -5,10 +5,12 @@ export interface PatentQuestion {
 }
 
 export interface PatentSection {
-  [key: string]: PatentQuestion[];
+  name: string;
+  details: string;
+  completed?: boolean;
 }
 
 export interface PatentTemplate {
   title: string;
-  [key: string]: PatentQuestion[] | string; // Allow for title and other potential sections
+  sections: PatentSection[];
 }
