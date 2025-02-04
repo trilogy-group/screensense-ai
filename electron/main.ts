@@ -2956,7 +2956,11 @@ Your output must be a JSON object with the following format:
 }
 `;
     console.log(`Going to ask anthropic for the next question`);
-    const response = await anthropic_completion(prompt, true);
+    const response = await anthropic_completion(
+      prompt,
+      process.env.REACT_APP_ANTHROPIC_API_KEY!!,
+      true
+    );
     console.log(`Received response from anthropic: ${response}`);
     const jsonResponse = JSON.parse(response);
     if (!jsonResponse.question_required) {
@@ -3033,7 +3037,7 @@ ${content}
 ${section}
 </section>
 `;
-    const response = await anthropic_completion(prompt);
+    const response = await anthropic_completion(prompt, process.env.REACT_APP_ANTHROPIC_API_KEY!!);
     console.log(`Received response from anthropic: ${response}`);
     fs.writeFileSync(mdPath, response);
 

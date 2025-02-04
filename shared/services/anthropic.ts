@@ -1,14 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 export default async function anthropic_completion(
   prompt: string,
+  apiKey: string,
   jsonMode: boolean = false,
   systemPrompt: string | undefined = undefined
 ) {
+  const anthropic = new Anthropic({
+    apiKey: apiKey,
+  });
   const messages = [
     {
       role: 'user',
