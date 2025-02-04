@@ -1,6 +1,8 @@
 import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
+import { randomUUID } from 'crypto';
+import * as dotenv from 'dotenv';
 import {
   app,
   BrowserWindow,
@@ -9,23 +11,17 @@ import {
   screen as electron_screen,
   ipcMain,
   nativeImage,
-  WebContents,
   shell,
+  WebContents,
 } from 'electron';
 import * as fs from 'fs';
+import OpenAI from 'openai';
 import * as path from 'path';
 import sharp from 'sharp';
-import { SpeechClient } from '@google-cloud/speech';
-import ffmpeg from 'fluent-ffmpeg';
-import axios from 'axios';
-import OpenAI from 'openai';
-import * as dotenv from 'dotenv';
-dotenv.config();
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
-import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
-import { PatentQuestion } from '../shared/types/patent';
 import anthropic_completion from '../shared/services/anthropic';
-import { randomUUID } from 'crypto';
+import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
+dotenv.config();
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
