@@ -506,7 +506,7 @@ function SubtitlesComponent({
                 })),
               });
               client.send([{ 
-                text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I'll guide you through documenting your invention. Feel free to explain things naturally, and I'll ask follow-up questions to ensure we capture all the important details.' Find the next question to document.` 
+                text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
               }]);
               console.log(`Created template at ${result.path}`)
             } else {
@@ -533,7 +533,7 @@ function SubtitlesComponent({
             if (!updateResult.success) {
               client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
             } else {
-              client.send([{ text: `Updated the document. Find the next question to ask the user.` }]);
+              client.send([{ text: `Updated the document. Use the get_next_question function to get the next question to ask the user.` }]);
             }
             hasResponded = true;
             break;

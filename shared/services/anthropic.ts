@@ -35,13 +35,13 @@ export default async function anthropic_completion(
   });
   const content = response.content[0];
   let message = 'type' in content && content.type === 'text' ? content.text : '';
-  let jsonMessage = '';
-  if (message.startsWith('{')) {
-    jsonMessage = message.substring(0, message.lastIndexOf('}') + 1);
-  } else {
-    jsonMessage = '{' + message.substring(0, message.lastIndexOf('}') + 1);
-  }
   if (jsonMode) {
+    let jsonMessage = '';
+    if (message.startsWith('{')) {
+      jsonMessage = message.substring(0, message.lastIndexOf('}') + 1);
+    } else {
+      jsonMessage = '{' + message.substring(0, message.lastIndexOf('}') + 1);
+    }
     try {
       console.log(`Received JSON response from anthropic: ${message}`);
       console.log(`Parsing JSON response: ${jsonMessage}`);

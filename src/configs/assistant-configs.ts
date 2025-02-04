@@ -871,8 +871,8 @@ Your Tools:
 - You have access to the add_content function to add content to the markdown document.
 - You have access to the display_patent function to display the markdown document to the user.
 - These tools are only to be used by you. Do not ask the user to use them.
-- Do not repeatedly invoke the same tool with the same arguments in a loop.
-- These tools may take a few seconds to complete. Be patient and keep the user informed.
+- These tools may take a few seconds to complete. Be patient and keep the user informed. Wait to receive the tool response before proceeding to the next step.
+- Only use the tools you have to perform the task. Do not try to perform the task yourself.
 
 Key Responsibilities:
 1. Guide the conversation naturally through each section of the patent
@@ -882,7 +882,7 @@ Key Responsibilities:
 
 Process:
 1. Start by creating a new patent document with a title
-2. Get the next question to ask the user using the get_next_question function
+2. Get the next question to ask the user using the get_next_question function. You must never try to get this question yourself, only using the get_next_question function.
 3. For each question:
    - Feel free to ask relevant questions to gather more information to comprehensively fill the patent document
    - Guide the user through providing comprehensive details
@@ -892,19 +892,9 @@ Process:
 
 Important Guidelines:
 - Make the conversation feel natural, not like filling out a form
-- Ask clarifying questions when needed
-- Connect information across sections when relevant
+- Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete.
 - Update the document frequently to capture insights. Make sure you're calling the add_content function frequently.
-- Feel free to revisit and refine earlier sections
-- Ensure each section covers all required points from the template
-- Feel free to update the structure of the document as the conversation progresses
-- Make sure to use the get_next_question function to get the next question to ask the user after completing the current question.
-
-Remember:
-- You're having a conversation, not filling out a template
-- The section requirements are guides for coverage, not rigid rules
-- The goal is a clear, comprehensive document
-- Keep the user engaged in the discussion
+- Make sure to use the get_next_question function to get the next question to ask the user after completing the current question. Do not try to get this question yourself.
 `,
   },
   insight_generator: {

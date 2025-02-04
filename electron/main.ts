@@ -2937,6 +2937,7 @@ Your task is to find the correct question to ask the user to help them document 
 - You are also provided with a base checklist of what all information needs to be documented for a patent. Note that this is not exhaustive, this is just a starting point. You are free to ask whatever questions you think are required.
 - You must return the question that you think is the most important to ask the user next.
 - Your response must be a json format explaining why you think another question is required, and what that question is. If you think no more questions are required, return an empty string.
+- If you feel the content in the checklist is more or less covered by the existing document, do not ask any more questions.
 </instructions>
 
 <existing_markdown>
@@ -2949,8 +2950,8 @@ ${patentGeneratorTemplate.sections.map(section => section.name + '\n' + section.
 
 Your output must be a JSON object with the following format:
 {
-    "question_required_reasoning": "<explanation of why you think this question is required to be asked or why you think all questions have been answered>",
-    "question_required": "<the question that you think is the most important to ask the user next>",
+    "question_required_reasoning": "<explanation of why you think more questions are required to be asked or why you think all questions have been answered>",
+    "question_required": true if you think a question is required, false otherwise,
     "question": "<the question that you think is the most important to ask the user next, or an empty string if no more questions are required>"
 }
 `;
@@ -3013,8 +3014,11 @@ Your task is to update an existing partial markdown document with new informatio
 <instructions>
 - You must return the entire updated markdown document.
 - You must try to add the new information in the section that is provided, but if it doesn't fit, create a new section.
+- Do not add questions to the document.
+- If the new information is already present in the document, do not add it again.
 - If the information gives rise to new questions, add them to the document.
 - Do not modify any sections that you are not updating.
+- ALWAYS return the entire updated markdown document. Even if a lot of the document is unchanged, you must return the entire document. NEVER say stuff like [Previous sections remain unchanged] or [same until here] or anything like that. ALWAYS return the entire document.
 </instructions>
 
 <existing_markdown>
