@@ -351,6 +351,7 @@ function ControlTray({
 
         const recordChunk = () => {
           if (!isRecording) return;
+          console.log('Recording audio');
           let audioChunks: Blob[] = [];
 
           mediaRecorder = new MediaRecorder(audioStream);
@@ -395,9 +396,9 @@ function ControlTray({
 
     if (connected && client) {
       // Start audio recording when a specific option is selected
-      if (selectedOption.value === 'audio_record') {
+      // if (['insight_generator', 'patent_generator', 'author', 'translator', 'daily_helper'].includes(selectedOption.value)) {
         startAudioRecording();
-      }
+      // }
     }
 
     return () => {

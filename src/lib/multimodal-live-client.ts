@@ -38,6 +38,7 @@ import {
   type LiveConfig,
 } from '../multimodal-live-types';
 import { blobToJSON, base64ToArrayBuffer } from './utils';
+const { ipcRenderer } = window.require('electron');
 
 /**
  * the events that this client will emit
@@ -274,12 +275,17 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
   /**
    * send normal content parts such as { text }
    */
-  send(parts: Part | Part[], turnComplete: boolean = true) {
+  send(parts: Part | Part[], turnComplete: boolean = true, isContext: boolean = true) {
     parts = Array.isArray(parts) ? parts : [parts];
     const content: Content = {
       role: 'user',
       parts,
     };
+    if (isContext) {
+      for (const part of parts) {
+        ipcRenderer.send('save-user-message-context', part.text);
+      }
+    }
 
     const clientContentRequest: ClientContentMessage = {
       clientContent: {

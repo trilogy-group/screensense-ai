@@ -97,9 +97,7 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
             await connect();
             const context = await ipcRenderer.invoke('get-context');
             if (context && context.length > 0) {
-              client.send([
-                { text: context },
-              ]);
+              client.send([{ text: context }], true, false);
             }
             console.log('Reconnection attempt successful');
           } catch (err) {

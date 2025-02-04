@@ -2926,31 +2926,33 @@ ${fs.readFileSync(textFilePath, 'utf8')}`;
         }
 
         const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'developer',
               content: `
-You are a great content paraphrase. The user will provide you with a question and answer session between an AI(Who asks the questions) and a human(Who answers the questions). You will be given the transcript of the conversation. However, the transcript is not very correct as the user is not great english speaker. I want you to paraphrase the transcript into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+You are a great content paraphrase. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
 
 It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
 
 Here is the older conversation:
 ${olderConversation}
 
-I want you to return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. I want you to return the corrected conversation in the following format:
-Q. What is you taste in music?
-A. I am a fan of pop music and rock music. 
-
-Q. What is your favorite song?
-A. My favorite song is "Shape of You" by Ed Sheeran.`,
+You must return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. You must return the corrected conversation in the following format:
+Assistant: Something the assistant said
+Human: Something the human said
+Assistant: Something the assistant said
+Human: Something the human said
+...
+`,
             },
             {
               role: 'user',
               content: transcription.text,
             },
           ],
-          store: true,
+          temperature: 0,
+          max_tokens: 8192,
         });
 
         // Append transcription to a single text file
@@ -3001,6 +3003,26 @@ ipcMain.handle('get-context', async event => {
   } else {
     return '';
   }
+});
+
+ipcMain.on('save-user-message-context', (event, text: string) => {
+  console.log('save-user-message-context', text);
+  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+  const textFilePath = path.join(contextDir, 'transcriptions.txt');
+
+  // Ensure the directory exists
+  if (!fs.existsSync(contextDir)) {
+    fs.mkdirSync(contextDir, { recursive: true });
+  }
+
+  // Append the string "User : event" to the transcripts file
+  fs.appendFile(textFilePath, `Context: ${text}\n`, err => {
+    if (err) {
+      console.error('Failed to append user message to file:', err);
+    } else {
+      console.log('User message appended to file:', textFilePath);
+    }
+  });
 });
 
 // Add this handler with the other ipcMain handlers
