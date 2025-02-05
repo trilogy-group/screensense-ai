@@ -2931,7 +2931,7 @@ ${fs.readFileSync(textFilePath, 'utf8')}`;
             {
               role: 'developer',
               content: `
-You are a great content paraphraser. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+You are a great content paraphraser. The user will provide you with a conversation between an AI and a human, with occasional instructions to the assistant. Your task is to paraphrase the conversation into a more correct and readable format. You must keep the original meaning of the conversation, but make it more readable and correct. 
 
 It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
 
@@ -2943,6 +2943,7 @@ Assistant: Something the assistant said
 Human: Something the human said
 Assistant: Something the assistant said
 Human: Something the human said
+Instruction to assistant: Some instructions passed to the assistant
 ...
 `,
             },
@@ -3021,7 +3022,7 @@ ipcMain.on('save-user-message-context', (event, text: string) => {
   }
 
   // Append the string "User : event" to the transcripts file
-  fs.appendFile(textFilePath, `Context: ${text}\n`, err => {
+  fs.appendFile(textFilePath, `Instruction to assistant: ${text}\n`, err => {
     if (err) {
       console.error('Failed to append user message to file:', err);
     } else {

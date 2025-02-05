@@ -738,7 +738,7 @@ Process:
 Important Guidelines:
 - Make the conversation feel natural, not like filling out a form
 - Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete.
-- Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document.
+- Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document. If the user says they don't know something or can't answer something, write that down explicitly in the document.
 - Make sure to use the get_next_question function to get the next question to ask the user after completing the current question. Do not try to get this question yourself.`,
   },
   insight_generator: {
