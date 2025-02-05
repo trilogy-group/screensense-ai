@@ -339,25 +339,47 @@ function ControlTray({
 
     const startAudioRecording = async () => {
       try {
-        // Request access to both user and system audio
+        console.log('Starting audio recording setup...');
+        
+        // List all available audio devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(device => device.kind === 'audioinput');
+        console.log('Available audio devices:', audioDevices.map(device => ({
+          deviceId: device.deviceId,
+          label: device.label,
+          groupId: device.groupId
+        })));
+        
+        // Request access to audio
         const audioStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: false,
             noiseSuppression: false,
             sampleRate: 44100,
             channelCount: 2,
+            deviceId: 'default',
           },
+        });
+
+        // Debug audio stream
+        const audioTracks = audioStream.getAudioTracks();
+        console.log('Audio stream obtained:', {
+          tracks: audioTracks.length,
+          track1Settings: audioTracks[0]?.getSettings(),
+          track1Constraints: audioTracks[0]?.getConstraints(),
         });
 
         const recordChunk = () => {
           if (!isRecording) return;
-          console.log('Recording audio');
+          console.log('Starting new recording chunk');
           let audioChunks: Blob[] = [];
 
           mediaRecorder = new MediaRecorder(audioStream);
+          console.log('MediaRecorder state:', mediaRecorder.state);
+          console.log('MediaRecorder mimeType:', mediaRecorder.mimeType);
 
           mediaRecorder.ondataavailable = event => {
-            audioChunks.push(event.data);
+              audioChunks.push(event.data);
           };
 
           mediaRecorder.onstop = async () => {
@@ -376,7 +398,7 @@ function ControlTray({
           };
 
           // Start the recording
-          mediaRecorder.start();
+            mediaRecorder.start();
 
           // Stop the recording after 20 seconds
           setTimeout(() => {
