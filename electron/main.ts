@@ -2904,12 +2904,14 @@ ipcMain.on('save-audio', async (event, audioBuffer) => {
       console.log('Audio file saved:', audioFilePath);
 
       try {
+        console.log('Transcribing audio');
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
         const transcription = await openai.audio.transcriptions.create({
           file: fs.createReadStream(audioFilePath), // Use the file path
           model: 'whisper-1',
         });
+        console.log('Transcription:', transcription.text);
 
         const textFilePath = path.join(contextDir, 'transcriptions.txt');
         let olderConversation = '';
@@ -2921,13 +2923,15 @@ ${fs.readFileSync(textFilePath, 'utf8')}`;
           olderConversation = 'There is no older conversation. This is start of new conversation.';
         }
 
+        console.log('Paraphrasing conversation');
+
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
             {
               role: 'developer',
               content: `
-You are a great content paraphrase. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+You are a great content paraphraser. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
 
 It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
 
@@ -2950,6 +2954,8 @@ Human: Something the human said
           temperature: 0,
           max_tokens: 8192,
         });
+
+        console.log('Paraphrased conversation:', completion.choices[0].message.content);
 
         // Append transcription to a single text file
         fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
@@ -2995,8 +3001,11 @@ ipcMain.handle('get-context', async event => {
   const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
   const textFilePath = path.join(contextDir, 'transcriptions.txt');
   if (fs.existsSync(textFilePath)) {
-    return fs.readFileSync(textFilePath, 'utf8');
+    const context = fs.readFileSync(textFilePath, 'utf8');
+    console.log('Context:', context);
+    return context;
   } else {
+    console.log('No context found');
     return '';
   }
 });
@@ -3091,7 +3100,7 @@ Your task is to find the correct question to ask the user to help them document 
 - You are also provided with a base checklist of what all information needs to be documented for a patent. Note that this is not exhaustive, this is just a starting point. You are free to ask whatever questions you think are required.
 - You must return the question that you think is the most important to ask the user next.
 - Your response must be a json format explaining why you think another question is required, and what that question is. If you think no more questions are required, return an empty string.
-- If you feel the content in the checklist is more or less covered by the existing document, do not ask any more questions.
+- If you feel the content in the checklist is more or less covered by the existing document, do not ask any more questions. Only ask questions that are absolutely necessary.
 </instructions>
 
 <existing_markdown>
