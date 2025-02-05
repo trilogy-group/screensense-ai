@@ -410,7 +410,8 @@ function SubtitlesComponent({
             if (actionData_opencv) {
               ipcRenderer.send('show-action');
               for (const action of actionData_opencv) {
-                let templatePath = action.filepath.replace(/\\/g, '/');
+                let templatePath;
+                templatePath = action.filepath.replace(/\\/g, '/');
                 ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
                 await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
 
@@ -421,8 +422,8 @@ function SubtitlesComponent({
                 const screenshot = await ipcRenderer.invoke('get-screenshot');
                 ipcRenderer.send('show-action');
                 ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-
-                let cords = await get_opencv_coordinates(templatePath, screenshot);
+                let cords;
+                cords = await get_opencv_coordinates(templatePath, screenshot);
 
                 if (cords && cords.confidence > 0.8) {
                   await interact(cords, action.function_call, false, action.payload);
