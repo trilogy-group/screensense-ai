@@ -14,7 +14,7 @@ interface SubtitlesProps {
   assistantMode: string;
   onScreenshot?: () => string | null;
 }
-let play_action = true; 
+let play_action = true;
 // Default tool configuration
 function SubtitlesComponent({
   tools,
@@ -27,7 +27,36 @@ function SubtitlesComponent({
   const { client, setConfig } = useLiveAPIContext();
   const graphRef = useRef<HTMLDivElement>(null);
   const lastActionTimeRef = useRef<number>(0);
+  useEffect(() => {
+    const processClick = async (event: any, data: any) => {
+      try {
+        const { screenshot, cursorPos, accuratePath } = data;
 
+        // Convert screenshot to blob
+
+        const response = await fetch(screenshot);
+        const blob = await response.blob();
+        console.log("conversion to blob successful")
+        // Process with Gradio
+        const detectionResult = await omniParser.detectElements(blob);
+
+        ipcRenderer.send('gradio-result', { success: true, detectionResult: detectionResult.data[1] }, cursorPos, screenshot, accuratePath);
+
+      } catch (error) {
+        console.error('Error processing click in renderer:', error);
+        ipcRenderer.send('gradio-result', {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    };
+
+    ipcRenderer.on('process-click', processClick);
+
+    return () => {
+      ipcRenderer.removeListener('process-click', processClick);
+    };
+  }, []);
   useEffect(() => {
     setConfig({
       model: 'models/gemini-2.0-flash-exp',
@@ -56,8 +85,8 @@ function SubtitlesComponent({
             console.log('Template found at:', result.location);
             console.log('Match confidence:', result.confidence);
             return {
-              x: result.location.x -100,
-              y: result.location.y -100,
+              x: result.location.x - 100,
+              y: result.location.y - 100,
               confidence: result.confidence
             }
           } else {
@@ -381,33 +410,43 @@ function SubtitlesComponent({
             if (actionData_opencv) {
               ipcRenderer.send('show-action');
               for (const action of actionData_opencv) {
-                ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
-                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 2000)));
-                const templatePath = action.filepath.replace(/\\/g, '/');
-                console.log(templatePath)
-                if (onScreenshot) {
-                  ipcRenderer.send('hide-action');
-                  // Add delay to ensure window is hidden
-                  await new Promise(resolve => setTimeout(resolve, 200));
-                  const screenshot = await ipcRenderer.invoke('get-screenshot');
-                  ipcRenderer.send('show-action');
-                  ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
-                  const cords = await get_opencv_coordinates(templatePath, screenshot);
-                  
-                  if (cords) {
-                    console.log(cords.confidence)
-                    if(cords.confidence < 0.5) {
-                      client.send([{text: "Say the following sentence : 'I am not able to find the element on your screen. Please perform the current action youself and when you are done, tell me to continue the action'. When user asks you to continue the action, call the continue_action function."}]);
-                      play_action = false;
-                    }
-                    if(play_action) {
-                      await interact(cords, action.function_call, false, action.payload);
-                    }
-                  }
-                  while(!play_action) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                  }
+                let templatePath = action.filepath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
+
+                ipcRenderer.send('hide-action');
+                // Add delay to ensure window is hidden
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                const screenshot = await ipcRenderer.invoke('get-screenshot');
+                ipcRenderer.send('show-action');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+
+                let cords = await get_opencv_coordinates(templatePath, screenshot);
+
+                if (cords && cords.confidence > 0.8) {
+                  await interact(cords, action.function_call, false, action.payload);
+                  hasResponded = true;
+                  continue;
                 }
+
+                client.send([{ text: "Say the following sentence : 'Primary search for element failed. Trying again with more accurate search.'" }]);
+
+                templatePath = action.accuratePath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot);
+                if (cords && cords.confidence > 0.8) {
+                  await interact(cords, action.function_call, false, action.payload);
+                  continue;
+                }
+
+                client.send([{ text: "Say the following sentence : 'Accurate search for element failed. Please perform the action yourself. When you are done, tell me to continue the action.'" }]);
+
+                play_action = false;
+                while (!play_action) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
               }
               ipcRenderer.send('hide-action');
             }
@@ -415,6 +454,7 @@ function SubtitlesComponent({
             break;
           case "continue_action":
             play_action = true;
+            hasResponded = true;
             break;
           //           case "perform_action":
           //             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
@@ -498,8 +538,8 @@ function SubtitlesComponent({
             const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
             if (result.success) {
               // Store the filename for future use
-              client.send([{ 
-                text: `Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.` 
+              client.send([{
+                text: `Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.`
               }]);
               console.log(`Template created successfully. Use filename "${result.filename}" EXACTLY for future operations, else the patent generator will not work.`)
             } else {
@@ -517,7 +557,7 @@ function SubtitlesComponent({
               //     id: fc.id,
               //   })),
               // });
-              client.send([{ 
+              client.send([{
                 text: `Found the content for the next question: ${nextQuestion.patentContent}`
               }]);
             } else if (nextQuestion.completed) {

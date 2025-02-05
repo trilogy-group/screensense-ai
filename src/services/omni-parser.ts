@@ -33,12 +33,14 @@ export class OmniParser {
     return lines
       .map(line => {
         // Match the pattern: type: text, content: X, interactivity: Y, center: (0.05, 0.02), box: (0.02, 0.01, 0.08, 0.03)
+        console.log("line", line)
         const typeMatch = line.match(/type: ([^,]+),/);
         const contentMatch = line.match(/content: ([^,]+),/);
         const interactivityMatch = line.match(/interactivity: ([^,]+),/);
         const centerMatch = line.match(/center: \(([^,]+), ([^)]+)\)/);
+        const boundingBoxMatch = line.match(/bbox: \(([^,]+), ([^,)]+), ([^,]+), ([^)]+)\)/);
 
-        if (!typeMatch || !contentMatch || !interactivityMatch || !centerMatch) {
+        if (!typeMatch || !contentMatch || !interactivityMatch || !centerMatch || !boundingBoxMatch) {
           console.log('Failed to parse line:', line);
           return null;
         }
@@ -52,10 +54,10 @@ export class OmniParser {
             y: parseFloat(centerMatch[2]),
           },
           boundingBox: {
-            x1: parseFloat(centerMatch[1]) -  0.02,
-            y1: parseFloat(centerMatch[2]) - 0.02,
-            x2: parseFloat(centerMatch[1]) + 0.02,
-            y2: parseFloat(centerMatch[2]) + 0.02,
+            x1: parseFloat(boundingBoxMatch[1]),
+            y1: parseFloat(boundingBoxMatch[2]),
+            x2: parseFloat(boundingBoxMatch[3]),
+            y2: parseFloat(boundingBoxMatch[4]),
           }
         }
 
@@ -90,27 +92,48 @@ export class OmniParser {
     }
 
     try {
+      // Check server availability first
+      try {
+        const response = await fetch(this.endpoint);
+        if (!response.ok) {
+          throw new Error(`Server returned status ${response.status}`);
+        }
+      } catch (error) {
+        throw new Error(`Failed to connect to server at ${this.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+
       console.log('OmniParser: Sending prediction request to endpoint...');
       const result = (await this.client!.predict('/process', {
         image_input: imageBlob,
-        box_threshold: 0.01,
-        iou_threshold: 0.01,
-        use_paddleocr: true,
+        box_threshold: 0.1,
+        iou_threshold: 1,
+        use_paddleocr: false,
         imgsz: 3200,
         icon_process_batch_size: 256,
       })) as DetectionResult;
 
+      if (!result || !result.data) {
+        throw new Error('Invalid response format from server');
+      }
+
       console.log('OmniParser: Received response from endpoint');
+      console.log('OmniParser: Raw response:', result);
 
       // Parse the elements list into structured data
       const elements = this.parseElementsList(result.data[1]);
       console.log('OmniParser: Parsed elements:', elements);
-      // console.log('OmniParser: Parsed elements:', elements);
       return {
         data: [result.data[0], elements],
       };
     } catch (error) {
       console.error('OmniParser: Error during element detection:', error);
+      // Enhance error information
+      const errorDetails = error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : { message: 'Unknown error occurred' };
+      console.error('OmniParser: Error details:', errorDetails);
       throw error;
     }
   }
