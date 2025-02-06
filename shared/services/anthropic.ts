@@ -43,8 +43,8 @@ export default async function anthropic_completion(
       jsonMessage = '{' + message.substring(0, message.lastIndexOf('}') + 1);
     }
     try {
-      console.log(`Received JSON response from anthropic: ${message}`);
-      console.log(`Parsing JSON response: ${jsonMessage}`);
+      // console.log(`Received JSON response from anthropic: ${message}`);
+      // console.log(`Parsing JSON response: ${jsonMessage}`);
       return JSON.stringify(JSON.parse(jsonMessage));
     } catch (e) {
       console.error('Failed to parse JSON response:', e);

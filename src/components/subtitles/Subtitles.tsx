@@ -518,6 +518,7 @@ function SubtitlesComponent({
             console.log(`Going to ask anthropic for the next question`);
             const nextQuestionResponse = await ipcRenderer.invoke('get_next_question');
             if (nextQuestionResponse.success) {
+              console.log(`Received the next question to ask the user: ${nextQuestionResponse.question}`);
               client.send([{ text: `Received the next question to ask the user: ${nextQuestionResponse.question}` }]);
             } else {
               client.send([{ text: `Failed to get next question: ${nextQuestionResponse.error}` }]);
@@ -533,7 +534,7 @@ function SubtitlesComponent({
             if (!updateResult.success) {
               client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
             } else {
-              client.send([{ text: `Updated the document. Use the get_next_question function to get the next question to ask the user.` }]);
+              client.send([{ text: `Updated the document. Inform the user and use the get_next_question function to get the next question to ask the user.` }]);
             }
             hasResponded = true;
             break;
@@ -543,6 +544,38 @@ function SubtitlesComponent({
               client.send([{ text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?" }]);
             } else {
               client.send([{ text: `Failed to open document: ${displayResult.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "capture_screenshot":
+            if (onScreenshot) {
+              const screenshot = onScreenshot();
+              if (screenshot) {
+                const description = (fc.args as any).description;
+                // Send the screenshot to be saved in the patent's assets folder
+                const result = await ipcRenderer.invoke('save_patent_screenshot', {
+                  screenshot,
+                  description
+                });
+                
+                if (result.success) {
+                  client.sendToolResponse({
+                    functionResponses: [
+                      {
+                        response: {output: {success: true}},
+                        id: fc.id
+                      }
+                    ]
+                  })
+                  client.send([{ text: `Saved the screenshot at ${result.path}. Add this to the document using the add_content function.` }]);
+                } else {
+                  client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
+                }
+              } else {
+                client.send([{ text: `Failed to capture screenshot` }]);
+              }
+            } else {
+              client.send([{ text: `Screenshot functionality not available` }]);
             }
             hasResponded = true;
             break;

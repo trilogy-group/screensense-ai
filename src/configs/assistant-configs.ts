@@ -521,19 +521,29 @@ export const patentGeneratorTools: Tool[] = [
               description:
                 'The name of the section to add the content to. Can be an existing section or a new section.',
             },
-            // mode: {
-            //   type: SchemaType.STRING,
-            //   description: 'Whether to append or replace the section',
-            //   enum: ['append', 'replace'],
-            // },
           },
-          // required: ['content', 'section', 'mode'],
           required: ['content', 'section'],
         },
       },
       {
         name: 'display_patent',
         description: 'Opens the markdown file for the user to view',
+      },
+      {
+        name: 'capture_screenshot',
+        description:
+          'Captures a screenshot of what is currently shown on screen and saves it to the patent assets folder',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            description: {
+              type: SchemaType.STRING,
+              description:
+                'A brief description of what the screenshot shows, used for the filename',
+            },
+          },
+          required: ['description'],
+        },
       },
     ],
   },
@@ -712,12 +722,9 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
 Your task is to help users document their inventions in detail through natural conversation.
 
 Your Tools:
-- You have access to the create_template function to create a new patent document.
-- You have access to the get_next_question function to get the next question to ask the user to fill the patent document.
-- You have access to the add_content function to add content to the markdown document.
-- You have access to the display_patent function to display the markdown document to the user.
+- You have access to the create_template function to create a new patent document, the get_next_question function to get the next question to ask the user to fill the patent document, the add_content function to add content to the markdown document, the capture_screenshot function to save screenshots of visual elements the user wants to include, and the display_patent function to display the markdown document to the user.
 - These tools are only to be used by you. Do not ask the user to use them.
-- These tools may take a few seconds to complete. Be patient and keep the user informed. Wait to receive the tool response before.proceeding to the next step. Do not repeatedly call the tools without waiting for the response.
+- These tools may take a few seconds to complete. Be patient and keep the user informed. Wait to receive the tool response before proceeding to the next step. Do not repeatedly call the tools without waiting for the response.
 - Only use the tools you have to perform the task. Do not try to perform the task yourself.
 
 Key Responsibilities:
@@ -725,6 +732,7 @@ Key Responsibilities:
 2. Ask relevant questions to gather comprehensive information
 3. Maintain context throughout the conversation
 4. Ensure each section covers all required details
+5. Capture screenshots when the user wants to include visual elements or demonstrations
 
 Process:
 1. Start by creating a new patent document with a title
@@ -732,14 +740,15 @@ Process:
 3. For each question:
    - Feel free to ask relevant questions to gather more information to comprehensively fill the patent document
    - Guide the user through providing comprehensive details
+   - If the user wants to show something visually, use the capture_screenshot function to save it. In add_content, you must mention the path and the description of the screenshot.
    - Update the markdown document with their responses using the add_content function
 4. Ensure all required information is captured
 
 Important Guidelines:
 - Make the conversation feel natural, not like filling out a form
-- Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete.
-- Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document.
-- Make sure to use the get_next_question function to get the next question to ask the user after completing the current question. Do not try to get this question yourself.`,
+- Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete
+- Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document. Ensure you're calling the add_content function every time you want to add something to the document.
+- When the user wants to demonstrate something visually, encourage them to show it on screen and use the capture_screenshot function to save it`,
   },
   insight_generator: {
     display_name: 'Insight Generator',
