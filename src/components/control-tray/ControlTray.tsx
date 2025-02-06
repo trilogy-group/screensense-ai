@@ -95,6 +95,9 @@ function ControlTray({
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const accumulatedChunksRef = useRef<Blob[]>([]);
+  const accumulatedAssistantChunksRef = useRef<Blob[]>([]);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
@@ -111,8 +114,189 @@ function ControlTray({
     );
   }, [inVolume]);
 
+  // Effect for user audio recording and saving
   useEffect(() => {
+    if (!connected || !client) {
+      return;
+    }
+
+    console.log('[User Audio] Setting up user audio recording effect');
+    let isRecording = false;
+    let recordingStartTime: number | null = null;
+    let saveTimeout: NodeJS.Timeout | null = null;
+    let currentMediaRecorder: MediaRecorder | null = null;
+
+    const saveAccumulatedChunks = async (isFinalChunk: boolean = false) => {
+      console.log('[User Audio Save] Checking accumulated chunks', {
+        chunksCount: accumulatedChunksRef.current.length,
+        isFinalChunk
+      });
+      if (accumulatedChunksRef.current.length > 0) {
+        console.log('[User Audio Save] Creating blob from chunks');
+        const audioBlob = new Blob(accumulatedChunksRef.current, { type: 'audio/webm' });
+        console.log('[User Audio Save] Converting blob to buffer', {
+          blobSize: audioBlob.size
+        });
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const endTime = Date.now();
+        const duration = recordingStartTime ? endTime - recordingStartTime : 0;
+        console.log('[User Audio Save] Sending audio to main process', {
+          bufferSize: buffer.length,
+          startTime: recordingStartTime,
+          endTime,
+          duration,
+          isFinalChunk
+        });
+
+        ipcRenderer.send('save-audio', buffer, 'user', { 
+          startTime: recordingStartTime,
+          endTime,
+          duration,
+          mimeType: 'audio/webm',
+          isFinalChunk
+        });
+
+        console.log('[User Audio Save] Clearing accumulated chunks');
+        accumulatedChunksRef.current = [];
+        recordingStartTime = isFinalChunk ? null : Date.now(); // Only reset start time if not final chunk
+      }
+    };
+
+    const startAudioRecording = async () => {
+      if (isRecording) {
+        console.log('[User Audio Setup] Already recording, skipping setup');
+        return;
+      }
+
+      try {
+        console.log('[User Audio Setup] Starting audio recording setup...');
+        
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: 'default',
+            ...({
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            } as const),
+          },
+        });
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : 'audio/ogg;codecs=opus';
+
+        console.log('[User Audio Record] Using MIME type:', mimeType);
+        
+        currentMediaRecorder = new MediaRecorder(audioStream, {
+          mimeType,
+          audioBitsPerSecond: 128000
+        });
+
+        setMediaRecorder(currentMediaRecorder);
+
+        currentMediaRecorder.ondataavailable = async event => {
+          if (!recordingStartTime) {
+            recordingStartTime = Date.now();
+            console.log('[User Audio Record] Started new recording at:', recordingStartTime);
+          }
+          if (event.data.size > 0) {
+            console.log('[User Audio Record] Received data chunk', {
+              chunkSize: event.data.size,
+              timestamp: new Date().toISOString()
+            });
+            accumulatedChunksRef.current.push(event.data);
+            await saveAccumulatedChunks(); // Save immediately when we get data
+          }
+        };
+
+        isRecording = true;
+        console.log('[User Audio Record] Starting MediaRecorder');
+        currentMediaRecorder.start();
+
+        // Request data every 30 seconds
+        saveTimeout = setInterval(() => {
+          if (currentMediaRecorder && currentMediaRecorder.state === 'recording') {
+            console.log('[User Audio Record] Requesting data for 30-second save');
+            currentMediaRecorder.requestData();
+          }
+        }, 30000);
+
+      } catch (error) {
+        console.error('[User Audio Setup] Error setting up audio recording:', error);
+        isRecording = false;
+      }
+    };
+
+    const cleanup = async () => {
+      console.log('[User Audio Cleanup] Starting cleanup');
+      isRecording = false;
+      
+      if (saveTimeout) {
+        clearInterval(saveTimeout);
+        saveTimeout = null;
+      }
+
+      if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+        console.log('[User Audio Cleanup] Stopping active MediaRecorder');
+        
+        // Create a promise to wait for the final data
+        await new Promise<void>((resolve) => {
+          if (!currentMediaRecorder) return resolve();
+          
+          // Handle the final data
+          const handleFinalData = async (event: BlobEvent) => {
+            if (event.data.size > 0) {
+              console.log('[User Audio Cleanup] Received final chunk', {
+                chunkSize: event.data.size,
+                timestamp: new Date().toISOString()
+              });
+              
+              accumulatedChunksRef.current.push(event.data);
+              await saveAccumulatedChunks(true); // Save with isFinalChunk flag
+            }
+            resolve();
+          };
+          
+          // Listen for the final data
+          currentMediaRecorder.addEventListener('dataavailable', handleFinalData, { once: true });
+          currentMediaRecorder.stop();
+        });
+      }
+
+      setMediaRecorder(null);
+      console.log('[User Audio Cleanup] Cleanup completed');
+    };
+
+    // Clean up old audio files when starting a new session
+    console.log('[User Audio] Starting audio recording');
+    ipcRenderer.send('cleanup-old-audio');
+    startAudioRecording();
+
+    return () => {
+      cleanup();
+    };
+  }, [connected, client]); // Only re-run when connection state changes
+
+  // Effect for Gemini audio streaming and saving
+  useEffect(() => {
+    if (!connected || !client || !audioRecorder || muted) {
+      return;
+    }
+
+    console.log('[Audio Streaming] Setting up Gemini audio streaming effect');
+    let saveTimeout: NodeJS.Timeout | null = null;
+    let assistantRecordingStartTime: number | null = null;
+
     const onData = (base64: string) => {
+      console.log('[Audio Stream] Sending audio chunk to Gemini', { 
+        chunkSize: base64.length,
+        timestamp: new Date().toISOString()
+      });
       client.sendRealtimeInput([
         {
           mimeType: 'audio/pcm;rate=16000',
@@ -120,13 +304,91 @@ function ControlTray({
         },
       ]);
     };
-    if (connected && !muted && audioRecorder) {
-      audioRecorder.on('data', onData).on('volume', setInVolume).start();
-    } else {
-      audioRecorder.stop();
-    }
+
+    // Handle assistant's audio
+    const handleAssistantAudio = async (audioData: any) => {
+      if (!audioData?.data?.length) {
+        return;
+      }
+
+      if (!assistantRecordingStartTime) {
+        assistantRecordingStartTime = Date.now();
+        console.log('[Assistant Audio] Started new recording at:', assistantRecordingStartTime);
+      }
+
+      console.log('[Assistant Audio] Received audio data from assistant', {
+        dataSize: audioData.data.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      try {
+        const buffer = Buffer.from(audioData.data);
+        const blob = new Blob([buffer], { type: 'audio/pcm' });
+        accumulatedAssistantChunksRef.current.push(blob);
+      } catch (error) {
+        console.error('[Assistant Audio] Error processing audio data:', error);
+      }
+    };
+
+    const saveAssistantAudioChunks = async () => {
+      if (accumulatedAssistantChunksRef.current.length > 0) {
+        console.log('[Assistant Audio Save] Saving accumulated chunks', {
+          chunkCount: accumulatedAssistantChunksRef.current.length,
+          totalSize: accumulatedAssistantChunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0)
+        });
+
+        try {
+          const buffers = await Promise.all(
+            accumulatedAssistantChunksRef.current.map(async chunk => {
+              const arrayBuffer = await chunk.arrayBuffer();
+              return Buffer.from(arrayBuffer);
+            })
+          );
+
+          const combinedBuffer = Buffer.concat(buffers);
+          const endTime = Date.now();
+          const duration = assistantRecordingStartTime ? endTime - assistantRecordingStartTime : 0;
+
+          ipcRenderer.send('save-audio', combinedBuffer, 'assistant', {
+            startTime: assistantRecordingStartTime,
+            endTime,
+            duration,
+            mimeType: 'audio/pcm',
+            sampleRate: 16000,
+            channels: 1,
+            bitDepth: 16,
+            encoding: 'signed-integer',
+            endianness: 'little'
+          });
+
+          assistantRecordingStartTime = Date.now();
+          accumulatedAssistantChunksRef.current = [];
+        } catch (error) {
+          console.error('[Assistant Audio Save] Error saving chunks:', error);
+        }
+      }
+    };
+
+    // Set up interval to save assistant audio chunks every 30 seconds
+    saveTimeout = setInterval(saveAssistantAudioChunks, 30000);
+
+    audioRecorder.on('data', onData).on('volume', setInVolume).start();
+    client.on('audio', handleAssistantAudio);
+
     return () => {
+      console.log('[Audio Cleanup] Starting cleanup');
+      if (saveTimeout) {
+        clearInterval(saveTimeout);
+      }
+      // Save any remaining chunks before cleanup
+      if (accumulatedAssistantChunksRef.current.length > 0) {
+        saveAssistantAudioChunks().then(() => {
+          console.log('[Audio Cleanup] Saved remaining assistant chunks');
+        });
+      }
       audioRecorder.off('data', onData).off('volume', setInVolume);
+      client.off('audio', handleAssistantAudio);
+      console.log('[Audio Cleanup] Cleanup completed');
     };
   }, [connected, client, muted, audioRecorder]);
 
@@ -235,9 +497,12 @@ function ControlTray({
       });
       connect();
     } else {
+      // Force save any remaining audio before disconnecting
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
       disconnect();
     }
-
   };
 
   // Handle carousel actions from control window
@@ -332,127 +597,6 @@ function ControlTray({
       ipcRenderer.removeAllListeners('show-error-toast');
     };
   }, []);
-
-  useEffect(() => {
-    let mediaRecorder: MediaRecorder | null = null;
-    let isRecording = false;
-
-    const startAudioRecording = async () => {
-      try {
-        console.log('Starting audio recording setup...');
-        
-        // List all available audio devices
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices.filter(device => device.kind === 'audioinput');
-        console.log('Available audio devices:', audioDevices.map(device => ({
-          deviceId: device.deviceId,
-          label: device.label,
-          groupId: device.groupId,
-          isDefault: device.deviceId === 'default'
-        })));
-
-        // Get the default device first to see what it maps to
-        const defaultStream = await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: 'default' }
-        });
-        const defaultTrack = defaultStream.getAudioTracks()[0];
-        console.log('Default audio device selected:', {
-          label: defaultTrack.label,
-          settings: defaultTrack.getSettings(),
-          constraints: defaultTrack.getConstraints()
-        });
-        defaultStream.getTracks().forEach(track => track.stop());
-        
-        // Request access to audio with our full constraints
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            // Only set deviceId, let the device use its native settings
-            deviceId: 'default',
-            // Optional constraints that won't fail if unsupported
-            ...({
-              echoCancellation: false,
-              noiseSuppression: false,
-              sampleRate: 44100,
-              channelCount: 2,
-            } as const),
-          },
-        });
-
-        // Debug audio stream
-        const audioTracks = audioStream.getAudioTracks();
-        const track = audioTracks[0];
-        console.log('Audio stream obtained with settings:', track?.getSettings());
-        console.log('Audio stream constraints:', track?.getConstraints());
-        console.log('Audio stream capabilities:', track?.getCapabilities());
-
-        const recordChunk = () => {
-          if (!isRecording) return;
-          console.log('Starting new recording chunk');
-          let audioChunks: Blob[] = [];
-
-          // Use the device's preferred MIME type
-          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-            ? 'audio/webm;codecs=opus' 
-            : 'audio/webm';
-          
-          mediaRecorder = new MediaRecorder(audioStream, {
-            mimeType,
-            audioBitsPerSecond: 128000 // Standard audio bitrate that most devices support
-          });
-
-          mediaRecorder.ondataavailable = event => {
-              audioChunks.push(event.data);
-          };
-
-          mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
-            // Send the audio buffer to the main process to save the file
-            console.log('Saving audio');
-            ipcRenderer.send('save-audio', buffer);
-
-            // Start a new recording after stopping
-            if (isRecording) {
-              recordChunk();
-            }
-          };
-
-          // Start the recording
-            mediaRecorder.start();
-
-          // Stop the recording after 20 seconds
-          setTimeout(() => {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-              mediaRecorder.stop();
-            }
-          }, 30000);
-        };
-
-        // Start the first recording chunk
-        isRecording = true;
-        recordChunk();
-      } catch (error) {
-        console.error('Error capturing audio:', error);
-      }
-    };
-
-    if (connected && client) {
-      // Start audio recording when a specific option is selected
-      // if (['insight_generator', 'patent_generator', 'author', 'translator', 'daily_helper'].includes(selectedOption.value)) {
-        startAudioRecording();
-      // }
-    }
-
-    return () => {
-      // Stop the media recorder if it's active
-      isRecording = false;
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
-    };
-  }, [connected, client, selectedOption.value]);
 
   return (
     <>
@@ -549,3 +693,4 @@ function ControlTray({
 }
 
 export default memo(ControlTray);
+

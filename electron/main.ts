@@ -21,6 +21,9 @@ import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
+import ffmpeg from 'fluent-ffmpeg';
+import { promisify } from 'util';
+import { rm } from 'fs/promises';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -2884,53 +2887,128 @@ ipcMain.handle('get-screenshot', async () => {
 // Replace with your API endpoint and key
 // Load settings to get the API key
 
-ipcMain.on('save-audio', async (event, audioBuffer) => {
-  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
-
-  // Ensure the directory exists
-  if (!fs.existsSync(contextDir)) {
-    fs.mkdirSync(contextDir, { recursive: true });
-  }
-
-  // Generate a unique filename for the audio file
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const audioFilePath = path.join(contextDir, `audio-${timestamp}.wav`);
-
-  // Write the audio buffer to a file
-  fs.writeFile(audioFilePath, audioBuffer, async err => {
-    if (err) {
-      console.error('Failed to save audio file:', err);
-    } else {
-      console.log('Audio file saved:', audioFilePath);
-
-      try {
-        console.log('Transcribing audio');
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-        const transcription = await openai.audio.transcriptions.create({
-          file: fs.createReadStream(audioFilePath), // Use the file path
-          model: 'whisper-1',
-        });
-        console.log('Transcription:', transcription.text);
-
-        const textFilePath = path.join(contextDir, 'transcriptions.txt');
-        let olderConversation = '';
-
-        if (fs.existsSync(textFilePath)) {
-          olderConversation = ` 
-${fs.readFileSync(textFilePath, 'utf8')}`;
-        } else {
-          olderConversation = 'There is no older conversation. This is start of new conversation.';
+// Add this function for audio cleanup
+async function cleanupOldAudio() {
+  try {
+    const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+    if (fs.existsSync(contextDir)) {
+      const files = await fs.promises.readdir(contextDir);
+      for (const file of files) {
+        if (file.startsWith('audio-') || file === 'transcriptions.txt') {
+          await rm(path.join(contextDir, file));
         }
+      }
+      console.log('Cleaned up old audio files');
+    }
+  } catch (error) {
+    console.error('Error cleaning up old audio files:', error);
+  }
+}
 
-        console.log('Paraphrasing conversation');
+// Add cleanup handler
+ipcMain.on('cleanup-old-audio', async () => {
+  await cleanupOldAudio();
+});
 
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'developer',
-              content: `
+// Modify the save-audio handler
+ipcMain.on('save-audio', async (event, audioBuffer, source = 'user', metadata = {}) => {
+  try {
+    const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+
+    // Ensure the directory exists
+    if (!fs.existsSync(contextDir)) {
+      fs.mkdirSync(contextDir, { recursive: true });
+    }
+
+    // Generate a unique filename for the audio file with source identification
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const tempPath = path.join(
+      contextDir,
+      `temp-${source}-${timestamp}.${metadata.mimeType?.includes('pcm') ? 'pcm' : 'webm'}`
+    );
+    const finalPath = path.join(contextDir, `audio-${source}-${timestamp}.wav`);
+
+    // Write the audio buffer to a temporary file
+    await fs.promises.writeFile(tempPath, audioBuffer);
+    console.log(`${source} temp audio file saved:`, tempPath);
+
+    // Convert to WAV using ffmpeg with appropriate settings
+    await new Promise((resolve, reject) => {
+      let ffmpegCommand = ffmpeg(tempPath);
+
+      // If the source is assistant, we need to specify PCM format settings
+      if (source === 'assistant') {
+        ffmpegCommand = ffmpegCommand
+          .inputFormat('s16le') // 16-bit signed little-endian PCM
+          .inputOptions([
+            '-f s16le',
+            '-ar 16000', // 16kHz sample rate
+            '-ac 1', // mono
+            '-acodec pcm_s16le',
+          ]);
+      } else {
+        // For user audio (WebM), ensure we're using the correct input format
+        ffmpegCommand = ffmpegCommand.inputFormat('webm').inputOptions(['-y']); // Overwrite output files
+      }
+
+      ffmpegCommand
+        .toFormat('wav')
+        .audioCodec('pcm_s16le') // Ensure consistent output format
+        .audioChannels(1)
+        .audioFrequency(16000)
+        .on('start', commandLine => {
+          console.log('FFmpeg command:', commandLine);
+        })
+        .on('error', err => {
+          console.error('Error converting audio:', err);
+          reject(err);
+        })
+        .on('end', () => {
+          console.log(`Successfully converted ${source} audio to WAV`);
+          resolve(null);
+        })
+        .save(finalPath);
+    });
+
+    // Clean up temporary file
+    await fs.promises.unlink(tempPath);
+
+    try {
+      console.log('Transcribing audio');
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(finalPath),
+        model: 'whisper-1',
+      });
+      console.log('Transcription:', transcription.text);
+
+      if (!transcription.text.trim()) {
+        console.log('Empty transcription, skipping paraphrasing');
+        return;
+      }
+
+      const textFilePath = path.join(contextDir, 'transcriptions.txt');
+      let olderConversation = '';
+
+      if (fs.existsSync(textFilePath)) {
+        olderConversation = await fs.promises.readFile(textFilePath, 'utf8');
+      } else {
+        olderConversation = 'There is no older conversation. This is start of new conversation.';
+      }
+
+      console.log('Paraphrasing conversation');
+
+      // Add source context to the transcription
+      const sourcePrefix = source === 'assistant' ? 'Assistant: ' : 'Human: ';
+      const transcriptionWithSource = sourcePrefix + transcription.text;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'developer',
+            content: `
 You are a great content paraphraser. The user will provide you with a conversation between an AI and a human, with occasional instructions to the assistant. Your task is to paraphrase the conversation into a more correct and readable format. You must keep the original meaning of the conversation, but make it more readable and correct. 
 
 It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
@@ -2946,34 +3024,30 @@ Human: Something the human said
 Instruction to assistant: Some instructions passed to the assistant
 ...
 `,
-            },
-            {
-              role: 'user',
-              content: transcription.text,
-            },
-          ],
-          temperature: 0,
-          max_tokens: 8192,
-        });
+          },
+          {
+            role: 'user',
+            content: transcription.text,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 8192,
+      });
 
-        console.log('Paraphrased conversation:', completion.choices[0].message.content);
+      console.log('Paraphrased conversation:', completion.choices[0].message.content);
 
-        // Append transcription to a single text file
-        fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
-          if (err) {
-            console.error('Failed to write transcription to file:', err);
-          } else {
-            console.log('Transcription written to file:', textFilePath);
-          }
-        });
-      } catch (error: any) {
-        console.error(
-          'Error during speech-to-text conversion:',
-          error.response ? error.response.data : error.message
-        );
-      }
+      // Append transcription to a single text file
+      await fs.promises.writeFile(textFilePath, completion.choices[0].message.content + '\n');
+      console.log('Transcription written to file:', textFilePath);
+    } catch (error: any) {
+      console.error(
+        'Error during speech-to-text conversion:',
+        error.response ? error.response.data : error.message
+      );
     }
-  });
+  } catch (error) {
+    console.error('Failed to save or process audio:', error);
+  }
 });
 
 ipcMain.on('session-start', () => {
@@ -3145,6 +3219,7 @@ Your output must be a JSON object with the following format:
     // if (sectionIndex !== -1) {
     //   template.sections[sectionIndex].completed = true;
     //   fs.writeFileSync(jsonPath, JSON.stringify(template, null, 2));
+    // }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error getting next question: ${errorMessage}`);
