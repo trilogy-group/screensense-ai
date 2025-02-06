@@ -405,11 +405,25 @@ function SubtitlesComponent({
             break;
           case "opencv_perform_action":
           case "run_action":
-            // const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
-            const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action')
-            if (actionData_opencv) {
+            // Check if OmniParser is busy
+            if (omniParser.isProcessing()) {
+              const activeCount = omniParser.getActiveRequestCount();
+              client.send([{ text: `Say : "Action recording is in progress. Please wait for it to complete to perform the action."` }]);
+            }
+
+
+            // Wait for any pending OmniParser requests to complete
+            while (omniParser.isProcessing()) {
+              console.log(omniParser.getActiveRequestCount())
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before checking again
+            }
+            client.send([{ text: `Say : "Action recording is complete. Performing the action."` }]);
+
+            // Perform the action
+            const actionData = await ipcRenderer.invoke('perform-action', 'action')
+            if (actionData) {
               ipcRenderer.send('show-action');
-              for (const action of actionData_opencv) {
+              for (const action of actionData) {
                 let templatePath;
                 templatePath = action.filepath.replace(/\\/g, '/');
                 ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
@@ -447,13 +461,14 @@ function SubtitlesComponent({
                 while (!play_action) {
                   await new Promise(resolve => setTimeout(resolve, 100));
                 }
-
               }
               ipcRenderer.send('hide-action');
             }
+            client.send([{ text: `Say : "Action completed."` }]);
             hasResponded = true;
             break;
           case "continue_action":
+
             play_action = true;
             hasResponded = true;
             break;

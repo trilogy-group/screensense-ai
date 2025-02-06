@@ -284,6 +284,7 @@ function ControlTray({
             connect();
           } else {
             disconnect();
+            ipcRenderer.send('stop-capture-screen');
           }
           break;
       }

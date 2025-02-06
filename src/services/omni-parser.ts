@@ -29,6 +29,8 @@ export class OmniParser {
   private readonly endpoint = 'http://34.199.128.33:7861/';
   private lastRequestTime: number = 0;
   private readonly minRequestInterval = 200;
+  private processing: boolean = false;
+  private activeRequests: number = 0;  // Counter for active requests
 
   private async waitForNextRequest(): Promise<void> {
     const now = Date.now();
@@ -37,6 +39,14 @@ export class OmniParser {
       await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
     }
     this.lastRequestTime = Date.now();
+  }
+
+  public isProcessing(): boolean {
+    return this.activeRequests > 0;  // Return true if there are any active requests
+  }
+
+  public getActiveRequestCount(): number {
+    return this.activeRequests;  // Method to get current number of active requests
   }
 
   private parseElementsList(description: string): Element[] {
@@ -93,60 +103,59 @@ export class OmniParser {
   }
 
   async detectElements(imageBlob: Blob): Promise<ParsedDetectionResult> {
-    await this.waitForNextRequest();
-    console.log('OmniParser: Starting element detection...');
-    console.log('OmniParser: Image blob size:', imageBlob.size, 'bytes');
-    console.log('OmniParser: Image blob type:', imageBlob.type);
-
-    if (!this.client) {
-      console.log('OmniParser: Client not initialized, initializing now...');
-      await this.initialize();
-    }
-
+    this.activeRequests++;  // Increment counter at start of request
     try {
-      // Check server availability first
+      await this.waitForNextRequest();
+      console.log('OmniParser: Starting element detection... Active requests:', this.activeRequests);
+      console.log('OmniParser: Image blob size:', imageBlob.size, 'bytes');
+      console.log('OmniParser: Image blob type:', imageBlob.type);
+
+      if (!this.client) {
+        console.log('OmniParser: Client not initialized, initializing now...');
+        await this.initialize();
+      }
+
       try {
-        const response = await fetch(this.endpoint);
-        if (!response.ok) {
-          throw new Error(`Server returned status ${response.status}`);
+        // Check server availability first
+        try {
+          const response = await fetch(this.endpoint);
+          if (!response.ok) {
+            throw new Error(`Server returned status ${response.status}`);
+          }
+        } catch (error) {
+          throw new Error(`Failed to connect to server at ${this.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+
+        console.log('OmniParser: Sending prediction request to endpoint...');
+        const result = (await this.client!.predict('/process', {
+          image_input: imageBlob,
+          box_threshold: 0.1,
+          iou_threshold: 1,
+          use_paddleocr: false,
+          imgsz: 3200,
+          icon_process_batch_size: 256,
+        })) as DetectionResult;
+
+        if (!result || !result.data) {
+          throw new Error('Invalid response format from server');
+        }
+
+        console.log('OmniParser: Received response from endpoint');
+        console.log('OmniParser: Raw response:', result);
+
+        // Parse the elements list into structured data
+        const elements = this.parseElementsList(result.data[1]);
+        console.log('OmniParser: Parsed elements:', elements);
+        return {
+          data: [result.data[0], elements],
+        };
       } catch (error) {
-        throw new Error(`Failed to connect to server at ${this.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error('OmniParser: Error during element detection:', error);
+        throw error;
       }
-
-      console.log('OmniParser: Sending prediction request to endpoint...');
-      const result = (await this.client!.predict('/process', {
-        image_input: imageBlob,
-        box_threshold: 0.1,
-        iou_threshold: 1,
-        use_paddleocr: false,
-        imgsz: 3200,
-        icon_process_batch_size: 256,
-      })) as DetectionResult;
-
-      if (!result || !result.data) {
-        throw new Error('Invalid response format from server');
-      }
-
-      console.log('OmniParser: Received response from endpoint');
-      console.log('OmniParser: Raw response:', result);
-
-      // Parse the elements list into structured data
-      const elements = this.parseElementsList(result.data[1]);
-      console.log('OmniParser: Parsed elements:', elements);
-      return {
-        data: [result.data[0], elements],
-      };
-    } catch (error) {
-      console.error('OmniParser: Error during element detection:', error);
-      // Enhance error information
-      const errorDetails = error instanceof Error ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      } : { message: 'Unknown error occurred' };
-      console.error('OmniParser: Error details:', errorDetails);
-      throw error;
+    } finally {
+      this.activeRequests--;  // Decrement counter when request completes (success or failure)
+      console.log('OmniParser: Request completed. Remaining active requests:', this.activeRequests);
     }
   }
 
