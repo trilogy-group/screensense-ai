@@ -2901,7 +2901,7 @@ ipcMain.on('save-audio', async (event, audioBuffer) => {
     if (err) {
       console.error('Failed to save audio file:', err);
     } else {
-      console.log('Audio file saved:', audioFilePath);
+      // console.log('Audio file saved:', audioFilePath);
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -2939,6 +2939,7 @@ Assistant: Something the assistant said
 Human: Something the human said
 Assistant: Something the assistant said
 Human: Something the human said
+Instructions to assistant: Some instructions passed to the assistant
 ...
 `,
             },
@@ -2951,7 +2952,7 @@ Human: Something the human said
           max_tokens: 8192,
         });
 
-        console.log('Paraphrased conversation:', completion.choices[0].message.content);
+        // console.log('Paraphrased conversation:', completion.choices[0].message.content);
 
         // Append transcription to a single text file
         fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
@@ -3007,7 +3008,7 @@ ipcMain.handle('get-context', async event => {
 });
 
 ipcMain.on('save-user-message-context', (event, text: string) => {
-  console.log('save-user-message-context', text);
+  // console.log('save-user-message-context', text);
   const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
   const textFilePath = path.join(contextDir, 'transcriptions.txt');
 
@@ -3017,11 +3018,11 @@ ipcMain.on('save-user-message-context', (event, text: string) => {
   }
 
   // Append the string "User : event" to the transcripts file
-  fs.appendFile(textFilePath, `Context: ${text}\n`, err => {
+  fs.appendFile(textFilePath, `Instructions to assistant: ${text}\n`, err => {
     if (err) {
       console.error('Failed to append user message to file:', err);
     } else {
-      console.log('User message appended to file:', textFilePath);
+      // console.log('User message appended to file:', textFilePath);
     }
   });
 });
@@ -3096,6 +3097,7 @@ Your task is to find the correct question to ask the user to help them document 
 - You are also provided with a base checklist of what all information needs to be documented for a patent. Note that this is not exhaustive, this is just a starting point. You are free to ask whatever questions you think are required.
 - You must return the question that you think is the most important to ask the user next.
 - Your response must be a json format explaining why you think another question is required, and what that question is. If you think no more questions are required, return an empty string.
+- Only ask one question at a time. Do not ask multiple questions in one go.
 - If you feel the content in the checklist is more or less covered by the existing document, do not ask any more questions. Only ask questions that are absolutely necessary.
 </instructions>
 
@@ -3140,6 +3142,7 @@ Your output must be a JSON object with the following format:
     // if (sectionIndex !== -1) {
     //   template.sections[sectionIndex].completed = true;
     //   fs.writeFileSync(jsonPath, JSON.stringify(template, null, 2));
+    // }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error getting next question: ${errorMessage}`);
@@ -3178,6 +3181,7 @@ Your task is to update an existing partial markdown document with new informatio
 - You must return the entire updated markdown document.
 - You must try to add the new information in the section that is provided, but if it doesn't fit, create a new section.
 - Do not add questions to the document.
+- If the content includes a path to an image, insert the image in the markdown file by referencing the path.
 - If the new information is already present in the document, do not add it again.
 - If the information gives rise to new questions, add them to the document.
 - Do not modify any sections that you are not updating.
@@ -3196,9 +3200,17 @@ ${content}
 ${section}
 </section>
 `;
-    const response = await anthropic_completion(prompt, process.env.REACT_APP_ANTHROPIC_API_KEY!!);
-    console.log(`Received response from anthropic: ${response}`);
-    fs.writeFileSync(mdPath, response);
+    // const response = await anthropic_completion(prompt, process.env.REACT_APP_ANTHROPIC_API_KEY!!);
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: 'o3-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 100000,
+    });
+
+    // console.log(`Received response from openai: ${response.choices[0].message.content}`);
+    fs.writeFileSync(mdPath, response.choices[0].message.content!!);
 
     // // Update section completion status in metadata
     // const template = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
@@ -3329,3 +3341,44 @@ function updateSessionModified() {
     saveSession();
   }
 }
+
+// Add screenshot handling for patents
+ipcMain.handle('save_patent_screenshot', async (event, { screenshot, description }) => {
+  try {
+    // Get current session to find the patent directory
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active patent session' };
+    }
+
+    // Create assets directory if it doesn't exist
+    const assetsDir = path.join(session.path, 'assets');
+    await fs.promises.mkdir(assetsDir, { recursive: true });
+
+    // Create a safe filename from the description
+    const safeDescription = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${safeDescription}-${timestamp}.png`;
+    const filepath = path.join(assetsDir, filename);
+
+    // Save the screenshot
+    // Remove the data URL prefix (e.g., "data:image/png;base64,")
+    const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
+    await fs.promises.writeFile(filepath, base64Data, 'base64');
+
+    // Update session modified time
+    updateSessionModified();
+
+    // Return success with the relative path from the patent directory
+    return {
+      success: true,
+      path: `assets/${filename}`, // Return relative path for markdown linking
+    };
+  } catch (error) {
+    console.error('Error saving screenshot:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error saving screenshot',
+    };
+  }
+});
