@@ -347,36 +347,58 @@ function ControlTray({
         console.log('Available audio devices:', audioDevices.map(device => ({
           deviceId: device.deviceId,
           label: device.label,
-          groupId: device.groupId
+          groupId: device.groupId,
+          isDefault: device.deviceId === 'default'
         })));
+
+        // Get the default device first to see what it maps to
+        const defaultStream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: 'default' }
+        });
+        const defaultTrack = defaultStream.getAudioTracks()[0];
+        console.log('Default audio device selected:', {
+          label: defaultTrack.label,
+          settings: defaultTrack.getSettings(),
+          constraints: defaultTrack.getConstraints()
+        });
+        defaultStream.getTracks().forEach(track => track.stop());
         
-        // Request access to audio
+        // Request access to audio with our full constraints
         const audioStream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            sampleRate: 44100,
-            channelCount: 2,
+            // Only set deviceId, let the device use its native settings
             deviceId: 'default',
+            // Optional constraints that won't fail if unsupported
+            ...({
+              echoCancellation: false,
+              noiseSuppression: false,
+              sampleRate: 44100,
+              channelCount: 2,
+            } as const),
           },
         });
 
         // Debug audio stream
         const audioTracks = audioStream.getAudioTracks();
-        console.log('Audio stream obtained:', {
-          tracks: audioTracks.length,
-          track1Settings: audioTracks[0]?.getSettings(),
-          track1Constraints: audioTracks[0]?.getConstraints(),
-        });
+        const track = audioTracks[0];
+        console.log('Audio stream obtained with settings:', track?.getSettings());
+        console.log('Audio stream constraints:', track?.getConstraints());
+        console.log('Audio stream capabilities:', track?.getCapabilities());
 
         const recordChunk = () => {
           if (!isRecording) return;
           console.log('Starting new recording chunk');
           let audioChunks: Blob[] = [];
 
-          mediaRecorder = new MediaRecorder(audioStream);
-          console.log('MediaRecorder state:', mediaRecorder.state);
-          console.log('MediaRecorder mimeType:', mediaRecorder.mimeType);
+          // Use the device's preferred MIME type
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+            ? 'audio/webm;codecs=opus' 
+            : 'audio/webm';
+          
+          mediaRecorder = new MediaRecorder(audioStream, {
+            mimeType,
+            audioBitsPerSecond: 128000 // Standard audio bitrate that most devices support
+          });
 
           mediaRecorder.ondataavailable = event => {
               audioChunks.push(event.data);
