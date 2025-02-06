@@ -223,7 +223,7 @@ function ControlTray({
         client.send([{ text: "Say 'Welcome to Screen Sense AI' and then ask the following question to the user: 'Do you want to play recorded action?' If he says yes, invoke the run_action function. If he says no, do nothing. Give user a confirmation message that you have started playing recorded action or not ." }]);
       }
       else {
-        client.send([{ text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, introduce yourself." }]);
+        client.send([{ text: "Introduce yourself." }]);
       }
     }
   }, [connected, client, selectedOption.value]);
@@ -339,6 +339,16 @@ function ControlTray({
 
     const startAudioRecording = async () => {
       try {
+
+        // List all available audio devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(device => device.kind === 'audioinput');
+        console.log('Available audio devices:', audioDevices.map(device => ({
+          deviceId: device.deviceId,
+          label: device.label,
+          groupId: device.groupId
+        })));
+
         // Request access to both user and system audio
         const audioStream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -346,7 +356,15 @@ function ControlTray({
             noiseSuppression: false,
             sampleRate: 44100,
             channelCount: 2,
+            deviceId: 'default'
           },
+        });
+
+        const audioTracks = audioStream.getAudioTracks();
+        console.log('Audio stream obtained:', {
+          tracks: audioTracks.length,
+          track1Settings: audioTracks[0]?.getSettings(),
+          track1Constraints: audioTracks[0]?.getConstraints(),
         });
 
         const recordChunk = () => {
