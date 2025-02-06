@@ -27,13 +27,24 @@ interface ParsedDetectionResult {
 export class OmniParser {
   private client: Client | null = null;
   private readonly endpoint = 'http://34.199.128.33:7861/';
+  private lastRequestTime: number = 0;
+  private readonly minRequestInterval = 200;
+
+  private async waitForNextRequest(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+    }
+    this.lastRequestTime = Date.now();
+  }
 
   private parseElementsList(description: string): Element[] {
     const lines = description.split('\n');
     return lines
       .map(line => {
         // Match the pattern: type: text, content: X, interactivity: Y, center: (0.05, 0.02), box: (0.02, 0.01, 0.08, 0.03)
-        console.log("line", line)
+        // console.log("line", line)
         const typeMatch = line.match(/type: ([^,]+),/);
         const contentMatch = line.match(/content: ([^,]+),/);
         const interactivityMatch = line.match(/interactivity: ([^,]+),/);
@@ -82,6 +93,7 @@ export class OmniParser {
   }
 
   async detectElements(imageBlob: Blob): Promise<ParsedDetectionResult> {
+    await this.waitForNextRequest();
     console.log('OmniParser: Starting element detection...');
     console.log('OmniParser: Image blob size:', imageBlob.size, 'bytes');
     console.log('OmniParser: Image blob type:', imageBlob.type);
