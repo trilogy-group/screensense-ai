@@ -369,7 +369,7 @@ function ControlTray({
 
         const recordChunk = () => {
           if (!isRecording) return;
-          console.log('Recording audio');
+          // console.log('Recording audio');
           let audioChunks: Blob[] = [];
 
           mediaRecorder = new MediaRecorder(audioStream);
@@ -384,7 +384,7 @@ function ControlTray({
             const buffer = Buffer.from(arrayBuffer);
 
             // Send the audio buffer to the main process to save the file
-            console.log('Saving audio');
+            // console.log('Saving audio');
             ipcRenderer.send('save-audio', buffer);
 
             // Start a new recording after stopping

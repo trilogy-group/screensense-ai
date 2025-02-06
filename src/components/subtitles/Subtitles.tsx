@@ -534,7 +534,8 @@ function SubtitlesComponent({
             if (!updateResult.success) {
               client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
             } else {
-              client.send([{ text: `Updated the document. Inform the user and use the get_next_question function to get the next question to ask the user.` }]);
+              console.log('Updated the document');
+              client.send([{ text: `Updated the document. Go ahead and use the get_next_question function to get the next question to ask the user if the current question is completed. Continue talking to the user about the current question if it is not completed.` }]);
             }
             hasResponded = true;
             break;

@@ -3097,6 +3097,7 @@ Your task is to find the correct question to ask the user to help them document 
 - You are also provided with a base checklist of what all information needs to be documented for a patent. Note that this is not exhaustive, this is just a starting point. You are free to ask whatever questions you think are required.
 - You must return the question that you think is the most important to ask the user next.
 - Your response must be a json format explaining why you think another question is required, and what that question is. If you think no more questions are required, return an empty string.
+- Only ask one question at a time. Do not ask multiple questions in one go.
 - If you feel the content in the checklist is more or less covered by the existing document, do not ask any more questions. Only ask questions that are absolutely necessary.
 </instructions>
 
@@ -3208,7 +3209,7 @@ ${section}
       max_completion_tokens: 100000,
     });
 
-    console.log(`Received response from openai: ${response}`);
+    // console.log(`Received response from openai: ${response.choices[0].message.content}`);
     fs.writeFileSync(mdPath, response.choices[0].message.content!!);
 
     // // Update section completion status in metadata
