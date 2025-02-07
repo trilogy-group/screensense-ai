@@ -21,6 +21,7 @@ import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
+import { initializeAutoUpdater } from './updater';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -270,6 +271,7 @@ let settingsWindow: BrowserWindow | null = null;
 let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
 let actionWindow: BrowserWindow | null = null;
+let updateWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -401,6 +403,9 @@ async function createMainWindow() {
       devTools: true,
     },
   });
+
+  // Initialize auto-updater
+  initializeAutoUpdater(mainWindow);
 
   // Prevent window from being closed directly
   mainWindow.on('close', event => {
@@ -1405,7 +1410,7 @@ async function createSettingsWindow() {
           .container {
             height: 100vh;
             display: grid;
-            grid-template-rows: auto 1fr;
+            grid-template-rows: auto 1fr auto;
           }
 
           .header {
@@ -1418,7 +1423,6 @@ async function createSettingsWindow() {
 
           .header h1 {
             font-size: 20px;
-            /* font-weight: 600; */
             color: var(--text);
             margin: -10px;
           }
@@ -1438,22 +1442,6 @@ async function createSettingsWindow() {
             border-radius: 12px;
             padding: var(--spacing-lg);
             margin-bottom: var(--spacing-lg);
-          }
-
-          .settings-group-header {
-            margin-bottom: var(--spacing-md);
-          }
-
-          .settings-group-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: var(--spacing-xs);
-          }
-
-          .settings-group-description {
-            color: var(--text-secondary);
-            font-size: 14px;
           }
 
           .form-group {
@@ -1562,6 +1550,33 @@ async function createSettingsWindow() {
             background: var(--primary-hover);
           }
 
+          .version-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+          }
+
+          .version-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+          }
+
+          .check-update-btn {
+            background: var(--primary-color);
+            border: none;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            font-weight: 500;
+          }
+
+          .check-update-btn:hover {
+            background: var(--primary-hover);
+          }
+
           @keyframes fadeIn {
             from {
               opacity: 0;
@@ -1611,6 +1626,17 @@ async function createSettingsWindow() {
                     </div>
                   </div>
                 </div>
+
+                <div class="settings-group">
+                  <div class="form-group">
+                    <label class="form-label">Application Version</label>
+                    <div class="version-info">
+                      <span class="version-text">Version ${app.getVersion()}</span>
+                      <div style="flex: 1"></div>
+                      <button type="button" class="check-update-btn" onclick="checkForUpdates()">Check for Updates</button>
+                    </div>
+                  </div>
+                </div>
               </form>
             </div>
           </main>
@@ -1656,6 +1682,11 @@ async function createSettingsWindow() {
           cancelButton.addEventListener('click', () => {
             ipcRenderer.send('close-settings');
           });
+
+          // Handle check for updates
+          function checkForUpdates() {
+            ipcRenderer.send('check-for-update');
+          }
         </script>
       </body>
     </html>
@@ -3382,3 +3413,53 @@ ipcMain.handle('save_patent_screenshot', async (event, { screenshot, description
     };
   }
 });
+
+// Add this before the createUpdateWindow function
+(global as any).createUpdateWindow = createUpdateWindow;
+
+async function createUpdateWindow() {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.show();
+    return updateWindow;
+  }
+
+  updateWindow = new BrowserWindow({
+    width: 400,
+    height: 200,
+    frame: true,
+    resizable: false,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  const isDev = !app.isPackaged;
+  let loadUrl: string;
+  if (isDev) {
+    loadUrl = 'http://localhost:3000/update.html';
+  } else {
+    const basePath = app.getAppPath().replace('.asar', '.asar.unpacked');
+    const indexPath = path.join(basePath, 'build', 'update.html');
+    loadUrl = `file://${indexPath}`;
+  }
+
+  await updateWindow.loadURL(loadUrl);
+  updateWindow.on('closed', () => {
+    updateWindow = null;
+  });
+
+  return updateWindow;
+}
+
+// Remove these since we're handling them in updater.ts now
+// ipcMain.on('show-update-window', async () => {
+//   await createUpdateWindow();
+// });
+
+// ipcMain.on('close-update-window', () => {
+//   if (updateWindow && !updateWindow.isDestroyed()) {
+//     updateWindow.close();
+//   }
+// });

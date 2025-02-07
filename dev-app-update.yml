@@ -1,0 +1,5 @@
+provider: github
+owner: trilogy-group
+repo: screensense-ai
+private: true
+releaseType: release 
