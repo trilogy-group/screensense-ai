@@ -1,6 +1,6 @@
 {
   "name": "screensense-ai",
-  "version": "1.0.1-alpha.1",
+  "version": "1.0.4",
   "description": "An AI assistant that lives in your computer, helping you with daily tasks through screen interaction, translation, and other capabilities.",
   "author": {
     "name": "Sahil Marwaha"
@@ -48,6 +48,7 @@
     "electron:tsc": "tsc -p electron/tsconfig.json",
     "electron-dev": "npm run electron:tsc && concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
     "electron-build": "cross-env NODE_ENV=production npm run build:react && npm run electron:tsc && electron-builder",
+    "publish": "cross-env NODE_ENV=production npm run build:react && npm run electron:tsc && electron-builder --publish always",
     "electron-pack": "cross-env NODE_ENV=production electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"electron/**/*.{js,jsx,ts,tsx,json}\""
@@ -78,7 +79,8 @@
       "owner": "trilogy-group",
       "repo": "screensense-ai",
       "private": true,
-      "releaseType": "release"
+      "releaseType": "release",
+      "publishAutoUpdate": true
     },
     "mac": {
       "hardenedRuntime": true,
@@ -94,6 +96,13 @@
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "arm64",
             "x64"
