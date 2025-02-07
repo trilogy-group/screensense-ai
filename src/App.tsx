@@ -3,6 +3,7 @@ import './App.scss';
 import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
 import { Subtitles } from './components/subtitles/Subtitles';
 import ControlTray from './components/control-tray/ControlTray';
+import { UpdateNotification } from './components/UpdateNotification';
 import cn from 'classnames';
 import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
 import { initAnalytics, trackEvent } from './shared/analytics';
@@ -246,6 +247,8 @@ function App() {
               </ControlTray>
             </div>
           </main>
+
+          <UpdateNotification />
         </div>
       </LiveAPIProvider>
     </div>

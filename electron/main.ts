@@ -21,6 +21,7 @@ import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
+import { initializeAutoUpdater } from './updater';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -401,6 +402,9 @@ async function createMainWindow() {
       devTools: true,
     },
   });
+
+  // Initialize auto-updater
+  initializeAutoUpdater(mainWindow);
 
   // Prevent window from being closed directly
   mainWindow.on('close', event => {
