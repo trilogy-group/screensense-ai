@@ -150,6 +150,24 @@ export const readWriteTools: Tool[] = [
   },
 ];
 
+const codeImageAnalyserTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: 'analyse_code',
+        description: 'Analyse the logic behind the selected code',
+      },
+      {
+        name: 'analyse_image',
+        description: 'Analyse the diagram and provide a detailed explanation of the diagram',
+      },
+    ],
+  },
+
+];
+
+
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const interactionTools: Tool[] = [
   {
@@ -778,7 +796,17 @@ Important Instructions:
 5. When you and the user are satisfied with the insight, you must use the write_text tool to write the insight to the user's screen.
 `,
   },
+  code_image_analyser: {
+    display_name: 'Code Image Analyser',
+    tools: [...codeImageAnalyserTools],
+    requiresDisplay: true,
+    systemInstruction: `
+    When the user asks you to analyse a given code, call the analyse_code tool. Do not ask to provide the code to analyse. 
+    When the user asks you to analyse a given diagram, call the analyse_image tool. Do not ask to provide the diagram to analyse.
+    `,
+  },
 } as const;
+
 
 // Type for the configuration modes
 export type AssistantConfigMode = keyof typeof assistantConfigs;

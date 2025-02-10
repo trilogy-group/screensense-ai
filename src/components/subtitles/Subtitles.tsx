@@ -580,7 +580,22 @@ function SubtitlesComponent({
             }
             hasResponded = true;
             break;
+          case "analyse_code":
+            ipcRenderer.send('analyse-code');
+            hasResponded = true;
+            break;
+          case "analyse_image":
+            if(onScreenshot) {
+              const screenshot = onScreenshot();
+              if (screenshot) {
+                ipcRenderer.send('analyse-image', screenshot);
+              }
+            }
+            hasResponded = true;
+            break;
+
         }
+
         if (!hasResponded) {
           // new Promise(resolve => setTimeout(resolve, 2000)).then()
           client.sendToolResponse({

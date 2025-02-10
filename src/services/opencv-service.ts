@@ -77,6 +77,7 @@ export class OpenCVService {
           confidence: maxVal
         };
       }
+      
 
       return null;
     } catch (error) {

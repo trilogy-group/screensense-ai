@@ -2894,7 +2894,7 @@ Instructions to assistant: Some instructions passed to the assistant
           if (err) {
             console.error('Failed to write transcription to file:', err);
           } else {
-            console.log('Transcription written to file:', textFilePath);
+            // console.log('Transcription written to file:', textFilePath);
           }
         });
       } catch (error: any) {
@@ -3495,4 +3495,78 @@ ipcMain.on('hide-error-overlay', () => {
 // Update session error handler to use new overlay
 ipcMain.on('session-error', (event, errorMessage) => {
   ipcMain.emit('show-error-overlay', event, errorMessage);
+});
+
+
+ipcMain.on('analyse-code', async (event) => {
+  const originalClipboardContent = clipboard.readText();
+  const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
+  await keyboard.pressKey(modifier, Key.C);
+  await keyboard.releaseKey(modifier, Key.C);
+
+  // Wait for a short duration to ensure the clipboard is updated
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const code = clipboard.readText();
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "system", content: `
+You will receive a code snippet. Your task is to analyze this code snippet comprehensively and provide an in-depth details of the code. Ensure your analysis is detailed, specific, and captures the underlying logic and context of the code.
+      ` }, { role: "user", content: code }],
+
+  });
+  console.log(response.choices[0].message.content);
+
+})
+
+
+ipcMain.on('analyse-image', async (event, screenshot) => {
+  console.log("analyse-image");
+
+  // Determine the save path
+  const appDataPath = app.getPath('appData');
+  const imagesDir = path.join(appDataPath, 'screensense-ai', 'images');
+
+  // Ensure the directory exists
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  }
+
+  // Save the image
+  const imagePath = path.join(imagesDir, `clipboard-image-${Date.now()}.png`);
+  const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
+  await fs.promises.writeFile(imagePath, base64Data, 'base64');
+
+
+  const encodeImage = (imagePath: string): string => {
+    const imageBuffer_2 = fs.readFileSync(imagePath);
+    return imageBuffer_2.toString("base64");
+  };
+  
+  const base64Image = encodeImage(imagePath);
+  // Initialize OpenAI with your API key
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+
+
+  // Send the image to GPT for analysis
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "You will receive a diagram. Your task is to analyze this diagram comprehensively and provide an in-depth summary. Ensure your analysis is detailed, specific, and captures the underlying elements and context of the diagram." },
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${base64Image}` },
+          },
+        ],
+      }
+    ],
+
+  });
+
+  // Log the response from GPT
+  console.log(response.choices[0].message.content);
 });
