@@ -77,7 +77,7 @@
     "publish": {
       "provider": "github",
       "owner": "trilogy-group",
-      "repo": "screensense-ai",
+      "repo": "screensense-ai-releases",
       "private": true,
       "releaseType": "release",
       "publishAutoUpdate": true
