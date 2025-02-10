@@ -5,7 +5,7 @@ import { ToolCall } from '../../multimodal-live-types';
 import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
-import { opencvService } from '../../services/opencv-service';
+import { opencvService} from '../../services/opencv-service';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -74,12 +74,20 @@ function SubtitlesComponent({
   }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
-    async function get_opencv_coordinates(path: string, screenshot: any) {
+    async function get_opencv_coordinates(path: string, screenshot: any, type: string) {
       if (screenshot) {
         try {
           // Use opencv service to find template directly with base64 image
           const templatePath = path;
-          const result = await opencvService.findTemplate(screenshot, templatePath);
+          let result;
+          if(type === "b&w") {
+            result = await opencvService.findTemplate(screenshot, templatePath);
+          } else if (type === "color") {
+            result = await opencvService.findTemplateColor(screenshot, templatePath);
+          } else if (type === "canny") {
+            result = await opencvService.findTemplateCanny(screenshot, templatePath);
+          }
+          // const result = await opencvORBService.findTemplate(screenshot, templatePath);
 
           if (result) {
             console.log('Template found at:', result.location);
@@ -417,7 +425,7 @@ function SubtitlesComponent({
               console.log(omniParser.getActiveRequestCount())
               await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before checking again
             }
-            client.send([{ text: `Say : "Action recording is complete. Performing the action."` }]);
+            client.send([{ text: `Say : "Performing the action"` }]);
 
             // Perform the action
             const actionData = await ipcRenderer.invoke('perform-action', 'action')
@@ -428,34 +436,65 @@ function SubtitlesComponent({
                 templatePath = action.filepath.replace(/\\/g, '/');
                 ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
                 await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
-
+                
                 ipcRenderer.send('hide-action');
                 // Add delay to ensure window is hidden
                 await new Promise(resolve => setTimeout(resolve, 200));
-
                 const screenshot = await ipcRenderer.invoke('get-screenshot');
                 ipcRenderer.send('show-action');
-                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
                 let cords;
-                cords = await get_opencv_coordinates(templatePath, screenshot);
 
-                if (cords && cords.confidence > 0.8) {
+
+                templatePath = action.filepath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "canny");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
                   await interact(cords, action.function_call, false, action.payload);
                   hasResponded = true;
                   continue;
+                } else {
+                  console.log('failed', cords?.confidence)
                 }
 
-                client.send([{ text: "Say the following sentence : 'Primary search for element failed. Trying again with more accurate search.'" }]);
+
+                templatePath = action.filepath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "color");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
+                  await interact(cords, action.function_call, false, action.payload);
+                  continue;
+                } else {
+                  console.log('failed', cords?.confidence)
+                }
+
 
                 templatePath = action.accuratePath.replace(/\\/g, '/');
                 ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-                cords = await get_opencv_coordinates(templatePath, screenshot);
-                if (cords && cords.confidence > 0.8) {
+                cords = await get_opencv_coordinates(templatePath, screenshot, "canny");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
                   await interact(cords, action.function_call, false, action.payload);
                   continue;
+                } else {
+                  console.log('failed', cords?.confidence)
+                }
+                
+
+                templatePath = action.accuratePath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "color");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
+                  await interact(cords, action.function_call, false, action.payload);
+                  continue;
+                } else {
+                  console.log('failed', cords?.confidence)
                 }
 
-                client.send([{ text: "Say the following sentence : 'Accurate search for element failed. Please perform the action yourself. When you are done, tell me to continue the action.'" }]);
+
+                client.send([{ text: "Say the following sentence : 'Search for element failed. Please perform the action yourself. When you are done, tell me to continue the action.'" }]);
 
                 play_action = false;
                 while (!play_action) {

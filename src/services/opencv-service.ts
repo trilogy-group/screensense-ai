@@ -84,53 +84,118 @@ export class OpenCVService {
       return null;
     }
   }
-
-  async findAllTemplateMatches(
+  async findTemplateColor(
     screenImage: string,
     templatePath: string,
-    threshold: number = 0.8
-  ): Promise<TemplateMatchResult[]> {
+    threshold: number = 0.0,
+    method: number = cv.TM_CCOEFF_NORMED
+  ): Promise<TemplateMatchResult | null> {
     try {
       const screen = await this.base64ToMat(screenImage);
-      const template = cv.imread(templatePath);
-
+      const template = await this.loadTemplate(templatePath);
+  
+      // Ensure both images have the same number of channels
+      if (screen.channels() !== template.channels()) {
+        cv.cvtColor(screen, screen, cv.COLOR_BGRA2BGR); // Convert to 3-channel BGR
+        cv.cvtColor(template, template, cv.COLOR_BGRA2BGR);
+      }
+  
+      const result = new cv.Mat();
+      cv.matchTemplate(screen, template, result, method);
+  
+      const mask = new cv.Mat();
+      const minMax = cv.minMaxLoc(result, mask);
+      mask.delete();
+      const { maxVal, maxLoc } = minMax;
+  
+      // Store dimensions before cleanup
+      const templateWidth = template.cols;
+      const templateHeight = template.rows;
+  
+      // Cleanup
+      screen.delete();
+      template.delete();
+      result.delete();
+  
+      if (maxVal >= threshold) {
+        return {
+          location: {
+            x: maxLoc.x + Math.floor(templateWidth / 2),
+            y: maxLoc.y + Math.floor(templateHeight / 2)
+          },
+          confidence: maxVal
+        };
+      }
+  
+      return null;
+    } catch (error) {
+      console.error('Template matching error:', error);
+      return null;
+    }
+  }
+  async findTemplateCanny(
+    screenImage: string,
+    templatePath: string,
+    threshold: number = 0.0,
+    method: number = cv.TM_CCOEFF_NORMED
+  ): Promise<TemplateMatchResult | null> {
+    try {
+      const screen = await this.base64ToMat(screenImage);
+      const template = await this.loadTemplate(templatePath);
+  
+      // Convert to grayscale for edge detection
       const screenGray = new cv.Mat();
       const templateGray = new cv.Mat();
       cv.cvtColor(screen, screenGray, cv.COLOR_RGBA2GRAY);
       cv.cvtColor(template, templateGray, cv.COLOR_RGBA2GRAY);
-
+  
+      // Apply Canny edge detection to emphasize structure
+      const screenEdges = new cv.Mat();
+      const templateEdges = new cv.Mat();
+      cv.Canny(screenGray, screenEdges, 50, 150);  // Adjust thresholds as needed
+      cv.Canny(templateGray, templateEdges, 50, 150);
+  
+      // Perform template matching on edges
       const result = new cv.Mat();
-      cv.matchTemplate(screenGray, templateGray, result, cv.TM_CCOEFF_NORMED);
-      
-      const matches: TemplateMatchResult[] = [];
-      for (let y = 0; y < result.rows; y++) {
-        for (let x = 0; x < result.cols; x++) {
-          const confidence = result.data32F[y * result.cols + x];
-          if (confidence >= threshold) {
-            matches.push({
-              location: {
-                x: x + template.cols / 2,
-                y: y + template.rows / 2
-              },
-              confidence
-            });
-          }
-        }
-      }
-
+      cv.matchTemplate(screenEdges, templateEdges, result, method);
+  
+      const mask = new cv.Mat();
+      const minMax = cv.minMaxLoc(result, mask);
+      mask.delete();
+      const { maxVal, maxLoc } = minMax;
+  
+      // Store dimensions before cleanup
+      const templateWidth = template.cols;
+      const templateHeight = template.rows;
+  
       // Cleanup
       screen.delete();
       template.delete();
       screenGray.delete();
       templateGray.delete();
+      screenEdges.delete();
+      templateEdges.delete();
       result.delete();
-
-      return matches;
+  
+      if (maxVal >= threshold) {
+        return {
+          location: {
+            x: maxLoc.x + Math.floor(templateWidth / 2),
+            y: maxLoc.y + Math.floor(templateHeight / 2)
+          },
+          confidence: maxVal
+        };
+      }
+  
+      return null;
     } catch (error) {
       console.error('Template matching error:', error);
-      return [];
+      return null;
     }
   }
 }
 
 export const opencvService = new OpenCVService(); 
+
+
+
