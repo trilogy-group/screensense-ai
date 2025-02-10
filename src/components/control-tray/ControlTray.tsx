@@ -95,6 +95,9 @@ function ControlTray({
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRecordingSession, setIsRecordingSession] = useState(false);
+  const userAudioChunks = useRef<Blob[]>([]);
+  const assistantAudioChunks = useRef<Blob[]>([]);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
@@ -113,13 +116,27 @@ function ControlTray({
 
   useEffect(() => {
     const onData = (base64: string) => {
+      // Send audio to Gemini
       client.sendRealtimeInput([
         {
           mimeType: 'audio/pcm;rate=16000',
           data: base64,
         },
       ]);
+
+      // If recording is active, save the user's audio chunk
+      if (isRecordingSession) {
+        // Convert base64 to blob
+        const binaryStr = window.atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/pcm' });
+        userAudioChunks.current.push(blob);
+      }
     };
+
     if (connected && !muted && audioRecorder) {
       audioRecorder.on('data', onData).on('volume', setInVolume).start();
     } else {
@@ -128,7 +145,7 @@ function ControlTray({
     return () => {
       audioRecorder.off('data', onData).off('volume', setInVolume);
     };
-  }, [connected, client, muted, audioRecorder]);
+  }, [connected, client, muted, audioRecorder, isRecordingSession]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -228,17 +245,91 @@ function ControlTray({
     }
   }, [connected, client, selectedOption.value]);
 
-  const handleConnect = () => {
+  const createWavHeader = (dataLength: number, sampleRate: number = 16000) => {
+    const buffer = new ArrayBuffer(44);
+    const view = new DataView(buffer);
+    
+    // "RIFF" chunk descriptor
+    view.setUint32(0, 0x52494646, false);  // "RIFF"
+    view.setUint32(4, 36 + dataLength, true);  // chunk size
+    view.setUint32(8, 0x57415645, false);  // "WAVE"
+    
+    // "fmt " sub-chunk
+    view.setUint32(12, 0x666D7420, false);  // "fmt "
+    view.setUint32(16, 16, true);  // subchunk size
+    view.setUint16(20, 1, true);  // audio format (PCM)
+    view.setUint16(22, 1, true);  // num channels (mono)
+    view.setUint32(24, sampleRate, true);  // sample rate
+    view.setUint32(28, sampleRate * 2, true);  // byte rate (sample rate * num channels * bytes per sample)
+    view.setUint16(32, 2, true);  // block align
+    view.setUint16(34, 16, true);  // bits per sample
+    
+    // "data" sub-chunk
+    view.setUint32(36, 0x64617461, false);  // "data"
+    view.setUint32(40, dataLength, true);  // subchunk size
+    
+    return buffer;
+  };
+
+  const saveRecordings = useCallback(async () => {
+    if (userAudioChunks.current.length > 0) {
+      // Combine all user audio chunks
+      const userBlob = new Blob(userAudioChunks.current, { type: 'audio/pcm' });
+      const userArrayBuffer = await userBlob.arrayBuffer();
+      
+      // Create WAV header - user audio is at 16kHz
+      const header = createWavHeader(userArrayBuffer.byteLength, 16000);
+      
+      // Combine header and audio data
+      const finalBuffer = Buffer.concat([
+        Buffer.from(header),
+        Buffer.from(userArrayBuffer)
+      ]);
+      
+      ipcRenderer.send('save-conversation-audio', {
+        buffer: finalBuffer,
+        type: 'user'
+      });
+    }
+
+    if (assistantAudioChunks.current.length > 0) {
+      // Combine all assistant audio chunks
+      const assistantBlob = new Blob(assistantAudioChunks.current, { type: 'audio/pcm' });
+      const assistantArrayBuffer = await assistantBlob.arrayBuffer();
+      
+      // Create WAV header - assistant audio is at 24kHz
+      const header = createWavHeader(assistantArrayBuffer.byteLength, 24000);
+      
+      // Combine header and audio data
+      const finalBuffer = Buffer.concat([
+        Buffer.from(header),
+        Buffer.from(assistantArrayBuffer)
+      ]);
+      
+      ipcRenderer.send('save-conversation-audio', {
+        buffer: finalBuffer,
+        type: 'assistant'
+      });
+    }
+  }, []);
+
+  const handleConnect = useCallback(() => {
+    console.log('Going to handle connect');
     if (!connected) {
+      setIsRecordingSession(true);
+      userAudioChunks.current = [];
+      assistantAudioChunks.current = [];
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
       });
       connect();
     } else {
+      setIsRecordingSession(false);
+      console.log(`Going to save recordings`);
+      saveRecordings();
       disconnect();
     }
-
-  };
+  }, [connected, connect, disconnect, selectedOption.value, saveRecordings]);
 
   // Handle carousel actions from control window
   useEffect(() => {
@@ -280,11 +371,7 @@ function ControlTray({
           }
           break;
         case 'connect':
-          if (action.value) {
-            connect();
-          } else {
-            disconnect();
-          }
+          handleConnect();
           break;
       }
     };
@@ -293,7 +380,7 @@ function ControlTray({
     return () => {
       ipcRenderer.removeListener('control-action', handleControlAction);
     };
-  }, [connect, disconnect, webcam, screenCapture, changeStreams, client]);
+  }, [connect, disconnect, webcam, screenCapture, changeStreams, client, handleConnect]);
 
   // Send state updates to video window
   useEffect(() => {
@@ -333,100 +420,22 @@ function ControlTray({
     };
   }, []);
 
+  // Add effect to capture assistant audio
   useEffect(() => {
-    let mediaRecorder: MediaRecorder | null = null;
-    let isRecording = false;
-
-    const startAudioRecording = async () => {
-      try {
-
-        // List all available audio devices
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices.filter(device => device.kind === 'audioinput');
-        console.log('Available audio devices:', audioDevices.map(device => ({
-          deviceId: device.deviceId,
-          label: device.label,
-          groupId: device.groupId
-        })));
-
-        // Request access to both user and system audio
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            sampleRate: 44100,
-            channelCount: 2,
-            deviceId: 'default'
-          },
-        });
-
-        const audioTracks = audioStream.getAudioTracks();
-        console.log('Audio stream obtained:', {
-          tracks: audioTracks.length,
-          track1Settings: audioTracks[0]?.getSettings(),
-          track1Constraints: audioTracks[0]?.getConstraints(),
-        });
-
-        const recordChunk = () => {
-          if (!isRecording) return;
-          // console.log('Recording audio');
-          let audioChunks: Blob[] = [];
-
-          mediaRecorder = new MediaRecorder(audioStream);
-
-          mediaRecorder.ondataavailable = event => {
-            audioChunks.push(event.data);
-          };
-
-          mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
-            // Send the audio buffer to the main process to save the file
-            // console.log('Saving audio');
-            ipcRenderer.send('save-audio', buffer);
-
-            // Start a new recording after stopping
-            if (isRecording) {
-              recordChunk();
-            }
-          };
-
-          // Start the recording
-          mediaRecorder.start();
-
-          // Stop the recording after 20 seconds
-          setTimeout(() => {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-              mediaRecorder.stop();
-            }
-          }, 30000);
-        };
-
-        // Start the first recording chunk
-        isRecording = true;
-        recordChunk();
-      } catch (error) {
-        console.error('Error capturing audio:', error);
+    const handleAssistantAudio = (event: any, audioData: ArrayBuffer) => {
+      if (isRecordingSession) {
+        // Use the same format as user audio - PCM
+        const blob = new Blob([audioData], { type: 'audio/pcm' });
+        assistantAudioChunks.current.push(blob);
       }
     };
 
-    if (connected && client) {
-      // Start audio recording when a specific option is selected
-      // if (['insight_generator', 'patent_generator', 'author', 'translator', 'daily_helper'].includes(selectedOption.value)) {
-        startAudioRecording();
-      // }
-    }
+    ipcRenderer.on('assistant-audio', handleAssistantAudio);
 
     return () => {
-      // Stop the media recorder if it's active
-      isRecording = false;
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
+      ipcRenderer.removeListener('assistant-audio', handleAssistantAudio);
     };
-  }, [connected, client, selectedOption.value]);
+  }, [isRecordingSession]);
 
   return (
     <>

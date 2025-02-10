@@ -3496,3 +3496,25 @@ ipcMain.on('hide-error-overlay', () => {
 ipcMain.on('session-error', (event, errorMessage) => {
   ipcMain.emit('show-error-overlay', event, errorMessage);
 });
+
+// Add conversation audio handlers
+ipcMain.on('save-conversation-audio', async (event, { buffer, type }) => {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const fileName = `conversation-${type}-${timestamp}.wav`;
+  const filePath = path.join(app.getPath('userData'), 'context', fileName);
+
+  // Ensure recordings directory exists
+  await fs.promises.mkdir(path.join(app.getPath('userData'), 'context'), { recursive: true });
+
+  try {
+    await fs.promises.writeFile(filePath, buffer);
+    console.log(`Saved ${type} audio to ${filePath}`);
+  } catch (error) {
+    console.error(`Error saving ${type} audio:`, error);
+  }
+});
+
+// Forward assistant audio to renderer for recording
+ipcMain.on('assistant-audio', (event, audioData) => {
+  mainWindow?.webContents.send('assistant-audio', audioData);
+});
