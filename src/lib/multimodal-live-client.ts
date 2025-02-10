@@ -105,8 +105,18 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
         console.log('non blob message', evt);
       }
     });
+
     return new Promise((resolve, reject) => {
+      let setupTimeout: NodeJS.Timeout;
+      const onSetupComplete = () => {
+        if (setupTimeout) clearTimeout(setupTimeout);
+        this.off('setupcomplete', onSetupComplete);
+        resolve(true);
+      };
+
       const onError = (ev: Event) => {
+        if (setupTimeout) clearTimeout(setupTimeout);
+        this.off('setupcomplete', onSetupComplete);
         this.disconnect(ws);
         const message = `Could not connect to "${this.url}"`;
         this.log(`server.${ev.type}`, message);
@@ -129,9 +139,28 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
         this._sendDirect(setupMessage);
         this.log('client.send', 'setup');
 
+        // Listen for setup complete
+        this.once('setupcomplete', onSetupComplete);
+
+        // Add timeout for setup acknowledgment
+        setupTimeout = setTimeout(() => {
+          this.off('setupcomplete', onSetupComplete);
+          this.disconnect(ws);
+          reject(new Error('Setup acknowledgment timeout'));
+        }, 10000); // 10 second timeout
+
         ws.removeEventListener('error', onError);
         ws.addEventListener('close', (ev: CloseEvent) => {
-          console.log(JSON.stringify(ev));
+          console.log(
+            JSON.stringify({
+              code: ev.code,
+              reason: ev.reason,
+              wasClean: ev.wasClean,
+              type: ev.type,
+              isTrusted: ev.isTrusted,
+            })
+          );
+          if (setupTimeout) clearTimeout(setupTimeout);
           this.disconnect(ws);
           let reason = ev.reason || '';
           if (reason.toLowerCase().includes('error')) {
@@ -144,7 +173,6 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
           this.log(`server.${ev.type}`, `disconnected ${reason ? `with reason: ${reason}` : ``}`);
           this.emit('close', ev);
         });
-        resolve(true);
       });
     });
   }
