@@ -272,6 +272,7 @@ let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
 let actionWindow: BrowserWindow | null = null;
 let updateWindow: BrowserWindow | null = null;
+let errorOverlayWindow: BrowserWindow | null = null;
 
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
@@ -788,30 +789,6 @@ async function createControlWindow() {
           .key-button .material-symbols-outlined {
             font-size: 16px;
           }
-          .toast {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(244, 67, 54, 0.95);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            opacity: 0;
-            transition: all 0.3s ease;
-            pointer-events: none;
-            z-index: 2000;
-            white-space: nowrap;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            text-align: center;
-            min-width: 200px;
-          }
-          
-          .toast.visible {
-            opacity: 1;
-          }
 
           body {
             margin: 0;
@@ -903,32 +880,6 @@ async function createControlWindow() {
             transform-style: preserve-3d;
           }
 
-          .error-toast {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(244, 67, 54, 0.95);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-            z-index: 2000;
-            white-space: nowrap;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            text-align: center;
-            min-width: 200px;
-            backdrop-filter: blur(8px);
-          }
-          
-          .error-toast.visible {
-            opacity: 1;
-          }
-
           .marker {
             width: 101px;
             height: 101px;
@@ -998,8 +949,6 @@ async function createControlWindow() {
         <div class="error-overlay">
           <div class="error-message">API key is required to connect</div>
         </div>
-
-        <div class="error-toast"></div>
 
         <script>
           const { ipcRenderer } = require('electron');
@@ -1186,26 +1135,6 @@ async function createControlWindow() {
           // Add settings button handler
           settingsButton.addEventListener('click', () => {
             ipcRenderer.send('show-settings');
-          });
-
-          // Add error toast handling
-          const errorToast = document.querySelector('.error-toast');
-          let errorToastTimeout;
-
-          ipcRenderer.on('show-error-toast', (_, message) => {
-            // Clear any existing timeout
-            if (errorToastTimeout) {
-              clearTimeout(errorToastTimeout);
-            }
-
-            // Show new error message
-            errorToast.textContent = message;
-            errorToast.classList.add('visible');
-
-            // Hide after 3 seconds
-            errorToastTimeout = setTimeout(() => {
-              errorToast.classList.remove('visible');
-            }, 3000);
           });
 
           // Handle settings update (just enable/disable connect button)
@@ -1743,13 +1672,6 @@ ipcMain.on('api-key-check-result', (event, hasApiKey) => {
   }
 });
 
-// Add IPC handlers for session errors
-ipcMain.on('session-error', (event, errorMessage) => {
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('show-error-toast', errorMessage);
-  }
-});
-
 // Add handler for logging to file
 ipcMain.on('log-to-file', (event, message) => {
   logToFile(message);
@@ -1982,6 +1904,12 @@ ipcMain.on('control-action', async (event, action) => {
         mainWindow.show();
         mainWindow.focus();
       }
+      // else if (action.type === 'connect' && action.value === true) {
+      //   if (!customSessionName) {
+      //     // Only prompt for name if not already set
+      //     mainWindow?.webContents.send('prompt-session-name');
+      //   }
+      // }
       mainWindow.webContents.send('control-action', action);
     }
   } catch (error) {
@@ -2117,18 +2045,6 @@ ipcMain.on('hide-main-window', () => {
   if (mainWindow) {
     mainWindow.hide();
   }
-});
-
-// Add IPC handlers for session errors (add this before app.on('ready'))
-ipcMain.on('session-error', (event, errorMessage) => {
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('show-error-toast', errorMessage);
-  }
-});
-
-// Add handler for logging to file
-ipcMain.on('log_to_file', (event, message) => {
-  logToFile(message);
 });
 
 // Get unique machine ID
@@ -2297,18 +2213,6 @@ ipcMain.on('record-conversation', (event, function_call, description, payload = 
 app.on('ready', () => {
   customSessionName = null;
   loadSession();
-});
-
-// Remove the currentSessionFile variable since we don't need it anymore
-// And update the control-action handler
-ipcMain.on('control-action', async (event, action) => {
-  if (action.type === 'connect' && action.value === true) {
-    if (!customSessionName) {
-      // Only prompt for name if not already set
-      mainWindow?.webContents.send('prompt-session-name');
-    }
-  }
-  // ... rest of the existing control-action handler
 });
 
 // Add handler for getting action data
@@ -3463,3 +3367,132 @@ async function createUpdateWindow() {
 //     updateWindow.close();
 //   }
 // });
+
+function createErrorOverlayWindow() {
+  if (errorOverlayWindow && !errorOverlayWindow.isDestroyed()) {
+    return errorOverlayWindow;
+  }
+
+  errorOverlayWindow = new BrowserWindow({
+    width: electron_screen.getPrimaryDisplay().workAreaSize.width * 0.8,
+    height: 100,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  errorOverlayWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          }
+          #error-message {
+            background-color: rgba(220, 53, 69, 0.9);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            text-align: center;
+            max-width: 90%;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            position: relative;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+          }
+          #error-message.visible {
+            opacity: 1;
+          }
+        </style>
+      </head>
+      <body>
+        <div id="error-message"></div>
+        <script>
+          const { ipcRenderer } = require('electron');
+          const errorMessage = document.getElementById('error-message');
+          
+          ipcRenderer.on('update-error', (event, text) => {
+            if (text) {
+              errorMessage.textContent = text;
+              errorMessage.style.display = 'block';
+              errorMessage.classList.add('visible');
+              
+              // Auto-hide after 5 seconds
+              setTimeout(() => {
+                errorMessage.classList.remove('visible');
+                setTimeout(() => {
+                  errorMessage.style.display = 'none';
+                  ipcRenderer.send('hide-error-overlay');
+                }, 200);
+              }, 5000);
+            } else {
+              errorMessage.classList.remove('visible');
+              setTimeout(() => {
+                errorMessage.style.display = 'none';
+              }, 200);
+            }
+          });
+        </script>
+      </body>
+    </html>
+  `;
+
+  errorOverlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+  // Position the window in the center of the screen
+  const { width: screenWidth, height: screenHeight } =
+    electron_screen.getPrimaryDisplay().workAreaSize;
+  const windowBounds = errorOverlayWindow.getBounds();
+  errorOverlayWindow.setPosition(
+    Math.floor(screenWidth / 2 - windowBounds.width / 2),
+    Math.floor(screenHeight / 2 - windowBounds.height / 2)
+  );
+
+  errorOverlayWindow.on('closed', () => {
+    errorOverlayWindow = null;
+  });
+
+  return errorOverlayWindow;
+}
+
+// Add IPC handlers for error overlay
+ipcMain.on('show-error-overlay', async (event, errorMessage) => {
+  const window = await createErrorOverlayWindow();
+  if (window && !window.isDestroyed()) {
+    window.showInactive();
+    window.webContents.send('update-error', errorMessage);
+  }
+});
+
+ipcMain.on('hide-error-overlay', () => {
+  if (errorOverlayWindow && !errorOverlayWindow.isDestroyed()) {
+    errorOverlayWindow.hide();
+  }
+});
+
+// Update session error handler to use new overlay
+ipcMain.on('session-error', (event, errorMessage) => {
+  ipcMain.emit('show-error-overlay', event, errorMessage);
+});
