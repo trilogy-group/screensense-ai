@@ -3,6 +3,7 @@ import './App.scss';
 import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
 import { Subtitles } from './components/subtitles/Subtitles';
 import ControlTray from './components/control-tray/ControlTray';
+import MarkdownPreview from './components/markdown/MarkdownPreview';
 import cn from 'classnames';
 import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
 import { initAnalytics, trackEvent } from './shared/analytics';
@@ -192,6 +193,13 @@ function App() {
   const handleScreenshot = useCallback(() => {
     return videoCanvasRef.current?.captureScreenshot() || null;
   }, []);
+
+  // Check if we're in markdown preview mode
+  const isMarkdownPreview = window.location.hash === '#/markdown-preview';
+
+  if (isMarkdownPreview) {
+    return <MarkdownPreview />;
+  }
 
   return (
     <div className="App">

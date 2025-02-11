@@ -277,6 +277,10 @@ let actionWindow: BrowserWindow | null = null;
 let updateWindow: BrowserWindow | null = null;
 let errorOverlayWindow: BrowserWindow | null = null;
 
+let markdownPreviewWindow: BrowserWindow | null = null;
+let currentMarkdownFile: string | null = null;
+// let fileWatcher: any = null;
+
 function logToFile(message: string) {
   const logPath = app.getPath('userData') + '/app.log';
   const timestamp = new Date().toISOString();
@@ -3034,24 +3038,10 @@ ipcMain.handle('add_content', async (event, { content, section }) => {
   try {
     const session = getCurrentSession();
     const mdPath = path.join(session.path, 'main.md');
-    // const jsonPath = path.join(session.path, 'metadata.json');
 
     // Update markdown content
     let mdContent = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf8') : '';
-    // const sectionRegex = new RegExp(`## ${section}.*?(?=## |$)`, 's');
-    // const sectionMatch = mdContent.match(sectionRegex);
 
-    // if (mode === 'append' && sectionMatch) {
-    //   const updatedSection = `${sectionMatch[0].trim()}\n\n${content}`;
-    //   mdContent = mdContent.replace(sectionRegex, updatedSection);
-    // } else if (mode === 'replace' || !sectionMatch) {
-    //   const newSection = `## ${section}\n\n${content}\n\n`;
-    //   if (sectionMatch) {
-    //     mdContent = mdContent.replace(sectionRegex, newSection);
-    //   } else {
-    //     mdContent = `${mdContent.trim()}\n\n${newSection}`;
-    //   }
-    // }
     const prompt = `
 You are a an expert at creating patents.
 Your task is to update an existing partial markdown document with new information.
@@ -3080,7 +3070,6 @@ ${content}
 ${section}
 </section>
 `;
-    // const response = await anthropic_completion(prompt, process.env.REACT_APP_ANTHROPIC_API_KEY!!);
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.chat.completions.create({
@@ -3089,16 +3078,17 @@ ${section}
       max_completion_tokens: 100000,
     });
 
-    // console.log(`Received response from openai: ${response.choices[0].message.content}`);
-    fs.writeFileSync(mdPath, response.choices[0].message.content!!);
+    const updatedContent = response.choices[0].message.content!!;
+    fs.writeFileSync(mdPath, updatedContent);
 
-    // // Update section completion status in metadata
-    // const template = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    // const sectionIndex = template.sections.findIndex((s: PatentSection) => s.name === section);
-    // if (sectionIndex !== -1) {
-    //   template.sections[sectionIndex].completed = true;
-    //   fs.writeFileSync(jsonPath, JSON.stringify(template, null, 2));
-    // }
+    // Send content update to markdown preview window if it's open
+    if (markdownPreviewWindow && !markdownPreviewWindow.isDestroyed()) {
+      const basePath = path.dirname(mdPath);
+      markdownPreviewWindow.webContents.send('markdown-content-update', {
+        content: updatedContent,
+        basePath,
+      });
+    }
 
     updateSessionModified();
     return { success: true };
@@ -3115,14 +3105,15 @@ ipcMain.handle('display_patent', async event => {
     const session = getCurrentSession();
     const mdPath = path.join(session.path, 'main.md');
 
-    logToFile(`Attempting to open patent file on ${process.platform}: ${mdPath}`);
+    logToFile(`Attempting to open patent file in preview: ${mdPath}`);
 
     if (!fs.existsSync(mdPath)) {
       return { success: false, error: 'Patent file not found' };
     }
 
-    await shell.openPath(mdPath);
-    logToFile(`Successfully opened patent file: ${mdPath}`);
+    // Instead of shell.openPath, use our markdown preview
+    await createMarkdownPreviewWindow(mdPath);
+    logToFile(`Successfully opened patent file in preview: ${mdPath}`);
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -3514,7 +3505,7 @@ async function transcribeAndMergeConversation(audioFilePath: string, assistantDi
       model: 'whisper-1',
     });
 
-    console.log('Transcription:', transcription.text);
+    // console.log('Transcription:', transcription.text);
 
     const textFilePath = path.join(contextDir, 'transcriptions.txt');
     let olderConversation = '';
@@ -3715,4 +3706,70 @@ ipcMain.on('merge-conversation-audio', async (event, data: { assistantDisplayNam
 // Forward assistant audio to renderer for recording
 ipcMain.on('assistant-audio', (event, audioData) => {
   mainWindow?.webContents.send('assistant-audio', audioData);
+});
+
+async function createMarkdownPreviewWindow(filePath: string) {
+  if (markdownPreviewWindow) {
+    markdownPreviewWindow.focus();
+    return;
+  }
+
+  markdownPreviewWindow = new BrowserWindow({
+    width: Math.floor(electron_screen.getPrimaryDisplay().workAreaSize.width * 0.8),
+    height: Math.floor(electron_screen.getPrimaryDisplay().workAreaSize.height * 0.8),
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      webSecurity: false, // Allow loading local resources
+      allowRunningInsecureContent: true, // Allow loading local content
+    },
+    title: `Preview: ${path.basename(filePath)}`,
+  });
+
+  markdownPreviewWindow.maximize();
+
+  if (app.isPackaged) {
+    await markdownPreviewWindow.loadURL(
+      `file://${__dirname}/../../build/index.html#/markdown-preview`
+    );
+  } else {
+    await markdownPreviewWindow.loadURL('http://localhost:3000/#/markdown-preview');
+  }
+
+  // Enable loading of local resources
+  markdownPreviewWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': ["default-src 'self' 'unsafe-inline' 'unsafe-eval' data: file:"],
+      },
+    });
+  });
+
+  currentMarkdownFile = filePath;
+
+  markdownPreviewWindow.on('closed', () => {
+    markdownPreviewWindow = null;
+    currentMarkdownFile = null;
+  });
+}
+function sendMarkdownContent() {
+  if (!currentMarkdownFile || !markdownPreviewWindow) return;
+
+  try {
+    const content = fs.readFileSync(currentMarkdownFile, 'utf-8');
+    const basePath = path.dirname(currentMarkdownFile);
+    markdownPreviewWindow.webContents.send('markdown-content-update', { content, basePath });
+  } catch (error) {
+    console.error('Error reading markdown file:', error);
+  }
+}
+
+// Add IPC handlers
+ipcMain.on('request-markdown-content', () => {
+  sendMarkdownContent();
+});
+
+ipcMain.on('open-markdown-preview', (_, filePath: string) => {
+  createMarkdownPreviewWindow(filePath);
 });
