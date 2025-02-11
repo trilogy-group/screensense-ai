@@ -3483,7 +3483,7 @@ interface ConversationMetadata {
   assistantChunks: AudioChunk[];
 }
 
-async function transcribeAndMergeConversation(audioFilePath: string) {
+async function transcribeAndMergeConversation(audioFilePath: string, assistantDisplayName: string) {
   const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
 
   try {
@@ -3493,6 +3493,8 @@ async function transcribeAndMergeConversation(audioFilePath: string) {
       file: fs.createReadStream(audioFilePath), // Use the file path
       model: 'whisper-1',
     });
+
+    console.log('Transcription:', transcription.text);
 
     const textFilePath = path.join(contextDir, 'transcriptions.txt');
     let olderConversation = '';
@@ -3508,9 +3510,9 @@ ${fs.readFileSync(textFilePath, 'utf8')}`;
       model: 'gpt-4o-mini',
       messages: [
         {
-          role: 'developer',
+          role: 'system',
           content: `
-You are a great content paraphraser. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+You are a content paraphraser. The user will provide you with a conversation between a human and a helpful AI assistant called ${assistantDisplayName}. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
 
 It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
 
@@ -3524,11 +3526,13 @@ Assistant: Something the assistant said
 Human: Something the human said
 Instructions to assistant: Some instructions passed to the assistant
 ...
+
+Remember, you must return the entire conversation, including the older conversation and the new conversation combined.
 `,
         },
         {
           role: 'user',
-          content: transcription.text,
+          content: `Here is the new conversation, combine it with the older conversation: ${transcription.text}`,
         },
       ],
       temperature: 0,
@@ -3554,9 +3558,9 @@ Instructions to assistant: Some instructions passed to the assistant
 }
 
 // Add function to merge conversation audio
-async function mergeConversationAudio(metadataPath: string) {
+async function mergeConversationAudio(metadataPath: string, assistantDisplayName: string) {
   try {
-    console.log('Merging conversation audio, file:', metadataPath);
+    // console.log('Merging conversation audio, file:', metadataPath);
     // Read metadata
     const metadata: ConversationMetadata = JSON.parse(
       await fs.promises.readFile(metadataPath, 'utf8')
@@ -3572,27 +3576,36 @@ async function mergeConversationAudio(metadataPath: string) {
 
     // Collect all input files and their timestamps
     const inputFiles: { path: string; timestamp: number }[] = [];
+    const filesToDelete: string[] = [metadataPath]; // Track files to delete after merging
 
     // Add user chunks
     for (let i = 0; i < metadata.userChunks.length; i++) {
       const chunk = metadata.userChunks[i];
+      const filePath = path.join(
+        contextDir,
+        'user',
+        `conversation-user-${i}-${chunk.timestamp}.wav`
+      );
       inputFiles.push({
-        path: path.join(contextDir, 'user', `conversation-user-${i}-${chunk.timestamp}.wav`),
+        path: filePath,
         timestamp: chunk.timestamp,
       });
+      filesToDelete.push(filePath);
     }
 
     // Add assistant chunks
     for (let i = 0; i < metadata.assistantChunks.length; i++) {
       const chunk = metadata.assistantChunks[i];
+      const filePath = path.join(
+        contextDir,
+        'assistant',
+        `conversation-assistant-${i}-${chunk.timestamp}.wav`
+      );
       inputFiles.push({
-        path: path.join(
-          contextDir,
-          'assistant',
-          `conversation-assistant-${i}-${chunk.timestamp}.wav`
-        ),
+        path: filePath,
         timestamp: chunk.timestamp,
       });
+      filesToDelete.push(filePath);
     }
 
     // Build the filter complex string
@@ -3602,10 +3615,12 @@ async function mergeConversationAudio(metadataPath: string) {
     // Add each input file to the command and create its delay filter
     const command = ffmpeg();
     inputFiles.forEach((file, idx) => {
-      command.input(file.path);
-      // Apply delay to each input
-      filterComplex += `[${idx}:a]adelay=${file.timestamp}|${file.timestamp}[a${idx}];`;
-      mixInputs.push(`[a${idx}]`);
+      if (fs.existsSync(file.path)) {
+        command.input(file.path);
+        // Apply delay to each input
+        filterComplex += `[${idx}:a]adelay=${file.timestamp}|${file.timestamp}[a${idx}];`;
+        mixInputs.push(`[a${idx}]`);
+      }
     });
 
     // Add the mix command
@@ -3621,7 +3636,7 @@ async function mergeConversationAudio(metadataPath: string) {
           reject(err);
         })
         .on('end', () => {
-          console.log('FFmpeg processing finished');
+          // console.log('FFmpeg processing finished');
           resolve(null);
         })
         .save(outputPath);
@@ -3630,7 +3645,21 @@ async function mergeConversationAudio(metadataPath: string) {
     console.log('Successfully merged conversation audio');
 
     // Transcribe the merged audio
-    await transcribeAndMergeConversation(outputPath);
+    await transcribeAndMergeConversation(outputPath, assistantDisplayName);
+
+    filesToDelete.push(outputPath);
+
+    // Clean up audio chunks and metadata file after successful merge
+    for (const file of filesToDelete) {
+      try {
+        if (fs.existsSync(file)) {
+          fs.unlinkSync(file);
+          // console.log(`Cleaned up file: ${file}`);
+        }
+      } catch (err) {
+        console.error(`Error cleaning up file ${file}:`, err);
+      }
+    }
 
     return outputPath;
   } catch (error) {
@@ -3640,7 +3669,7 @@ async function mergeConversationAudio(metadataPath: string) {
 }
 
 // Add handler to trigger merging
-ipcMain.on('merge-conversation-audio', async () => {
+ipcMain.on('merge-conversation-audio', async (event, data: { assistantDisplayName: string }) => {
   const contextDir = path.join(app.getPath('userData'), 'context');
 
   try {
@@ -3656,7 +3685,7 @@ ipcMain.on('merge-conversation-audio', async () => {
     }
 
     const metadataPath = path.join(contextDir, metadataFile);
-    await mergeConversationAudio(metadataPath);
+    await mergeConversationAudio(metadataPath, data.assistantDisplayName);
   } catch (error) {
     console.error('Error finding metadata file:', error);
   }

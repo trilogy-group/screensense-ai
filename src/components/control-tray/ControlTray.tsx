@@ -100,6 +100,7 @@ function ControlTray({
   const assistantAudioChunks = useRef<Array<{blob: Blob, timestamp: number, duration: number}>>([]);
   const sessionStartTime = useRef<number>(0);
   const lastAssistantTimestamp = useRef<number>(0);  // Track last assistant chunk end time
+  const autoSaveInterval = useRef<number | null>(null);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
@@ -281,10 +282,15 @@ function ControlTray({
     return buffer;
   };
 
-  const saveRecordings = useCallback(async () => {
+  const saveRecordings = useCallback(async (shouldReset: boolean = false) => {
+    if (userAudioChunks.current.length === 0 && assistantAudioChunks.current.length === 0) {
+      console.log('No audio chunks to save');
+      return;
+    }
+
     console.log('Saving recordings...');
-    console.log('User chunks:', userAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
-    console.log('Assistant chunks:', assistantAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
+    // console.log('User chunks:', userAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
+    // console.log('Assistant chunks:', assistantAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
     
     const metadata = {
       totalDuration: performance.now() - sessionStartTime.current,
@@ -298,7 +304,7 @@ function ControlTray({
       }))
     };
     
-    console.log('Saving metadata:', JSON.stringify(metadata, null, 2));
+    // console.log('Saving metadata:', JSON.stringify(metadata, null, 2));
     ipcRenderer.send('save-conversation-metadata', metadata);
 
     // Save individual audio chunks
@@ -337,8 +343,42 @@ function ControlTray({
     }
 
     // Trigger merging of the conversation
-    ipcRenderer.send('merge-conversation-audio');
-  }, []);
+    ipcRenderer.send('merge-conversation-audio', {
+      assistantDisplayName: assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name
+    });
+
+    // Reset audio chunks and timestamps if requested
+    if (shouldReset) {
+      console.log('Resetting audio chunks and timestamps');
+      userAudioChunks.current = [];
+      assistantAudioChunks.current = [];
+      sessionStartTime.current = performance.now();
+      lastAssistantTimestamp.current = 0;
+    }
+  }, [selectedOption.value]);
+
+  // Add effect to handle auto-saving
+  useEffect(() => {
+    if (isRecordingSession) {
+      // Start auto-save interval
+      autoSaveInterval.current = window.setInterval(() => {
+        saveRecordings(true); // Save and reset chunks every 30 seconds
+      }, 30000);
+    } else {
+      // Clear interval when recording stops
+      if (autoSaveInterval.current !== null) {
+        window.clearInterval(autoSaveInterval.current);
+        autoSaveInterval.current = null;
+      }
+    }
+
+    return () => {
+      if (autoSaveInterval.current !== null) {
+        window.clearInterval(autoSaveInterval.current);
+        autoSaveInterval.current = null;
+      }
+    };
+  }, [isRecordingSession, saveRecordings]);
 
   const handleConnect = useCallback(() => {
     console.log('Going to handle connect');
@@ -355,7 +395,7 @@ function ControlTray({
     } else {
       setIsRecordingSession(false);
       console.log(`Going to save recordings`);
-      saveRecordings();
+      saveRecordings(false); // Save without resetting on disconnect
       disconnect();
     }
   }, [connected, connect, disconnect, selectedOption.value, saveRecordings]);
