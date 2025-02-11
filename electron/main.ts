@@ -3496,3 +3496,15 @@ ipcMain.on('hide-error-overlay', () => {
 ipcMain.on('session-error', (event, errorMessage) => {
   ipcMain.emit('show-error-overlay', event, errorMessage);
 });
+
+ipcMain.on('analyse-image', (event, image) => {
+  const appdata = app.getPath('appData');
+  const codeDir = path.join(appdata, 'screensense-ai', 'code');
+  if (!fs.existsSync(codeDir)) {
+    fs.mkdirSync(codeDir, { recursive: true });
+  }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `${timestamp}.png`;
+  const filepath = path.join(codeDir, filename);
+  fs.writeFileSync(filepath, image, 'base64');
+});

@@ -16,6 +16,8 @@ interface SubtitlesProps {
 }
 
 let play_action = true; 
+let code_analysis_active = false;
+let code_images = [];
 // Default tool configuration
 function SubtitlesComponent({
   tools,
@@ -580,6 +582,25 @@ function SubtitlesComponent({
             }
             hasResponded = true;
             break;
+          case "start_code_analysis":
+            code_analysis_active = true;
+            while(code_analysis_active) {
+              if(onScreenshot) {
+                const screenshot = onScreenshot();
+                if (screenshot) {
+                  code_images.push(screenshot);
+                  ipcRenderer.send('analyse-image', screenshot);
+                }
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            hasResponded = true;
+            break;
+          case "stop_code_analysis":
+            code_analysis_active = false;
+            code_images = [];
+            hasResponded = true;
+            break;  
         }
         if (!hasResponded) {
           // new Promise(resolve => setTimeout(resolve, 2000)).then()

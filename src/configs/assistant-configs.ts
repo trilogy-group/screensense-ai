@@ -545,6 +545,14 @@ export const patentGeneratorTools: Tool[] = [
           required: ['description'],
         },
       },
+      {
+        name: 'start_code_analysis',
+        description: 'Starts the code analysis',
+      },
+      {
+        name: 'stop_code_analysis',
+        description: 'Stops the code analysis',
+      },
     ],
   },
 ];
@@ -747,7 +755,9 @@ Important Guidelines:
 - Make the conversation feel natural, not like filling out a form
 - Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete
 - Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document. Ensure you're calling the add_content function every time you want to add something to the document, and don't try to add it yourself.
-- When the user wants to demonstrate something visually, encourage them to show it on screen and use the capture_screenshot function to save it`,
+- When the user wants to demonstrate something visually, encourage them to show it on screen and use the capture_screenshot function to save it
+- When the user wants to start code analysis, call the start_code_analysis function. When the user wants to stop code analysis, call the stop_code_analysis function.
+`,
   },
   insight_generator: {
     display_name: 'Insight Generator',
@@ -776,6 +786,17 @@ Important Instructions:
   - Add blank lines to better separate the different parts of the post and make it more readable.
 4. Sometimes, it is possible that the user does not have the solution to the problem. In that case, frame it as a challenge rather than an insight. And if creating a social media post, use #challenge instead of #insight.
 5. When you and the user are satisfied with the insight, you must use the write_text tool to write the insight to the user's screen.
+`,
+  },
+  code_analyser: {
+    display_name: 'Code Analyser',
+    tools: [...patentGeneratorTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in Code Analyser Mode.
+Your task is to analyse the code on the user's screen and provide a detailed explanation of the code.
+
+Your Tools:
+- You have access to the start_code_analysis and stop_code_analysis functions. Whenever the user wants to start code analysis, call the start_code_analysis function. Whenever the user wants to stop code analysis, call the stop_code_analysis function.
 `,
   },
 } as const;
