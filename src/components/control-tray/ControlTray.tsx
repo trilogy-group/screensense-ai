@@ -138,7 +138,7 @@ function ControlTray({
         // Calculate duration based on sample rate and data size
         const duration = (bytes.length / 2) / 16000 * 1000; // Convert to milliseconds
         const timestamp = performance.now() - sessionStartTime.current;
-        console.log(`User audio chunk recorded - Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${bytes.length} bytes`);
+        // console.log(`User audio chunk recorded - Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${bytes.length} bytes`);
         userAudioChunks.current.push({
           blob,
           timestamp,
@@ -472,7 +472,7 @@ function ControlTray({
         // Update the last timestamp to be the end of this chunk
         lastAssistantTimestamp.current = timestamp + duration;
         
-        console.log(`Assistant audio chunk received - Actual time: ${now}ms, Assigned Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${audioData.byteLength} bytes`);
+        // console.log(`Assistant audio chunk received - Actual time: ${now}ms, Assigned Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${audioData.byteLength} bytes`);
         assistantAudioChunks.current.push({
           blob,
           timestamp,

@@ -2819,97 +2819,6 @@ ipcMain.handle('get-screenshot', async () => {
   }
 });
 
-// Replace with your API endpoint and key
-// Load settings to get the API key
-
-ipcMain.on('save-audio', async (event, audioBuffer) => {
-  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
-
-  // Ensure the directory exists
-  if (!fs.existsSync(contextDir)) {
-    fs.mkdirSync(contextDir, { recursive: true });
-  }
-
-  // Generate a unique filename for the audio file
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const audioFilePath = path.join(contextDir, `audio-${timestamp}.wav`);
-
-  // Write the audio buffer to a file
-  fs.writeFile(audioFilePath, audioBuffer, async err => {
-    if (err) {
-      console.error('Failed to save audio file:', err);
-    } else {
-      // console.log('Audio file saved:', audioFilePath);
-
-      try {
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-        const transcription = await openai.audio.transcriptions.create({
-          file: fs.createReadStream(audioFilePath), // Use the file path
-          model: 'whisper-1',
-        });
-
-        const textFilePath = path.join(contextDir, 'transcriptions.txt');
-        let olderConversation = '';
-
-        if (fs.existsSync(textFilePath)) {
-          olderConversation = ` 
-${fs.readFileSync(textFilePath, 'utf8')}`;
-        } else {
-          olderConversation = 'There is no older conversation. This is start of new conversation.';
-        }
-
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'developer',
-              content: `
-You are a great content paraphraser. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
-
-It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
-
-Here is the older conversation:
-${olderConversation}
-
-You must return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. You must return the corrected conversation in the following format:
-Assistant: Something the assistant said
-Human: Something the human said
-Assistant: Something the assistant said
-Human: Something the human said
-Instructions to assistant: Some instructions passed to the assistant
-...
-`,
-            },
-            {
-              role: 'user',
-              content: transcription.text,
-            },
-          ],
-          temperature: 0,
-          max_tokens: 8192,
-        });
-
-        // console.log('Paraphrased conversation:', completion.choices[0].message.content);
-
-        // Append transcription to a single text file
-        fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
-          if (err) {
-            console.error('Failed to write transcription to file:', err);
-          } else {
-            console.log('Transcription written to file:', textFilePath);
-          }
-        });
-      } catch (error: any) {
-        console.error(
-          'Error during speech-to-text conversion:',
-          error.response ? error.response.data : error.message
-        );
-      }
-    }
-  });
-});
-
 ipcMain.on('session-start', () => {
   console.log('Session started');
 
@@ -3542,7 +3451,7 @@ ipcMain.on('save-conversation-audio', async (event, { buffer, type, index, times
 
   try {
     await fs.promises.writeFile(filePath, buffer);
-    console.log(`Saved ${type} audio chunk to ${filePath}`);
+    // console.log(`Saved ${type} audio chunk to ${filePath}`);
   } catch (error) {
     console.error(`Error saving ${type} audio chunk:`, error);
   }
@@ -3574,6 +3483,76 @@ interface ConversationMetadata {
   assistantChunks: AudioChunk[];
 }
 
+async function transcribeAndMergeConversation(audioFilePath: string) {
+  const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioFilePath), // Use the file path
+      model: 'whisper-1',
+    });
+
+    const textFilePath = path.join(contextDir, 'transcriptions.txt');
+    let olderConversation = '';
+
+    if (fs.existsSync(textFilePath)) {
+      olderConversation = ` 
+${fs.readFileSync(textFilePath, 'utf8')}`;
+    } else {
+      olderConversation = 'There is no older conversation. This is start of new conversation.';
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'developer',
+          content: `
+You are a great content paraphraser. The user will provide you with a conversation between an AI and a human. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+
+It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
+
+Here is the older conversation:
+${olderConversation}
+
+You must return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. You must return the corrected conversation in the following format:
+Assistant: Something the assistant said
+Human: Something the human said
+Assistant: Something the assistant said
+Human: Something the human said
+Instructions to assistant: Some instructions passed to the assistant
+...
+`,
+        },
+        {
+          role: 'user',
+          content: transcription.text,
+        },
+      ],
+      temperature: 0,
+      max_tokens: 8192,
+    });
+
+    // console.log('Paraphrased conversation:', completion.choices[0].message.content);
+
+    // Append transcription to a single text file
+    fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
+      if (err) {
+        console.error('Failed to write transcription to file:', err);
+      } else {
+        console.log('Transcription written to file:', textFilePath);
+      }
+    });
+  } catch (error: any) {
+    console.error(
+      'Error during speech-to-text conversion:',
+      error.response ? error.response.data : error.message
+    );
+  }
+}
+
 // Add function to merge conversation audio
 async function mergeConversationAudio(metadataPath: string) {
   try {
@@ -3582,7 +3561,7 @@ async function mergeConversationAudio(metadataPath: string) {
     const metadata: ConversationMetadata = JSON.parse(
       await fs.promises.readFile(metadataPath, 'utf8')
     );
-    console.log('Loaded metadata:', JSON.stringify(metadata, null, 2));
+    // console.log('Loaded metadata:', JSON.stringify(metadata, null, 2));
 
     const contextDir = path.join(app.getPath('userData'), 'context');
     const metadataTimestamp = path
@@ -3649,6 +3628,10 @@ async function mergeConversationAudio(metadataPath: string) {
     });
 
     console.log('Successfully merged conversation audio');
+
+    // Transcribe the merged audio
+    await transcribeAndMergeConversation(outputPath);
+
     return outputPath;
   } catch (error) {
     console.error('Error merging conversation audio:', error);
