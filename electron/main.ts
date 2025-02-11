@@ -19,7 +19,7 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
-import anthropic_completion from '../shared/services/anthropic';
+import { anthropic_completion, analyseCode } from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { initializeAutoUpdater } from './updater';
 dotenv.config();
@@ -3497,7 +3497,22 @@ ipcMain.on('session-error', (event, errorMessage) => {
   ipcMain.emit('show-error-overlay', event, errorMessage);
 });
 
-ipcMain.on('analyse-image', (event, image) => {
+ipcMain.on('clear-code-images', (event, message) => {
+  const appdata = app.getPath('appData');
+  const codeDir = path.join(appdata, 'screensense-ai', 'code');
+  fs.readdir(codeDir, (err, files) => {
+    if (err) throw err;
+
+    for (const file of files) {
+      fs.unlink(path.join(codeDir, file), err => {
+        if (err) throw err;
+      });
+    }
+  });
+});
+
+ipcMain.on('save-code-image', (event, image) => {
+  const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
   const appdata = app.getPath('appData');
   const codeDir = path.join(appdata, 'screensense-ai', 'code');
   if (!fs.existsSync(codeDir)) {
@@ -3506,5 +3521,30 @@ ipcMain.on('analyse-image', (event, image) => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `${timestamp}.png`;
   const filepath = path.join(codeDir, filename);
-  fs.writeFileSync(filepath, image, 'base64');
+  fs.writeFileSync(filepath, base64Data, 'base64');
+});
+
+ipcMain.handle('analyse-code', async (event) => {
+  try {
+    console.log('Analysing code images...');
+    const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error('Anthropic API key not found');
+    }
+    const appdata = app.getPath('appData');
+    const codeDir = path.join(appdata, 'screensense-ai', 'code');
+    let code_images: string[] = [];
+    fs.readdirSync(codeDir).forEach(file => {
+      code_images.push(path.join(codeDir, file));
+    });
+    
+    // Get analysis from Claude
+    const analysis = await analyseCode(code_images, apiKey);
+    console.log(analysis);
+    console.log('Code analysis completed');
+    return { success: true, analysis };
+  } catch (error: any) {
+    console.error('Error analyzing code:', error);
+    return { success: false, error: error.message || 'Unknown error occurred' };
+  }
 });

@@ -17,7 +17,7 @@ interface SubtitlesProps {
 
 let play_action = true; 
 let code_analysis_active = false;
-let code_images = [];
+let code_images: string[] = [];
 // Default tool configuration
 function SubtitlesComponent({
   tools,
@@ -583,13 +583,16 @@ function SubtitlesComponent({
             hasResponded = true;
             break;
           case "start_code_analysis":
+            ipcRenderer.send('clear-code-images', `Starting code analysis`);
+            await new Promise(resolve => setTimeout(resolve, 100));
             code_analysis_active = true;
             while(code_analysis_active) {
               if(onScreenshot) {
+                console.log('Taking screenshot');
                 const screenshot = onScreenshot();
                 if (screenshot) {
                   code_images.push(screenshot);
-                  ipcRenderer.send('analyse-image', screenshot);
+                  ipcRenderer.send('save-code-image', screenshot);
                 }
               }
               await new Promise(resolve => setTimeout(resolve, 1000));
@@ -598,6 +601,9 @@ function SubtitlesComponent({
             break;
           case "stop_code_analysis":
             code_analysis_active = false;
+            console.log('Stopping code analysis');
+            const analysis = await ipcRenderer.invoke('analyse-code');
+            console.log(analysis);
             code_images = [];
             hasResponded = true;
             break;  

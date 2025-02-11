@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-
-export default async function anthropic_completion(
+import fs from 'fs';
+export async function anthropic_completion(
   prompt: string,
   apiKey: string,
   jsonMode: boolean = false,
@@ -53,4 +53,43 @@ export default async function anthropic_completion(
   }
 
   return message;
+}
+
+export async function analyseCode(codeImages: string[], apiKey: string) {
+  const messages = [{
+    role: "user" as const,
+    content: [
+      {
+        type: "text" as const,
+        text: "Analyze these code screenshots comprehensively."
+      },
+      ...codeImages.map((filepath) => {
+        // Ensure we're working with just the base64 data without the data URL prefix
+        const image = fs.readFileSync(filepath, {encoding: 'base64'});
+        // console.log(image)
+        
+        return {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "image/png" as const,
+            data: image
+          }
+        };
+      })
+    ]
+  }];
+
+  const anthropic = new Anthropic({
+    apiKey: apiKey,
+  });
+
+  const response = await anthropic.messages.create({
+    model: "claude-3-5-sonnet-20241022",
+    max_tokens: 4096,
+    messages,
+    system: "You are and expert at extracting code from images. Given a set of images, you will extract the code and return it in a structured format."
+  });
+
+  return response.content[0].type === 'text' ? response.content[0].text : '';
 }
