@@ -3519,15 +3519,15 @@ It is possible that sometimes the conversation is incomplete, but you should not
 Here is the older conversation:
 ${olderConversation}
 
-You must return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. You must return the corrected conversation in the following format:
-Assistant: Something the assistant said
-Human: Something the human said
-Assistant: Something the assistant said
-Human: Something the human said
-Instructions to assistant: Some instructions passed to the assistant
+You must return the older conversation along with the new conversation without separation. It should feel like continuous flow of conversation. You don't have to include all the information verbatim, but you must include the overall meaning. You must return the corrected conversation in the following format:
+The assistant inquired about ...
+The human responded with ...
+The human asked for help with ...
+The assistant provided the help by ...
 ...
 
 Remember, you must return the entire conversation, including the older conversation and the new conversation combined.
+You don't have to include everything, just enough so that someone can understand the conversation.
 `,
         },
         {
