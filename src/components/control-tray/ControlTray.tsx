@@ -96,8 +96,10 @@ function ControlTray({
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRecordingSession, setIsRecordingSession] = useState(false);
-  const userAudioChunks = useRef<Blob[]>([]);
-  const assistantAudioChunks = useRef<Blob[]>([]);
+  const userAudioChunks = useRef<Array<{blob: Blob, timestamp: number, duration: number}>>([]);
+  const assistantAudioChunks = useRef<Array<{blob: Blob, timestamp: number, duration: number}>>([]);
+  const sessionStartTime = useRef<number>(0);
+  const lastAssistantTimestamp = useRef<number>(0);  // Track last assistant chunk end time
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
 
@@ -133,7 +135,15 @@ function ControlTray({
           bytes[i] = binaryStr.charCodeAt(i);
         }
         const blob = new Blob([bytes], { type: 'audio/pcm' });
-        userAudioChunks.current.push(blob);
+        // Calculate duration based on sample rate and data size
+        const duration = (bytes.length / 2) / 16000 * 1000; // Convert to milliseconds
+        const timestamp = performance.now() - sessionStartTime.current;
+        console.log(`User audio chunk recorded - Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${bytes.length} bytes`);
+        userAudioChunks.current.push({
+          blob,
+          timestamp,
+          duration
+        });
       }
     };
 
@@ -272,45 +282,62 @@ function ControlTray({
   };
 
   const saveRecordings = useCallback(async () => {
-    if (userAudioChunks.current.length > 0) {
-      // Combine all user audio chunks
-      const userBlob = new Blob(userAudioChunks.current, { type: 'audio/pcm' });
-      const userArrayBuffer = await userBlob.arrayBuffer();
-      
-      // Create WAV header - user audio is at 16kHz
-      const header = createWavHeader(userArrayBuffer.byteLength, 16000);
-      
-      // Combine header and audio data
+    console.log('Saving recordings...');
+    console.log('User chunks:', userAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
+    console.log('Assistant chunks:', assistantAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
+    
+    const metadata = {
+      totalDuration: performance.now() - sessionStartTime.current,
+      userChunks: userAudioChunks.current.map(chunk => ({
+        timestamp: chunk.timestamp,
+        duration: chunk.duration
+      })),
+      assistantChunks: assistantAudioChunks.current.map(chunk => ({
+        timestamp: chunk.timestamp,
+        duration: chunk.duration
+      }))
+    };
+    
+    console.log('Saving metadata:', JSON.stringify(metadata, null, 2));
+    ipcRenderer.send('save-conversation-metadata', metadata);
+
+    // Save individual audio chunks
+    for (let i = 0; i < userAudioChunks.current.length; i++) {
+      const chunk = userAudioChunks.current[i];
+      const arrayBuffer = await chunk.blob.arrayBuffer();
+      const header = createWavHeader(arrayBuffer.byteLength, 16000);
       const finalBuffer = Buffer.concat([
         Buffer.from(header),
-        Buffer.from(userArrayBuffer)
+        Buffer.from(arrayBuffer)
       ]);
       
       ipcRenderer.send('save-conversation-audio', {
         buffer: finalBuffer,
-        type: 'user'
+        type: 'user',
+        index: i,
+        timestamp: chunk.timestamp
       });
     }
 
-    if (assistantAudioChunks.current.length > 0) {
-      // Combine all assistant audio chunks
-      const assistantBlob = new Blob(assistantAudioChunks.current, { type: 'audio/pcm' });
-      const assistantArrayBuffer = await assistantBlob.arrayBuffer();
-      
-      // Create WAV header - assistant audio is at 24kHz
-      const header = createWavHeader(assistantArrayBuffer.byteLength, 24000);
-      
-      // Combine header and audio data
+    for (let i = 0; i < assistantAudioChunks.current.length; i++) {
+      const chunk = assistantAudioChunks.current[i];
+      const arrayBuffer = await chunk.blob.arrayBuffer();
+      const header = createWavHeader(arrayBuffer.byteLength, 24000);
       const finalBuffer = Buffer.concat([
         Buffer.from(header),
-        Buffer.from(assistantArrayBuffer)
+        Buffer.from(arrayBuffer)
       ]);
       
       ipcRenderer.send('save-conversation-audio', {
         buffer: finalBuffer,
-        type: 'assistant'
+        type: 'assistant',
+        index: i,
+        timestamp: chunk.timestamp
       });
     }
+
+    // Trigger merging of the conversation
+    ipcRenderer.send('merge-conversation-audio');
   }, []);
 
   const handleConnect = useCallback(() => {
@@ -319,6 +346,8 @@ function ControlTray({
       setIsRecordingSession(true);
       userAudioChunks.current = [];
       assistantAudioChunks.current = [];
+      sessionStartTime.current = performance.now();
+      lastAssistantTimestamp.current = 0;  // Reset the last timestamp
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
       });
@@ -424,9 +453,31 @@ function ControlTray({
   useEffect(() => {
     const handleAssistantAudio = (event: any, audioData: ArrayBuffer) => {
       if (isRecordingSession) {
-        // Use the same format as user audio - PCM
         const blob = new Blob([audioData], { type: 'audio/pcm' });
-        assistantAudioChunks.current.push(blob);
+        const duration = (audioData.byteLength / 2) / 24000 * 1000; // Convert to milliseconds
+        
+        // Calculate the proper timestamp based on when we should play this chunk
+        let timestamp: number;
+        
+        // If this is the first chunk in a burst (gap > 500ms from last chunk)
+        const now = performance.now() - sessionStartTime.current;
+        if (assistantAudioChunks.current.length === 0 || now - lastAssistantTimestamp.current > 500) {
+          // This is the first chunk of a new utterance - use current time
+          timestamp = now;
+        } else {
+          // This is a continuation chunk - should play right after the previous chunk
+          timestamp = lastAssistantTimestamp.current;
+        }
+        
+        // Update the last timestamp to be the end of this chunk
+        lastAssistantTimestamp.current = timestamp + duration;
+        
+        console.log(`Assistant audio chunk received - Actual time: ${now}ms, Assigned Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${audioData.byteLength} bytes`);
+        assistantAudioChunks.current.push({
+          blob,
+          timestamp,
+          duration
+        });
       }
     };
 

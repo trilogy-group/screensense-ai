@@ -22,6 +22,8 @@ import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { initializeAutoUpdater } from './updater';
+import { exec } from 'child_process';
+import util from 'util';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -2911,21 +2913,53 @@ ipcMain.on('session-start', () => {
   console.log('Session started');
 
   const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
+  const userDir = path.join(contextDir, 'user');
+  const assistantDir = path.join(contextDir, 'assistant');
 
-  // Ensure the directory exists
-  if (fs.existsSync(contextDir)) {
-    // Clear the contents of the directory
-    fs.readdir(contextDir, (err, files) => {
-      if (err) throw err;
+  // Function to recursively clean a directory
+  const cleanDirectory = (dirPath: string) => {
+    if (fs.existsSync(dirPath)) {
+      fs.readdirSync(dirPath).forEach(file => {
+        const curPath = path.join(dirPath, file);
+        if (fs.lstatSync(curPath).isDirectory()) {
+          // Recurse for directories
+          cleanDirectory(curPath);
+          try {
+            fs.rmdirSync(curPath);
+          } catch (err) {
+            console.error(`Error removing directory ${curPath}:`, err);
+          }
+        } else {
+          // Remove files
+          try {
+            fs.unlinkSync(curPath);
+          } catch (err) {
+            console.error(`Error removing file ${curPath}:`, err);
+          }
+        }
+      });
+    }
+  };
 
-      for (const file of files) {
-        fs.unlink(path.join(contextDir, file), err => {
-          if (err) throw err;
-        });
+  try {
+    // Ensure the directory exists
+    if (!fs.existsSync(contextDir)) {
+      fs.mkdirSync(contextDir, { recursive: true });
+    }
+
+    // Clean existing files in context directory
+    cleanDirectory(contextDir);
+
+    // Recreate subdirectories
+    [userDir, assistantDir].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
       }
     });
-  } else {
-    fs.mkdirSync(contextDir, { recursive: true });
+
+    console.log('Session directories cleaned and recreated successfully');
+  } catch (error) {
+    console.error('Error during session cleanup:', error);
   }
 });
 
@@ -3498,19 +3532,195 @@ ipcMain.on('session-error', (event, errorMessage) => {
 });
 
 // Add conversation audio handlers
-ipcMain.on('save-conversation-audio', async (event, { buffer, type }) => {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const fileName = `conversation-${type}-${timestamp}.wav`;
-  const filePath = path.join(app.getPath('userData'), 'context', fileName);
+ipcMain.on('save-conversation-audio', async (event, { buffer, type, index, timestamp }) => {
+  const fileName = `conversation-${type}-${index}-${timestamp}.wav`;
+  const filePath = path.join(app.getPath('userData'), 'context', type, fileName);
 
   // Ensure recordings directory exists
-  await fs.promises.mkdir(path.join(app.getPath('userData'), 'context'), { recursive: true });
+  await fs.promises.mkdir(path.join(app.getPath('userData'), 'context', type), { recursive: true });
 
   try {
     await fs.promises.writeFile(filePath, buffer);
-    console.log(`Saved ${type} audio to ${filePath}`);
+    console.log(`Saved ${type} audio chunk to ${filePath}`);
   } catch (error) {
-    console.error(`Error saving ${type} audio:`, error);
+    console.error(`Error saving ${type} audio chunk:`, error);
+  }
+});
+
+// Add conversation metadata handler
+ipcMain.on('save-conversation-metadata', async (event, metadata) => {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const fileName = `conversation-metadata-${timestamp}.json`;
+  const filePath = path.join(app.getPath('userData'), 'context', fileName);
+
+  try {
+    await fs.promises.writeFile(filePath, JSON.stringify(metadata, null, 2));
+    console.log(`Saved conversation metadata to ${filePath}`);
+  } catch (error) {
+    console.error('Error saving conversation metadata:', error);
+  }
+});
+
+// Add interfaces for metadata types
+interface AudioChunk {
+  timestamp: number;
+  duration: number;
+}
+
+interface ConversationMetadata {
+  totalDuration: number;
+  userChunks: AudioChunk[];
+  assistantChunks: AudioChunk[];
+}
+
+// Add function to merge conversation audio
+async function mergeConversationAudio(metadataPath: string) {
+  try {
+    console.log('Merging conversation audio, file:', metadataPath);
+    // Read metadata
+    const metadata: ConversationMetadata = JSON.parse(
+      await fs.promises.readFile(metadataPath, 'utf8')
+    );
+    console.log('Loaded metadata:', JSON.stringify(metadata, null, 2));
+
+    // Log timing analysis
+    console.log('\nTiming Analysis:');
+    console.log('Total duration:', metadata.totalDuration, 'ms');
+
+    if (metadata.userChunks.length > 0) {
+      console.log('\nUser Chunks Analysis:');
+      metadata.userChunks.forEach((chunk, i) => {
+        console.log(`Chunk ${i}:`, {
+          timestamp: chunk.timestamp,
+          duration: chunk.duration,
+          end: chunk.timestamp + chunk.duration,
+          gap:
+            i > 0
+              ? chunk.timestamp -
+                (metadata.userChunks[i - 1].timestamp + metadata.userChunks[i - 1].duration)
+              : null,
+        });
+      });
+    }
+
+    if (metadata.assistantChunks.length > 0) {
+      console.log('\nAssistant Chunks Analysis:');
+      metadata.assistantChunks.forEach((chunk, i) => {
+        console.log(`Chunk ${i}:`, {
+          timestamp: chunk.timestamp,
+          duration: chunk.duration,
+          end: chunk.timestamp + chunk.duration,
+          gap:
+            i > 0
+              ? chunk.timestamp -
+                (metadata.assistantChunks[i - 1].timestamp +
+                  metadata.assistantChunks[i - 1].duration)
+              : null,
+        });
+      });
+    }
+
+    const contextDir = path.join(app.getPath('userData'), 'context');
+
+    // Create filter complex string
+    let filterComplex = '';
+    let inputFiles = '';
+    let mixInputs = ['[base]'];
+    let inputIndex = 1;
+
+    // Create base silent track at 16kHz
+    const totalDuration = metadata.totalDuration / 1000;
+
+    // Process user audio chunks
+    if (metadata.userChunks.length > 0) {
+      console.log('\nProcessing user chunks:', metadata.userChunks.length);
+      metadata.userChunks.forEach((chunk, i) => {
+        const inputFile = path.join(
+          contextDir,
+          'user',
+          `conversation-user-${i}-${chunk.timestamp}.wav`
+        );
+        console.log(`Processing user chunk ${i}:`, {
+          file: inputFile,
+          timestamp: chunk.timestamp,
+          delay: chunk.timestamp,
+        });
+        inputFiles += ` -i "${inputFile}"`;
+        filterComplex += `[${inputIndex}]adelay=${chunk.timestamp},volume=1.5[delayed_user${i}];`;
+        mixInputs.push(`[delayed_user${i}]`);
+        inputIndex++;
+      });
+    }
+
+    // Process assistant audio chunks
+    if (metadata.assistantChunks.length > 0) {
+      console.log('\nProcessing assistant chunks:', metadata.assistantChunks.length);
+      metadata.assistantChunks.forEach((chunk, i) => {
+        const inputFile = path.join(
+          contextDir,
+          'assistant',
+          `conversation-assistant-${i}-${chunk.timestamp}.wav`
+        );
+        console.log(`Processing assistant chunk ${i}:`, {
+          file: inputFile,
+          timestamp: chunk.timestamp,
+          delay: chunk.timestamp,
+        });
+        inputFiles += ` -i "${inputFile}"`;
+        filterComplex += `[${inputIndex}]asetrate=24000,aresample=16000,volume=2[resampled${i}];`;
+        filterComplex += `[resampled${i}]adelay=${chunk.timestamp}[delayed_assistant${i}];`;
+        mixInputs.push(`[delayed_assistant${i}]`);
+        inputIndex++;
+      });
+    }
+
+    // Mix all streams together
+    filterComplex += `${mixInputs.join('')}amix=inputs=${mixInputs.length}:normalize=1[mixed];`;
+    filterComplex += `[mixed]acompressor=threshold=-20dB:ratio=4:attack=5:release=50[compressed];`;
+    filterComplex += `[compressed]alimiter=limit=0.95:attack=5:release=50[limited];`;
+    filterComplex += `[limited]volume=1.5[out]`;
+
+    const metadataTimestamp = path
+      .basename(metadataPath)
+      .replace('conversation-metadata-', '')
+      .replace('.json', '');
+    const outputPath = path.join(contextDir, `conversation-merged-${metadataTimestamp}.wav`);
+
+    const ffmpegCmd = `ffmpeg -f lavfi -i aevalsrc=0:d=${totalDuration}:s=16000${inputFiles} -filter_complex "${filterComplex}" -map "[out]" -ar 16000 -ac 1 -acodec pcm_s16le "${outputPath}"`;
+
+    console.log('\nFFmpeg command:', ffmpegCmd);
+    const { stdout, stderr } = await util.promisify(exec)(ffmpegCmd);
+    console.log('FFmpeg stdout:', stdout);
+    console.log('FFmpeg stderr:', stderr);
+    console.log('Successfully merged conversation audio');
+
+    return outputPath;
+  } catch (error) {
+    console.error('Error merging conversation audio:', error);
+    throw error;
+  }
+}
+
+// Add handler to trigger merging
+ipcMain.on('merge-conversation-audio', async () => {
+  const contextDir = path.join(app.getPath('userData'), 'context');
+
+  try {
+    // Find metadata file in context directory
+    const files = fs.readdirSync(contextDir);
+    const metadataFile = files.find(
+      file => file.startsWith('conversation-metadata-') && file.endsWith('.json')
+    );
+
+    if (!metadataFile) {
+      console.error('No metadata file found in context directory');
+      return;
+    }
+
+    const metadataPath = path.join(contextDir, metadataFile);
+    await mergeConversationAudio(metadataPath);
+  } catch (error) {
+    console.error('Error finding metadata file:', error);
   }
 });
 
