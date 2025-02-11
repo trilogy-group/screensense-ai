@@ -3524,27 +3524,74 @@ ipcMain.on('save-code-image', (event, image) => {
   fs.writeFileSync(filepath, base64Data, 'base64');
 });
 
-ipcMain.handle('analyse-code', async (event) => {
-  try {
-    console.log('Analysing code images...');
-    const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('Anthropic API key not found');
-    }
-    const appdata = app.getPath('appData');
-    const codeDir = path.join(appdata, 'screensense-ai', 'code');
-    let code_images: string[] = [];
-    fs.readdirSync(codeDir).forEach(file => {
-      code_images.push(path.join(codeDir, file));
-    });
+// ipcMain.handle('analyse-code', async (event) => {
+//   try {
+//     console.log('Analysing code images...');
+//     const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY;
+//     if (!apiKey) {
+//       throw new Error('Anthropic API key not found');
+//     }
+//     const appdata = app.getPath('appData');
+//     const codeDir = path.join(appdata, 'screensense-ai', 'code');
+//     let code_images: string[] = [];
+//     fs.readdirSync(codeDir).forEach(file => {
+//       code_images.push(path.join(codeDir, file));
+//     });
     
-    // Get analysis from Claude
-    const analysis = await analyseCode(code_images, apiKey);
-    console.log(analysis);
-    console.log('Code analysis completed');
-    return { success: true, analysis };
-  } catch (error: any) {
-    console.error('Error analyzing code:', error);
-    return { success: false, error: error.message || 'Unknown error occurred' };
+//     // Get analysis from Claude
+//     const analysis = await analyseCode(code_images, apiKey);
+//     console.log(analysis);
+//     console.log('Code analysis completed');
+//     return { success: true, analysis };
+//   } catch (error: any) {
+//     console.error('Error analyzing code:', error);
+//     return { success: false, error: error.message || 'Unknown error occurred' };
+//   }
+// });
+
+ipcMain.handle('analyse-code', async (event) => {
+  console.log("analyse-code");
+  const codeDir = path.join(app.getPath('appData'), 'screensense-ai', 'code');
+  let con: any[] = []
+  const encodeImage = (imagePath: string): string => {
+    const imageBuffer_2 = fs.readFileSync(imagePath);
+    return imageBuffer_2.toString("base64");
+  };
+  const files = fs.readdirSync(codeDir);
+  for (const file of files) {
+    const filePath = path.join(codeDir, file);
+    const base64Image = encodeImage(filePath);
+    con.push({
+      type: "image_url",
+      image_url: { url: `data:image/png;base64,${base64Image}` }
+    });
   }
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Send the image to GPT for analysis
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: "You are and expert at extracting code from images. Given a set of images, you will extract the code and return it in a structured format. The code you return should be properly formatted and readable. The code should be in the language of the code in the image."
+      },
+      {
+        role: "user",
+        content: con
+      }
+    ],
+
+  });
+
+  // Log the response from GPT
+  const prompt = response.choices[0].message.content;
+  const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY;
+  if (!prompt || !apiKey) {
+    throw new Error('No prompt or API key found');
+  }
+  const systemPrompt = "The user will provide you some code in text format. Your job is to understand the underlying logic behind the code and return a detailed summary of the code. The summary should be in a way that is easy to understand for a non-technical person."
+  const analysis = await anthropic_completion(prompt, apiKey, true, systemPrompt);
+  // console.log(analysis);
+  return analysis;
 });

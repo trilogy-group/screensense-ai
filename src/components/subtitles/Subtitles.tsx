@@ -602,8 +602,10 @@ function SubtitlesComponent({
           case "stop_code_analysis":
             code_analysis_active = false;
             console.log('Stopping code analysis');
+            // const analysis = await ipcRenderer.invoke('analyse-code');
             const analysis = await ipcRenderer.invoke('analyse-code');
-            console.log(analysis);
+            // console.log(analysis);
+            ipcRenderer.send('add_content', analysis, "Implementation Details");
             code_images = [];
             hasResponded = true;
             break;  
