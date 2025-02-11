@@ -1,6 +1,6 @@
 {
   "name": "screensense-ai",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "An AI assistant that lives in your computer, helping you with daily tasks through screen interaction, translation, and other capabilities.",
   "author": {
     "name": "Sahil Marwaha"
@@ -78,7 +78,7 @@
       "provider": "github",
       "owner": "trilogy-group",
       "repo": "screensense-ai-releases",
-      "private": true,
+      "private": false,
       "releaseType": "release",
       "publishAutoUpdate": true
     },

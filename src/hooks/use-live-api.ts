@@ -97,7 +97,15 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
             await connect();
             const context = await ipcRenderer.invoke('get-context');
             if (context && context.length > 0) {
-              client.send([{ text: context }], true, false);
+              client.send(
+                [
+                  {
+                    text: `Here is the conversation history: ${context}. Aplogise to the user for the interruption, let them know what the last thing you were discussing, and ask if they would like to continue.`,
+                  },
+                ],
+                true,
+                false
+              );
             }
             console.log('Reconnection attempt successful');
           } catch (err) {
@@ -125,7 +133,13 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();
 
-    const onAudio = (data: ArrayBuffer) => audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+    const onAudio = (data: ArrayBuffer) => {
+      // Stream audio to speakers
+      audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+
+      // Forward audio to renderer for recording
+      ipcRenderer.send('assistant-audio', data);
+    };
 
     client.on('close', onClose).on('interrupted', stopAudioStreamer).on('audio', onAudio);
 
