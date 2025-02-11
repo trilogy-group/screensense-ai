@@ -3057,6 +3057,7 @@ You are a an expert at creating patents.
 Your task is to update an existing partial markdown document with new information.
 
 <instructions>
+- Your language must be suitable for a patent document. Be thorough and detailed.
 - You must return the entire updated markdown document.
 - You must try to add the new information in the section that is provided, but if it doesn't fit, create a new section.
 - Do not add questions to the document.
@@ -3126,6 +3127,25 @@ ipcMain.handle('display_patent', async event => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error displaying patent: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+});
+
+// Update the read_patent handler
+ipcMain.handle('read_patent', async event => {
+  try {
+    const session = getCurrentSession();
+    const mdPath = path.join(session.path, 'main.md');
+
+    if (!fs.existsSync(mdPath)) {
+      return { success: false, error: 'Patent file not found' };
+    }
+
+    const contents = fs.readFileSync(mdPath, 'utf8');
+    return { success: true, contents };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error reading patent: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
 });
@@ -3648,6 +3668,7 @@ async function mergeConversationAudio(metadataPath: string, assistantDisplayName
     await transcribeAndMergeConversation(outputPath, assistantDisplayName);
 
     filesToDelete.push(outputPath);
+    filesToDelete.push(metadataPath);
 
     // Clean up audio chunks and metadata file after successful merge
     for (const file of filesToDelete) {

@@ -508,6 +508,7 @@ function SubtitlesComponent({
               client.send([{ 
                 text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
               }]);
+              await ipcRenderer.invoke('display_patent');
               console.log(`Created template at ${result.path}`)
             } else {
               client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
@@ -535,7 +536,7 @@ function SubtitlesComponent({
               client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
             } else {
               console.log('Updated the document');
-              client.send([{ text: `Updated the document. Go ahead and use the get_next_question function to get the next question to ask the user if the current question is completed. Continue talking to the user about the current question if it is not completed.` }]);
+              client.send([{ text: `Updated the document. Go ahead and use the get_next_question function to get the next question to ask the user.` }]);
             }
             hasResponded = true;
             break;
@@ -545,6 +546,15 @@ function SubtitlesComponent({
               client.send([{ text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?" }]);
             } else {
               client.send([{ text: `Failed to open document: ${displayResult.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          case "read_patent":
+            const readResult = await ipcRenderer.invoke('read_patent', (fc.args as any).filename);
+            if (readResult.success) {
+              client.send([{ text: `Here is the current version of the patent document: ${readResult.contents}` }]);
+            } else {
+              client.send([{ text: `Failed to read patent: ${readResult.error}` }]);
             }
             hasResponded = true;
             break;
