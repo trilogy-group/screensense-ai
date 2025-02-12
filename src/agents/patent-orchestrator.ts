@@ -222,6 +222,7 @@ Process:
 4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the mark_as_completed tool
 Remember:
 - Be thorough but efficient in gathering information
+- Never make up information - only use what the user provides, as making up information could create an invalid patent document
 - Ask clarifying questions when responses are unclear
 - Help users articulate technical details clearly
 - Ensure all critical patent sections are completed
@@ -248,11 +249,11 @@ Remember:
       { configurable: { thread_id: currentThreadId } }
     );
 
-    console.log(
-      `Received ${response.messages.length} messages from patent agent:\n${response.messages
-        .map((m: any) => `=====\n${m.content}\n=====`)
-        .join('\n')}`
-    );
+    // console.log(
+    //   `Received ${response.messages.length} messages from patent agent:\n${response.messages
+    //     .map((m: any) => `=====\n${m.content}\n=====`)
+    //     .join('\n')}`
+    // );
 
     // Access the structured response
     const structuredResponse = response.structuredResponse;
