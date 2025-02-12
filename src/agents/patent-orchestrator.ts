@@ -4,7 +4,6 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { tool } from '@langchain/core/tools';
 import { BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
-import fs from 'fs';
 const { ipcRenderer } = window.require('electron');
 
 // Add types for tool responses
@@ -44,6 +43,7 @@ const askNextQuestion = tool(
         .describe('Explanation of why you think the question is required to be asked to the user'),
       question: z.string().describe('The question to ask the user'),
     }),
+    returnDirect: true,
   }
 );
 
@@ -72,6 +72,7 @@ const addContent = tool(
       content: z.string().describe('The content to add to the document'),
       section: z.string().describe('The name of the section to add the content to'),
     }),
+    // returnDirect: true,
   }
 );
 
@@ -86,7 +87,10 @@ const readPatent = tool(
       //     contentLength: result.contents?.length,
       //     numSections: result.checklist?.length,
       //   });
-      return result;
+      return {
+        success: result.success,
+        message: `Contents:\n${result.contents}\n\nChecklist:\n${JSON.stringify(result.checklist)}\n\nNow ask the user the first question to fill the patent document.`,
+      };
     } catch (error) {
       console.error('❌ [readPatent] Error:', error);
       return {
@@ -100,6 +104,7 @@ const readPatent = tool(
     description:
       'Reads the current patent document and returns both the document contents and a checklist of required sections',
     schema: z.object({}),
+    // returnDirect: true,
   }
 );
 
@@ -120,6 +125,7 @@ const markAsCompleted = tool(
     name: 'mark_as_completed',
     description: 'Marks the patent document as completed',
     schema: z.object({}),
+    returnDirect: true,
   }
 );
 
@@ -235,7 +241,7 @@ Remember:
       messages = [userMsg];
     }
 
-    console.log(`Checkpointer is ${JSON.stringify(checkpointer)}`);
+    // console.log(`Checkpointer is ${JSON.stringify(checkpointer)}`);
 
     const response = await patentAgent.invoke(
       { messages: messages },
@@ -252,14 +258,14 @@ Remember:
     const structuredResponse = response.structuredResponse;
     const toolCalls = (typeof structuredResponse === 'function' ? structuredResponse() : {}) || {};
 
-    // console.log('✅ [invokePatentAgent] Response received:', {
-    //   threadId: currentThreadId,
-    //   isNewThread,
-    //   numMessages: response.messages.length,
-    //   lastMessageLength: response.messages.at(-1)?.content?.toString().length,
-    //   numToolCalls: Object.keys(toolCalls).length,
-    //   toolCallTypes: Object.keys(toolCalls),
-    // });
+    console.log('✅ [invokePatentAgent] Response received:', {
+      threadId: currentThreadId,
+      isNewThread,
+      numMessages: response.messages.length,
+      lastMessageLength: response.messages.at(-1)?.content?.toString().length,
+      numToolCalls: Object.keys(toolCalls).length,
+      toolCallTypes: Object.keys(toolCalls),
+    });
 
     return {
       messages: response.messages,
@@ -293,11 +299,28 @@ export async function sendImageToPatentAgent(
     throw new Error('Patent agent not initialized');
   }
 
+  //   console.log(`Received image path: ${imagePath} with description: ${description}`);
+
   try {
-    // Read the image file and convert to base64
-    const imageBuffer = await fs.promises.readFile(imagePath);
-    const base64Image = imageBuffer.toString('base64');
-    const mimeType = 'image/png'; // Or determine from file extension
+    // Convert relative path to absolute path and read the image
+    const imageData = await ipcRenderer.invoke('read_patent_image', imagePath);
+    if (!imageData.success) {
+      throw new Error(imageData.error || 'Failed to read image file');
+    }
+
+    const base64Image = imageData.data;
+    // Determine mime type from file extension
+    const ext = imagePath.split('.').pop()?.toLowerCase() || 'png';
+    const mimeType =
+      ext === 'jpg' || ext === 'jpeg'
+        ? 'image/jpeg'
+        : ext === 'png'
+          ? 'image/png'
+          : ext === 'gif'
+            ? 'image/gif'
+            : ext === 'webp'
+              ? 'image/webp'
+              : 'image/png';
 
     // Create message with both text and image
     const userMsg = {
@@ -308,18 +331,16 @@ export async function sendImageToPatentAgent(
           text: `The user shared a screenshot of their invention.
 The description of the screenshot is: ${description}
 It is located at: ${imagePath}
-Analyze the image and the description, and then insert the image and relevant information into the patent document.`,
+Analyze the image and the description, and then insert the image and any relevant information into the patent document.`,
         },
         {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: mimeType,
-            data: base64Image,
-          },
+          type: 'image_url',
+          image_url: `data:${mimeType};base64,${base64Image}`,
         },
       ],
     };
+
+    // console.log(`Image url is ${userMsg.content[1].image_url}`);
 
     // Use patentAgent.invoke to maintain thread context
     const response = await patentAgent.invoke(

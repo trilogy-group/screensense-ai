@@ -3120,7 +3120,6 @@ ipcMain.handle('display_patent', async event => {
   }
 });
 
-// Update the read_patent handler
 ipcMain.handle('read_patent', async event => {
   try {
     const session = getCurrentSession();
@@ -3250,14 +3249,33 @@ ipcMain.handle('save_patent_screenshot', async (event, { screenshot, description
     const assetsDir = path.join(session.path, 'assets');
     await fs.promises.mkdir(assetsDir, { recursive: true });
 
+    // Extract mime type from the data URL
+    const mimeTypeMatch = screenshot.match(/^data:([^;]+);base64,/);
+    if (!mimeTypeMatch) {
+      return { success: false, error: 'Invalid image data format' };
+    }
+
+    // Get file extension from mime type
+    const mimeType = mimeTypeMatch[1];
+    const ext =
+      mimeType === 'image/jpeg'
+        ? 'jpg'
+        : mimeType === 'image/png'
+          ? 'png'
+          : mimeType === 'image/gif'
+            ? 'gif'
+            : mimeType === 'image/webp'
+              ? 'webp'
+              : 'png';
+
     // Create a safe filename from the description
     const safeDescription = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${safeDescription}-${timestamp}.png`;
+    const filename = `${safeDescription}-${timestamp}.${ext}`;
     const filepath = path.join(assetsDir, filename);
 
     // Save the screenshot
-    // Remove the data URL prefix (e.g., "data:image/png;base64,")
+    // Remove the data URL prefix
     const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
     await fs.promises.writeFile(filepath, base64Data, 'base64');
 
@@ -3566,6 +3584,7 @@ You don't have to include everything, just enough so that someone can understand
       }
     });
   } catch (error: any) {
+    console.error('Error during speech-to-text conversion:', JSON.stringify(error, null, 2));
     console.error(
       'Error during speech-to-text conversion:',
       error.response ? error.response.data : error.message
@@ -3798,4 +3817,36 @@ ipcMain.on('patent-question', (event, data) => {
       // console.log('✅ [main] Forwarded patent question to window:', window.getTitle());
     }
   });
+});
+
+ipcMain.handle('read_patent_image', async (event, relativePath) => {
+  try {
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active patent session' };
+    }
+
+    // Resolve the absolute path relative to the patent directory
+    const absolutePath = path.join(session.path, relativePath);
+
+    // Verify the path is within the patent directory (security check)
+    if (!absolutePath.startsWith(session.path)) {
+      return { success: false, error: 'Invalid image path' };
+    }
+
+    // Read the image file
+    const imageBuffer = await fs.promises.readFile(absolutePath);
+    const base64Data = imageBuffer.toString('base64');
+
+    return {
+      success: true,
+      data: base64Data,
+    };
+  } catch (error) {
+    console.error('Error reading patent image:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error reading image',
+    };
+  }
 });
