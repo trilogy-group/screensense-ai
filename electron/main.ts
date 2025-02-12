@@ -3850,3 +3850,9 @@ ipcMain.handle('read_patent_image', async (event, relativePath) => {
     };
   }
 });
+
+// Add to the section where IPC handlers are registered
+ipcMain.handle('get_current_session', () => {
+  loadSession();
+  return currentPatentSession;
+});

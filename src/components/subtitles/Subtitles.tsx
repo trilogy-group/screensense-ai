@@ -462,6 +462,54 @@ function SubtitlesComponent({
             await invokePatentAgent(`I want to start documenting my invention. It's called "${title}".`);
             break;
           }
+          case "resume_patent_creation": {
+            const currentSession = await ipcRenderer.invoke('get_current_session');
+            if (!currentSession) {
+              client.sendToolResponse({
+                functionResponses: [
+                  {
+                    response: { 
+                      output: { 
+                        success: false, 
+                        error: 'No active patent session found' 
+                      } 
+                    },
+                    id: fc.id,
+                  },
+                ],
+              });
+              client.send([{ text: `Tell the user this out loud: 'I couldn't find any existing patent session. Would you like to start a new one?'` }]);
+              hasResponded = true;
+              break;
+            }
+
+            // Display the patent document
+            await ipcRenderer.invoke('display_patent');
+            
+            // Tell the patent agent to resume
+            await invokePatentAgent(`I want to continue documenting my invention titled "${currentSession.title}". Please continue from where we left off.`);
+
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { 
+                    output: { 
+                      success: true, 
+                      session: currentSession 
+                    } 
+                  },
+                  id: fc.id,
+                },
+              ],
+            });
+            
+            client.send([{ 
+              text: `Patent session resumed. Tell the user this out loud: 'I've reopened your patent document for "${currentSession.title}". I will continue asking questions to help document your invention.'` 
+            }]);
+            
+            hasResponded = true;
+            break;
+          }
           case "send_user_response": {
 
             client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'` }]);

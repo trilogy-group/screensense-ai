@@ -507,6 +507,10 @@ export const patentGeneratorTools: Tool[] = [
         },
       },
       {
+        name: 'resume_patent_creation',
+        description: 'Resumes the patent creation from the last saved session',
+      },
+      {
         name: 'display_patent',
         description: 'Opens the markdown file for the user to view',
       },
@@ -630,6 +634,7 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
 1. Starting New Patents:
    - Get invention title
    - Use create_template for new patent doc
+   - If the user wants to resume creation of a previous patent, use resume_patent_creation instead
    - Wait for the lawyer to ask questions
 
 2. Managing Communication:
