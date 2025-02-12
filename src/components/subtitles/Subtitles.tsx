@@ -6,7 +6,7 @@ import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
 import { opencvService } from '../../services/opencv-service';
-import { invokePatentAgent } from '../../agents/patent-orchestrator';
+import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -444,7 +444,6 @@ function SubtitlesComponent({
           case "create_template": {
             const title = (fc.args as any).title;
             const result = await ipcRenderer.invoke('create_template', title);
-            // No need to manage session here as it's handled in main.ts
             client.sendToolResponse({
               functionResponses: [
                 {
@@ -455,7 +454,7 @@ function SubtitlesComponent({
             });
             hasResponded = true;
             client.send([{ 
-              text: `Template is created. Tell the user this: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'.` 
+              text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.` 
             }]);
             await ipcRenderer.invoke('display_patent');
             console.log(`Created template at ${result.path}`)
@@ -465,7 +464,7 @@ function SubtitlesComponent({
           }
           case "send_user_response": {
 
-            client.send([{ text: `Tell the user this: 'Give me a few seconds, I will add the content to the document.'` }]);
+            client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'` }]);
 
             // Send to orchestrator using the session from main.ts
             const orchestratorResponse = await invokePatentAgent(
@@ -520,7 +519,8 @@ function SubtitlesComponent({
                       }
                     ]
                   })
-                  client.send([{ text: `Saved the screenshot at ${result.path}. Use the send_user_response function to inform the patent laywer about the image you just saved along with its path.` }]);
+                  client.send([{ text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.` }]);
+                  await sendImageToPatentAgent(result.path, description);
                 } else {
                   client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
                 }

@@ -4,6 +4,7 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { tool } from '@langchain/core/tools';
 import { BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
+import fs from 'fs';
 const { ipcRenderer } = window.require('electron');
 
 // Add types for tool responses
@@ -17,13 +18,6 @@ interface ToolResponse {
 interface OrchestratorResponse {
   messages: BaseMessage[];
   toolCalls?: ToolResponse[];
-}
-
-interface ThreadState {
-  messages?: Array<{
-    role: string;
-    content: string | Array<any>; // Allow array content for assistant messages
-  }>;
 }
 
 // Track the current patent session
@@ -171,7 +165,7 @@ export async function initializePatentAgent() {
   patentAgent = createReactAgent({
     llm: model,
     tools,
-    // checkpointSaver: checkpointer,
+    checkpointSaver: checkpointer,
   });
   console.log('✅ Patent agent initialized');
 }
@@ -214,7 +208,9 @@ Key Responsibilities:
 Process:
 1. You can make use of the read_patent tool to read the current patent document, and a checklist of what all information is required to be documented
 2. Use ask_next_question to ask the user the next question to fill the patent document, and then wait for the user's response. This will be sent as a new message to you.
+   - Make sure to add one question at a time, so as not to overwhelm the user.
 3. Once the user responds to the question, use add_content to add the user's response to the patent document
+   - You must make sure to call the add_content tool every single time you receive information from the user.
    - Make sure to use language that is appropriate for a patent document. Be thorough and detailed, but do not make up any information. You are allowed to rephrase the user's response to make it more patent-friendly, but do not add any new information.
    - If the content includes an image with the path, pass on the image description and path to the add_content tool
 4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the mark_as_completed tool
@@ -239,28 +235,31 @@ Remember:
       messages = [userMsg];
     }
 
+    console.log(`Checkpointer is ${JSON.stringify(checkpointer)}`);
+
     const response = await patentAgent.invoke(
       { messages: messages },
       { configurable: { thread_id: currentThreadId } }
+    );
+
+    console.log(
+      `Received ${response.messages.length} messages from patent agent:\n${response.messages
+        .map((m: any) => `=====\n${m.content}\n=====`)
+        .join('\n')}`
     );
 
     // Access the structured response
     const structuredResponse = response.structuredResponse;
     const toolCalls = (typeof structuredResponse === 'function' ? structuredResponse() : {}) || {};
 
-    console.log('✅ [invokePatentAgent] Response received:', {
-      threadId: currentThreadId,
-      isNewThread,
-      numMessages: response.messages.length,
-      lastMessageLength: response.messages.at(-1)?.content?.toString().length,
-      numToolCalls: Object.keys(toolCalls).length,
-      toolCallTypes: Object.keys(toolCalls),
-    });
-
-    // console.log(`The last message is ${JSON.stringify(response.messages.at(-1), null, 2)}`);
-    // console.log(`The messages are ${JSON.stringify(response.messages, null, 2)}`);
-
-    // console.log(`Received messages: ${JSON.stringify(response.messages, null, 2)}`);
+    // console.log('✅ [invokePatentAgent] Response received:', {
+    //   threadId: currentThreadId,
+    //   isNewThread,
+    //   numMessages: response.messages.length,
+    //   lastMessageLength: response.messages.at(-1)?.content?.toString().length,
+    //   numToolCalls: Object.keys(toolCalls).length,
+    //   toolCallTypes: Object.keys(toolCalls),
+    // });
 
     return {
       messages: response.messages,
@@ -283,4 +282,64 @@ Remember:
 export function resetPatentThread() {
   console.log('🔄 [resetPatentThread] Resetting current thread');
   currentThreadId = null;
+}
+
+// New function to handle image loading and sending
+export async function sendImageToPatentAgent(
+  imagePath: string,
+  description: string
+): Promise<OrchestratorResponse> {
+  if (!patentAgent) {
+    throw new Error('Patent agent not initialized');
+  }
+
+  try {
+    // Read the image file and convert to base64
+    const imageBuffer = await fs.promises.readFile(imagePath);
+    const base64Image = imageBuffer.toString('base64');
+    const mimeType = 'image/png'; // Or determine from file extension
+
+    // Create message with both text and image
+    const userMsg = {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: `The user shared a screenshot of their invention.
+The description of the screenshot is: ${description}
+It is located at: ${imagePath}
+Analyze the image and the description, and then insert the image and relevant information into the patent document.`,
+        },
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mimeType,
+            data: base64Image,
+          },
+        },
+      ],
+    };
+
+    // Use patentAgent.invoke to maintain thread context
+    const response = await patentAgent.invoke(
+      { messages: [userMsg] },
+      { configurable: { thread_id: currentThreadId } }
+    );
+
+    // Access the structured response like in invokePatentAgent
+    const structuredResponse = response.structuredResponse;
+    const toolCalls = (typeof structuredResponse === 'function' ? structuredResponse() : {}) || {};
+
+    return {
+      messages: response.messages,
+      toolCalls: Object.entries(toolCalls).map(([name, response]) => ({
+        name,
+        response: { output: response },
+      })),
+    };
+  } catch (error) {
+    console.error('❌ [sendImageToPatentAgent] Error:', error);
+    throw error;
+  }
 }
