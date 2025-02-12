@@ -6,6 +6,7 @@ import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
 import { opencvService } from '../../services/opencv-service';
+import { invokePatentAgent } from '../../agents/patent-orchestrator';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -311,22 +312,6 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          // case "record_action":
-          //   ipcRenderer.send('log-to-file', `Screenshot is being captured`)
-          //   const {x1, y1, x2, y2} = (fc.args as any).boundingBox
-          //   const functionCall = (fc.args as any).action
-          //   const description = (fc.args as any).description
-          //   const ss = await get_screenshot(x1, y1, x2, y2)
-          //   if (ss) {
-          //     ipcRenderer.send('record-opencv-action', ss, functionCall, description);
-          //   }
-          //   break;
-          // case "record_conversation":
-          //   ipcRenderer.send('record-conversation',
-          //     (fc.args as any).function_call,
-          //     (fc.args as any).description
-          //   );
-          //   break;
           case "set_action_name":
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             lastActionTimeRef.current = Date.now();
@@ -417,45 +402,6 @@ function SubtitlesComponent({
           case "continue_action":
             play_action = true;
             break;
-          //           case "perform_action":
-          //             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
-          //             if (actionData) {
-          //               for (const action of actionData) {
-          //                 if (onScreenshot) {
-          //                   // Take screenshot and process elements
-          //                   await find_all_elements_function(onScreenshot, client, toolCall);
-
-          //                   // Handle different action types
-          //                   switch (action.function_call) {
-          //                     case "click":
-          //                       client.send([{
-          //                         text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
-
-          // If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
-
-          // Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
-
-          // Please do not give any audio reply to this.`
-          //                       }]);
-          //                       break;
-          //                     case "insert_content":
-          //                       client.send([{
-          //                         text: `You have to call the insert_content function which achieves the following task : ${action.description}
-
-          // please do not give any audio response to this.`
-          //                       }]);
-          //                       break;
-          //                   }
-          //                   // Wait for the action to complete
-          //                   await new Promise(resolve => setTimeout(resolve, 2500));
-          //                 }
-          //               }
-          //             }
-          //             hasResponded = true;
-          //             break;
-          // case "click":
-          //   ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
-          //   break;
           case "select_content":
             ipcRenderer.send('select-content',
               (fc.args as any).x1 || 500,
@@ -495,26 +441,47 @@ function SubtitlesComponent({
             console.log(args.coordinates)
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
-          case "create_template":
+          case "create_template": {
             const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
-            if (result.success) {
-              // Store the filename for future use
-              client.sendToolResponse({
-                functionResponses: toolCall.functionCalls.map(fc => ({
-                  response: { output: { success: true } },
+            // No need to manage session here as it's handled in main.ts
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
                   id: fc.id,
-                })),
-              });
-              client.send([{ 
-                text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
-              }]);
-              await ipcRenderer.invoke('display_patent');
-              console.log(`Created template at ${result.path}`)
-            } else {
-              client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
-            }
+                },
+              ],
+            });
+            hasResponded = true;
+            client.send([{ 
+              text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
+            }]);
+            await ipcRenderer.invoke('display_patent');
+            console.log(`Created template at ${result.path}`)
+            break;
+          }
+          case "send_user_response": {
+            // Send to orchestrator using the session from main.ts
+            const orchestratorResponse = await invokePatentAgent(
+              (fc.args as any).message
+            );
+
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: {
+                    output: {
+                      success: true,
+                      nextAction: orchestratorResponse.messages.at(-1)?.content,
+                    },
+                  },
+                  id: fc.id,
+                },
+              ],
+            });
             hasResponded = true;
             break;
+          }
           case "get_next_question":
             console.log(`Going to ask anthropic for the next question`);
             const nextQuestionResponse = await ipcRenderer.invoke('get_next_question');
@@ -592,7 +559,6 @@ function SubtitlesComponent({
             break;
         }
         if (!hasResponded) {
-          // new Promise(resolve => setTimeout(resolve, 2000)).then()
           client.sendToolResponse({
             functionResponses:[ 
             {
@@ -604,16 +570,6 @@ function SubtitlesComponent({
           });
         }
       }
-      // Add delay between function calls
-      // await new Promise(resolve => setTimeout(resolve, 2000));
-      // if (toolCall.functionCalls.length && !hasResponded) {
-      //   client.sendToolResponse({
-      //     functionResponses: toolCall.functionCalls.map(fc => ({
-      //       response: { output: { success: true } },
-      //       id: fc.id,
-      //     })),
-      //   });
-      // }
     };
     client.on('toolcall', onToolCall);
     return () => {

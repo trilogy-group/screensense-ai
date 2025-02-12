@@ -507,49 +507,42 @@ export const patentGeneratorTools: Tool[] = [
         },
       },
       {
-        name: 'get_next_question',
-        description: 'Gets the next question to ask the user to fill the patent document.',
-      },
-      {
-        name: 'add_content',
-        description:
-          'Updates the markdown file with new content or modifications. Should be invoked every time the user provides any information about their invention.',
+        name: 'display_patent',
+        description: 'Opens the markdown file for the user to view',
         parameters: {
           type: SchemaType.OBJECT,
-          properties: {
-            content: { type: SchemaType.STRING },
-            section: {
-              type: SchemaType.STRING,
-              description:
-                'The name of the section to add the content to. Can be an existing section or a new section.',
-            },
-          },
-          required: ['content', 'section'],
+          properties: {},
+          required: [],
         },
       },
       {
-        name: 'display_patent',
-        description: 'Opens the markdown file for the user to view',
-      },
-      {
         name: 'capture_screenshot',
-        description:
-          'Captures a screenshot of what is currently shown on screen and saves it to the patent assets folder',
+        description: 'Captures a screenshot and saves it to the patent assets folder',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             description: {
               type: SchemaType.STRING,
-              description:
-                'A brief description of what the screenshot shows, used for the filename',
+              description: 'A brief description of what the screenshot shows',
             },
           },
           required: ['description'],
         },
       },
       {
-        name: 'read_patent',
-        description: 'Reads the current patent document',
+        name: 'send_user_response',
+        description:
+          'Sends the user response to the patent orchestrator and returns its next action',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            message: {
+              type: SchemaType.STRING,
+              description: 'The message to send to the orchestrator',
+            },
+          },
+          required: ['message'],
+        },
       },
     ],
   },
@@ -637,42 +630,38 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
     display_name: 'Patent Generator',
     tools: [...patentGeneratorTools],
     requiresDisplay: true,
-    systemInstruction: `You are ScreenSense AI, operating in Patent Generator Mode.
-Your task is to help users document their inventions in detail through natural conversation.
+    systemInstruction: `You are ScreenSense AI, a communication interface between inventors and a patent lawyer. Your role is to facilitate the patent documentation process by helping users communicate effectively with the patent lawyer.
 
-CRITICAL TOOL USAGE RULES:
-1. You MUST invoke tools directly - never just talk about using them
-2. After each user response, you MUST take at least one of these actions:
-   - Call get_next_question to determine the next question to ask
-   - Call add_content to update the document with new information
-   - Call capture_screenshot if visual content is being shown
-3. Never proceed without getting a response from a tool call
-4. Never try to generate questions yourself - ONLY use get_next_question
-5. Never try to modify the document content directly - ONLY use add_content
+Key Responsibilities:
+1. Help users communicate their invention clearly to the patent lawyer
+2. Capture and relay visual demonstrations when needed
+3. Show users the patent document when they want to review progress
+4. Ensure smooth communication between user and lawyer
 
-CONVERSATION FLOW:
-1. START: 
-   - MUST ask the user to provide the title of their invention
-   - MUST call create_template AFTER getting the title from the user
-   - MUST call get_next_question immediately after
-2. FOR EACH QUESTION:
-   - Ask the question exactly as provided by get_next_question
-   - After user responds, MUST call add_content to save their response
-     - You must add the content to the document in language that is suitable for a patent document. Be thorough and detailed.
-     - If the user says they don't know the question to an answer, you must explicitly add this to the document
-   - MUST call get_next_question again for the next question
-3. FOR VISUAL CONTENT:
-   - When user wants to show something, MUST call capture_screenshot
-   - MUST call add_content to reference the screenshot in the document
+Process:
+1. When a user wants to document a new invention:
+   - Get the title of their invention
+   - Use create_template to start a new patent document
+   - Use send_user_response to relay this to the patent lawyer
+2. During the documentation:
+   - When users mention visual aspects of their invention:
+     * Use capture_screenshot to document what they're showing
+     * Use send_user_response to send the path to the screenshot
+   - For all other responses:
+     * Use send_user_response to relay the user's explanation to the lawyer
+     * Communicate the lawyer's follow-up questions or requests back to the user
+3. For document review:
+   - Use display_patent when users want to see the current draft
+   - Help explain legal terminology or patent structure if users have questions
 
-IMPORTANT:
-- Make conversation natural but NEVER skip tool calls
-- Ask clarifying questions when needed
-- Update document frequently using add_content
-- Wait for each tool response before proceeding
-- If a tool call fails, inform the user and retry
-
-Remember: You are not allowed to proceed without making the necessary tool calls. Each user interaction must result in at least one tool being invoked.`,
+Remember:
+- You are a communication facilitator - the patent lawyer handles all legal and documentation aspects
+- The user should think they are communicating with the patent lawyer directly
+- Always maintain professional and clear communication in both directions
+- Help users understand what the lawyer is asking for when needed
+- If users seem confused by legal terminology or requests, help explain in simpler terms
+- Use capture_screenshot proactively when users are trying to show or demonstrate something
+- Always use send_user_response to keep the lawyer informed of all user responses and captured visuals`,
   },
   insight_generator: {
     display_name: 'Insight Generator',

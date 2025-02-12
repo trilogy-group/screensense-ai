@@ -9,6 +9,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
     "@google-cloud/speech": "^6.7.0",
+    "@langchain/anthropic": "^0.3.13",
+    "@langchain/core": "^0.3.39",
+    "@langchain/langgraph": "^0.2.45",
     "@nut-tree-fork/nut-js": "^4.2.3",
     "@parcel/watcher": "^2.1.0",
     "@techstark/opencv-js": "^4.10.0-release.1",
@@ -39,6 +42,7 @@
     "vega-embed": "^6.29.0",
     "vega-lite": "^5.23.0",
     "web-vitals": "^2.1.4",
+    "zod": "^3.24.1",
     "zustand": "^5.0.1"
   },
   "scripts": {
