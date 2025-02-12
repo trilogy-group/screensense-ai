@@ -22,9 +22,8 @@ import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { initializeAutoUpdater } from './updater';
-import { exec } from 'child_process';
-import util from 'util';
 import ffmpeg from 'fluent-ffmpeg';
+import { mdToPdf } from 'md-to-pdf';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -3122,7 +3121,6 @@ ipcMain.handle('display_patent', async event => {
   }
 });
 
-// Update the read_patent handler
 ipcMain.handle('read_patent', async event => {
   try {
     const session = getCurrentSession();
@@ -3133,9 +3131,16 @@ ipcMain.handle('read_patent', async event => {
     }
 
     const contents = fs.readFileSync(mdPath, 'utf8');
-    return { success: true, contents };
+    return {
+      success: true,
+      contents,
+      checklist: patentGeneratorTemplate.sections.map(section => ({
+        name: section.name,
+        details: section.details,
+      })),
+    };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error reading patent';
     logToFile(`Error reading patent: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
@@ -3245,14 +3250,33 @@ ipcMain.handle('save_patent_screenshot', async (event, { screenshot, description
     const assetsDir = path.join(session.path, 'assets');
     await fs.promises.mkdir(assetsDir, { recursive: true });
 
+    // Extract mime type from the data URL
+    const mimeTypeMatch = screenshot.match(/^data:([^;]+);base64,/);
+    if (!mimeTypeMatch) {
+      return { success: false, error: 'Invalid image data format' };
+    }
+
+    // Get file extension from mime type
+    const mimeType = mimeTypeMatch[1];
+    const ext =
+      mimeType === 'image/jpeg'
+        ? 'jpg'
+        : mimeType === 'image/png'
+          ? 'png'
+          : mimeType === 'image/gif'
+            ? 'gif'
+            : mimeType === 'image/webp'
+              ? 'webp'
+              : 'png';
+
     // Create a safe filename from the description
     const safeDescription = description.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${safeDescription}-${timestamp}.png`;
+    const filename = `${safeDescription}-${timestamp}.${ext}`;
     const filepath = path.join(assetsDir, filename);
 
     // Save the screenshot
-    // Remove the data URL prefix (e.g., "data:image/png;base64,")
+    // Remove the data URL prefix
     const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
     await fs.promises.writeFile(filepath, base64Data, 'base64');
 
@@ -3476,7 +3500,7 @@ ipcMain.on('save-conversation-metadata', async (event, metadata) => {
 
   try {
     await fs.promises.writeFile(filePath, JSON.stringify(metadata, null, 2));
-    console.log(`Saved conversation metadata to ${filePath}`);
+    // console.log(`Saved conversation metadata to ${filePath}`);
   } catch (error) {
     console.error('Error saving conversation metadata:', error);
   }
@@ -3557,10 +3581,11 @@ You don't have to include everything, just enough so that someone can understand
       if (err) {
         console.error('Failed to write transcription to file:', err);
       } else {
-        console.log('Transcription written to file:', textFilePath);
+        // console.log('Transcription written to file:', textFilePath);
       }
     });
   } catch (error: any) {
+    console.error('Error during speech-to-text conversion:', JSON.stringify(error, null, 2));
     console.error(
       'Error during speech-to-text conversion:',
       error.response ? error.response.data : error.message
@@ -3653,7 +3678,7 @@ async function mergeConversationAudio(metadataPath: string, assistantDisplayName
         .save(outputPath);
     });
 
-    console.log('Successfully merged conversation audio');
+    // console.log('Successfully merged conversation audio');
 
     // Transcribe the merged audio
     await transcribeAndMergeConversation(outputPath, assistantDisplayName);
@@ -3772,4 +3797,120 @@ ipcMain.on('request-markdown-content', () => {
 
 ipcMain.on('open-markdown-preview', (_, filePath: string) => {
   createMarkdownPreviewWindow(filePath);
+});
+
+// Add near the top with other IPC handlers
+ipcMain.handle('get-env', async (event, key) => {
+  // Only allow specific env vars to be accessed
+  const allowedKeys = ['REACT_APP_ANTHROPIC_API_KEY'];
+  if (allowedKeys.includes(key)) {
+    return process.env[key];
+  }
+  return null;
+});
+
+ipcMain.on('patent-question', (event, data) => {
+  // console.log('🔄 [main] Received patent question:', data);
+  // Forward to all renderer windows
+  BrowserWindow.getAllWindows().forEach(window => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('patent-question', data);
+      // console.log('✅ [main] Forwarded patent question to window:', window.getTitle());
+    }
+  });
+});
+
+ipcMain.handle('read_patent_image', async (event, relativePath) => {
+  try {
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active patent session' };
+    }
+
+    // Resolve the absolute path relative to the patent directory
+    const absolutePath = path.join(session.path, relativePath);
+
+    // Verify the path is within the patent directory (security check)
+    if (!absolutePath.startsWith(session.path)) {
+      return { success: false, error: 'Invalid image path' };
+    }
+
+    // Read the image file
+    const imageBuffer = await fs.promises.readFile(absolutePath);
+    const base64Data = imageBuffer.toString('base64');
+
+    return {
+      success: true,
+      data: base64Data,
+    };
+  } catch (error) {
+    console.error('Error reading patent image:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error reading image',
+    };
+  }
+});
+
+// Add to the section where IPC handlers are registered
+ipcMain.handle('get_current_session', () => {
+  loadSession();
+  return currentPatentSession;
+});
+
+// Add handler for exporting patent as PDF
+ipcMain.handle('export_patent_pdf', async () => {
+  try {
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active patent session' };
+    }
+
+    const mdPath = path.join(session.path, 'main.md');
+    if (!fs.existsSync(mdPath)) {
+      return { success: false, error: 'Patent markdown file not found' };
+    }
+
+    // Create a PDF file path
+    const pdfPath = path.join(session.path, `${session.title.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`);
+
+    // Convert markdown to PDF
+    await mdToPdf(
+      { path: mdPath },
+      {
+        dest: pdfPath,
+        basedir: session.path, // This helps resolve relative image paths
+        css: `
+          body { font-family: Arial, sans-serif; }
+          h1 { color: #333; }
+          h2 { color: #444; margin-top: 2em; }
+          img { max-width: 100%; }
+        `,
+        pdf_options: {
+          format: 'A4',
+          margin: {
+            top: '2cm',
+            bottom: '2cm',
+            left: '2cm',
+            right: '2cm',
+          },
+          printBackground: true,
+        },
+      }
+    );
+
+    // Open the PDF file with the system's default PDF viewer
+    await shell.openPath(pdfPath);
+
+    return {
+      success: true,
+      path: pdfPath,
+    };
+  } catch (error) {
+    console.error('Error exporting PDF:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error exporting PDF',
+    };
+  }
 });

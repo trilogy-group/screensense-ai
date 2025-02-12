@@ -507,25 +507,12 @@ export const patentGeneratorTools: Tool[] = [
         },
       },
       {
-        name: 'get_next_question',
-        description: 'Gets the next question to ask the user to fill the patent document.',
+        name: 'resume_patent_creation',
+        description: 'Resumes the patent creation from the last saved session',
       },
       {
-        name: 'add_content',
-        description:
-          'Updates the markdown file with new content or modifications. Should be invoked every time the user provides any information about their invention.',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            content: { type: SchemaType.STRING },
-            section: {
-              type: SchemaType.STRING,
-              description:
-                'The name of the section to add the content to. Can be an existing section or a new section.',
-            },
-          },
-          required: ['content', 'section'],
-        },
+        name: 'export_as_pdf',
+        description: 'Exports the patent file as a pdf',
       },
       {
         name: 'display_patent',
@@ -533,23 +520,32 @@ export const patentGeneratorTools: Tool[] = [
       },
       {
         name: 'capture_screenshot',
-        description:
-          'Captures a screenshot of what is currently shown on screen and saves it to the patent assets folder',
+        description: 'Captures a screenshot and saves it to the patent assets folder',
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
             description: {
               type: SchemaType.STRING,
-              description:
-                'A brief description of what the screenshot shows, used for the filename',
+              description: 'A brief description of what the screenshot shows',
             },
           },
           required: ['description'],
         },
       },
       {
-        name: 'read_patent',
-        description: 'Reads the current patent document',
+        name: 'send_user_response',
+        description:
+          'Sends the user response to the patent orchestrator and returns its next action',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            message: {
+              type: SchemaType.STRING,
+              description: 'The message to send to the orchestrator',
+            },
+          },
+          required: ['message'],
+        },
       },
     ],
   },
@@ -637,42 +633,31 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
     display_name: 'Patent Generator',
     tools: [...patentGeneratorTools],
     requiresDisplay: true,
-    systemInstruction: `You are ScreenSense AI, operating in Patent Generator Mode.
-Your task is to help users document their inventions in detail through natural conversation.
+    systemInstruction: `You are ScreenSense AI, a communication interface between inventors and patent lawyers. You facilitate patent documentation by:
 
-CRITICAL TOOL USAGE RULES:
-1. You MUST invoke tools directly - never just talk about using them
-2. After each user response, you MUST take at least one of these actions:
-   - Call get_next_question to determine the next question to ask
-   - Call add_content to update the document with new information
-   - Call capture_screenshot if visual content is being shown
-3. Never proceed without getting a response from a tool call
-4. Never try to generate questions yourself - ONLY use get_next_question
-5. Never try to modify the document content directly - ONLY use add_content
+1. Starting New Patents:
+   - Get invention title
+   - Use create_template for new patent doc
+   - If the user wants to resume creation of a previous patent, use resume_patent_creation instead
+   - Wait for the lawyer to ask questions
 
-CONVERSATION FLOW:
-1. START: 
-   - MUST ask the user to provide the title of their invention
-   - MUST call create_template AFTER getting the title from the user
-   - MUST call get_next_question immediately after
-2. FOR EACH QUESTION:
-   - Ask the question exactly as provided by get_next_question
-   - After user responds, MUST call add_content to save their response
-     - You must add the content to the document in language that is suitable for a patent document. Be thorough and detailed.
-     - If the user says they don't know the question to an answer, you must explicitly add this to the document
-   - MUST call get_next_question again for the next question
-3. FOR VISUAL CONTENT:
-   - When user wants to show something, MUST call capture_screenshot
-   - MUST call add_content to reference the screenshot in the document
+2. Managing Communication:
+   - Relay user responses to lawyer with the send_user_response tool
+   - Communicate lawyer's questions back to user
+   - Help explain legal terms when needed
 
-IMPORTANT:
-- Make conversation natural but NEVER skip tool calls
-- Ask clarifying questions when needed
-- Update document frequently using add_content
-- Wait for each tool response before proceeding
-- If a tool call fails, inform the user and retry
+3. Handling Visual Documentation:
+   - Use capture_screenshot for visual demonstrations
+   - Send screenshot paths to lawyer via send_user_response
 
-Remember: You are not allowed to proceed without making the necessary tool calls. Each user interaction must result in at least one tool being invoked.`,
+4. Document Review:
+   - Show current draft with display_patent
+   - Explain terminology/structure as needed
+
+Key Points:
+- If introducing yourself, state you're ScreenSense AI in Patent Generator Mode, and ask the user to provide the title of the invention to get started.
+- Always relay all user responses/visuals to lawyer using the send_user_response or capture_screenshot tools
+- Do not call any tool more than once with the same arguments. Wait for the tool to complete before calling it again.`,
   },
   insight_generator: {
     display_name: 'Insight Generator',

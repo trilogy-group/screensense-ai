@@ -6,6 +6,7 @@ import vegaEmbed from 'vega-embed';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
 import { opencvService } from '../../services/opencv-service';
+import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -311,22 +312,6 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          // case "record_action":
-          //   ipcRenderer.send('log-to-file', `Screenshot is being captured`)
-          //   const {x1, y1, x2, y2} = (fc.args as any).boundingBox
-          //   const functionCall = (fc.args as any).action
-          //   const description = (fc.args as any).description
-          //   const ss = await get_screenshot(x1, y1, x2, y2)
-          //   if (ss) {
-          //     ipcRenderer.send('record-opencv-action', ss, functionCall, description);
-          //   }
-          //   break;
-          // case "record_conversation":
-          //   ipcRenderer.send('record-conversation',
-          //     (fc.args as any).function_call,
-          //     (fc.args as any).description
-          //   );
-          //   break;
           case "set_action_name":
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             lastActionTimeRef.current = Date.now();
@@ -417,45 +402,6 @@ function SubtitlesComponent({
           case "continue_action":
             play_action = true;
             break;
-          //           case "perform_action":
-          //             const actionData = await ipcRenderer.invoke('perform-action', (fc.args as any).name);
-          //             if (actionData) {
-          //               for (const action of actionData) {
-          //                 if (onScreenshot) {
-          //                   // Take screenshot and process elements
-          //                   await find_all_elements_function(onScreenshot, client, toolCall);
-
-          //                   // Handle different action types
-          //                   switch (action.function_call) {
-          //                     case "click":
-          //                       client.send([{
-          //                         text: `Based upon the coordinates that you have just seen, perform the 'click_element' function with the coordinates which accomplish the following task : ${action.description}
-
-          // If you find multiple options for the coordinates, choose the one that suits the most. Do not any user opinion for which one to click upon.
-
-          // Please make a correct decision on the required action. Sometimes, we might need to make a double-click or a right click to attain what is required by the task.
-
-          // Please do not give any audio reply to this.`
-          //                       }]);
-          //                       break;
-          //                     case "insert_content":
-          //                       client.send([{
-          //                         text: `You have to call the insert_content function which achieves the following task : ${action.description}
-
-          // please do not give any audio response to this.`
-          //                       }]);
-          //                       break;
-          //                   }
-          //                   // Wait for the action to complete
-          //                   await new Promise(resolve => setTimeout(resolve, 2500));
-          //                 }
-          //               }
-          //             }
-          //             hasResponded = true;
-          //             break;
-          // case "click":
-          //   ipcRenderer.send('click', (fc.args as any).x || 700, (fc.args as any).y || 25);
-          //   break;
           case "select_content":
             ipcRenderer.send('select-content',
               (fc.args as any).x1 || 500,
@@ -495,66 +441,149 @@ function SubtitlesComponent({
             console.log(args.coordinates)
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
-          case "create_template":
-            const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
-            if (result.success) {
-              // Store the filename for future use
-              client.sendToolResponse({
-                functionResponses: toolCall.functionCalls.map(fc => ({
-                  response: { output: { success: true } },
+          case "create_template": {
+            const title = (fc.args as any).title;
+            const result = await ipcRenderer.invoke('create_template', title);
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
                   id: fc.id,
-                })),
-              });
-              client.send([{ 
-                text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
-              }]);
-              await ipcRenderer.invoke('display_patent');
-              console.log(`Created template at ${result.path}`)
-            } else {
-              client.send([{ text: `Failed to create template: ${JSON.stringify(result)}` }]);
-            }
-            hasResponded = true;
-            break;
-          case "get_next_question":
-            console.log(`Going to ask anthropic for the next question`);
-            const nextQuestionResponse = await ipcRenderer.invoke('get_next_question');
-            if (nextQuestionResponse.success) {
-              console.log(`Received the next question to ask the user: ${nextQuestionResponse.question}`);
-              client.send([{ text: `Received the next question to ask the user: ${nextQuestionResponse.question}` }]);
-            } else {
-              client.send([{ text: `Failed to get next question: ${nextQuestionResponse.error}` }]);
-            }
-            hasResponded = true;
-            break;
-          case "add_content":
-            const updateResult = await ipcRenderer.invoke('add_content', {
-              content: (fc.args as any).content,
-              section: (fc.args as any).section,
-              // mode: (fc.args as any).mode
+                },
+              ],
             });
-            if (!updateResult.success) {
-              client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
-            } else {
-              console.log('Updated the document');
-              client.send([{ text: `Updated the document. Use the get_next_question function to get the next question to ask the user.` }]);
+            hasResponded = true;
+            client.send([{ 
+              text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.` 
+            }]);
+            await ipcRenderer.invoke('display_patent');
+            console.log(`Created template at ${result.path}`)
+
+            await invokePatentAgent(`I want to start documenting my invention. It's called "${title}".`);
+            break;
+          }
+          case "resume_patent_creation": {
+            const currentSession = await ipcRenderer.invoke('get_current_session');
+            if (!currentSession) {
+              client.sendToolResponse({
+                functionResponses: [
+                  {
+                    response: { 
+                      output: { 
+                        success: false, 
+                        error: 'No active patent session found' 
+                      } 
+                    },
+                    id: fc.id,
+                  },
+                ],
+              });
+              client.send([{ text: `Tell the user this out loud: 'I couldn't find any existing patent session. Would you like to start a new one?'` }]);
+              hasResponded = true;
+              break;
             }
+
+            // Display the patent document
+            await ipcRenderer.invoke('display_patent');
+            
+            // Tell the patent agent to resume
+            await invokePatentAgent(`I want to continue documenting my invention titled "${currentSession.title}". Please continue from where we left off.`);
+
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { 
+                    output: { 
+                      success: true, 
+                      session: currentSession 
+                    } 
+                  },
+                  id: fc.id,
+                },
+              ],
+            });
+            
+            client.send([{ 
+              text: `Patent session resumed. Tell the user this out loud: 'I've reopened your patent document for "${currentSession.title}". I will continue asking questions to help document your invention.'` 
+            }]);
+            
             hasResponded = true;
             break;
+          }
+          case "export_as_pdf": {
+            // client.send([{ text: `Tell the user this out loud: 'I'll convert your patent document to PDF. This will include all the content and images.'` }]);
+            
+            const result = await ipcRenderer.invoke('export_patent_pdf');
+            
+            if (result.success) {
+              client.sendToolResponse({
+                functionResponses: [
+                  {
+                    response: { 
+                      output: { 
+                        success: true,
+                        path: result.path 
+                      } 
+                    },
+                    id: fc.id,
+                  },
+                ],
+              });
+              client.send([{ text: `Successfully exported the patent to PDF at ${result.path}. Tell the user this out loud: 'I've created a PDF version of your patent document. You can find it at ${result.path}'` }]);
+            } else {
+              client.sendToolResponse({
+                functionResponses: [
+                  {
+                    response: { 
+                      output: { 
+                        success: false, 
+                        error: result.error 
+                      } 
+                    },
+                    id: fc.id,
+                  },
+                ],
+              });
+              client.send([{ text: `Failed to export PDF: ${result.error}. Tell the user this out loud: 'I encountered an error while creating the PDF because of <short explanation of error>. Please try again.'` }]);
+            }
+            
+            hasResponded = true;
+            break;
+          }
+          case "send_user_response": {
+
+            client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'` }]);
+
+            // Send to orchestrator using the session from main.ts
+            const orchestratorResponse = await invokePatentAgent(
+              (fc.args as any).message
+            );
+
+            // Get the last message from the orchestrator
+            const lastMessage = orchestratorResponse.messages.at(-1)?.content?.toString() || '';
+
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: {
+                    output: {
+                      success: true,
+                      nextAction: lastMessage,
+                    },
+                  },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            break;
+          }
           case "display_patent":
             const displayResult = await ipcRenderer.invoke('display_patent', (fc.args as any).filename);
             if (displayResult.success) {
               client.send([{ text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?" }]);
             } else {
               client.send([{ text: `Failed to open document: ${displayResult.error}` }]);
-            }
-            hasResponded = true;
-            break;
-          case "read_patent":
-            const readResult = await ipcRenderer.invoke('read_patent', (fc.args as any).filename);
-            if (readResult.success) {
-              client.send([{ text: `Here is the current version of the patent document: ${readResult.contents}` }]);
-            } else {
-              client.send([{ text: `Failed to read patent: ${readResult.error}` }]);
             }
             hasResponded = true;
             break;
@@ -578,7 +607,8 @@ function SubtitlesComponent({
                       }
                     ]
                   })
-                  client.send([{ text: `Saved the screenshot at ${result.path}. Add this to the document using the add_content function.` }]);
+                  client.send([{ text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.` }]);
+                  await sendImageToPatentAgent(result.path, description);
                 } else {
                   client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
                 }
@@ -592,7 +622,6 @@ function SubtitlesComponent({
             break;
         }
         if (!hasResponded) {
-          // new Promise(resolve => setTimeout(resolve, 2000)).then()
           client.sendToolResponse({
             functionResponses:[ 
             {
@@ -604,16 +633,6 @@ function SubtitlesComponent({
           });
         }
       }
-      // Add delay between function calls
-      // await new Promise(resolve => setTimeout(resolve, 2000));
-      // if (toolCall.functionCalls.length && !hasResponded) {
-      //   client.sendToolResponse({
-      //     functionResponses: toolCall.functionCalls.map(fc => ({
-      //       response: { output: { success: true } },
-      //       id: fc.id,
-      //     })),
-      //   });
-      // }
     };
     client.on('toolcall', onToolCall);
     return () => {
@@ -652,6 +671,41 @@ function SubtitlesComponent({
       ipcRenderer.removeListener('set-cursor-visibility', handleCursorVisibility);
     };
   }, []);
+
+  // Add effect to listen for patent questions
+  useEffect(() => {
+    const handlePatentQuestion = (_: any, { question, reason }: { question: string; reason: string }) => {
+      // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
+      client.send([{ 
+        text: `The laywer asked the following question, which you must ask out loud to the user: ${question}` 
+      }]);
+    };
+
+    ipcRenderer.on('patent-question', handlePatentQuestion);
+    // console.log('🔍 [handlePatentQuestion] Added listener');
+    return () => {
+      ipcRenderer.removeListener('patent-question', handlePatentQuestion);
+      // console.log('🔍 [handlePatentQuestion] Removed listener');
+    };
+  }, [client]);
+
+    // Add effect to listen for patent questions
+  useEffect(() => {
+    const sendGeminiMessage = (_: any, { message }: { message: string }) => {
+      // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
+      client.send([{ 
+        text: message 
+      }]);
+    };
+
+    ipcRenderer.on('send-gemini-message', sendGeminiMessage);
+    // console.log('🔍 [handlePatentQuestion] Added listener');
+    return () => {
+      ipcRenderer.removeListener('send-gemini-message', sendGeminiMessage);
+      // console.log('🔍 [handlePatentQuestion] Removed listener');
+    };
+  }, [client]);
+
 
   return (
     <>
