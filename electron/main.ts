@@ -23,6 +23,7 @@ import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { initializeAutoUpdater } from './updater';
 import ffmpeg from 'fluent-ffmpeg';
+import { mdToPdf } from 'md-to-pdf';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -3855,4 +3856,61 @@ ipcMain.handle('read_patent_image', async (event, relativePath) => {
 ipcMain.handle('get_current_session', () => {
   loadSession();
   return currentPatentSession;
+});
+
+// Add handler for exporting patent as PDF
+ipcMain.handle('export_patent_pdf', async () => {
+  try {
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active patent session' };
+    }
+
+    const mdPath = path.join(session.path, 'main.md');
+    if (!fs.existsSync(mdPath)) {
+      return { success: false, error: 'Patent markdown file not found' };
+    }
+
+    // Create a PDF file path
+    const pdfPath = path.join(session.path, `${session.title.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`);
+
+    // Convert markdown to PDF
+    await mdToPdf(
+      { path: mdPath },
+      {
+        dest: pdfPath,
+        basedir: session.path, // This helps resolve relative image paths
+        css: `
+          body { font-family: Arial, sans-serif; }
+          h1 { color: #333; }
+          h2 { color: #444; margin-top: 2em; }
+          img { max-width: 100%; }
+        `,
+        pdf_options: {
+          format: 'A4',
+          margin: {
+            top: '2cm',
+            bottom: '2cm',
+            left: '2cm',
+            right: '2cm',
+          },
+          printBackground: true,
+        },
+      }
+    );
+
+    // Open the PDF file with the system's default PDF viewer
+    await shell.openPath(pdfPath);
+
+    return {
+      success: true,
+      path: pdfPath,
+    };
+  } catch (error) {
+    console.error('Error exporting PDF:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error exporting PDF',
+    };
+  }
 });

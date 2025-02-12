@@ -511,6 +511,10 @@ export const patentGeneratorTools: Tool[] = [
         description: 'Resumes the patent creation from the last saved session',
       },
       {
+        name: 'export_as_pdf',
+        description: 'Exports the patent file as a pdf',
+      },
+      {
         name: 'display_patent',
         description: 'Opens the markdown file for the user to view',
       },

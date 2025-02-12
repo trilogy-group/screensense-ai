@@ -510,6 +510,46 @@ function SubtitlesComponent({
             hasResponded = true;
             break;
           }
+          case "export_as_pdf": {
+            // client.send([{ text: `Tell the user this out loud: 'I'll convert your patent document to PDF. This will include all the content and images.'` }]);
+            
+            const result = await ipcRenderer.invoke('export_patent_pdf');
+            
+            if (result.success) {
+              client.sendToolResponse({
+                functionResponses: [
+                  {
+                    response: { 
+                      output: { 
+                        success: true,
+                        path: result.path 
+                      } 
+                    },
+                    id: fc.id,
+                  },
+                ],
+              });
+              client.send([{ text: `Successfully exported the patent to PDF at ${result.path}. Tell the user this out loud: 'I've created a PDF version of your patent document. You can find it at ${result.path}'` }]);
+            } else {
+              client.sendToolResponse({
+                functionResponses: [
+                  {
+                    response: { 
+                      output: { 
+                        success: false, 
+                        error: result.error 
+                      } 
+                    },
+                    id: fc.id,
+                  },
+                ],
+              });
+              client.send([{ text: `Failed to export PDF: ${result.error}. Tell the user this out loud: 'I encountered an error while creating the PDF because of <short explanation of error>. Please try again.'` }]);
+            }
+            
+            hasResponded = true;
+            break;
+          }
           case "send_user_response": {
 
             client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'` }]);
