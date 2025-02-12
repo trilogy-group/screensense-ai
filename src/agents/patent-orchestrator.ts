@@ -57,6 +57,9 @@ const addContent = tool(
   async ({ content, section }) => {
     console.log('📝 [addContent] Called with:', { section, contentLength: content.length });
     try {
+      ipcRenderer.send('send-gemini-message', {
+        message: `Tell the user this: 'Please give me a few seconds to add the content to the document.`,
+      });
       const result = await ipcRenderer.invoke('add_content', { content, section });
       //   console.log('✅ [addContent] Content added successfully:', result);
       return result;
@@ -212,7 +215,7 @@ Process:
 1. You can make use of the read_patent tool to read the current patent document, and a checklist of what all information is required to be documented
 2. Use ask_next_question to ask the user the next question to fill the patent document, and then wait for the user's response. This will be sent as a new message to you.
 3. Once the user responds to the question, use add_content to add the user's response to the patent document
-   - Make sure to use language that is appropriate for a patent document. Be thorough and detailed, but do not make up any information. You should only improve the information provided by the user, not add any new information.
+   - Make sure to use language that is appropriate for a patent document. Be thorough and detailed, but do not make up any information. You are allowed to rephrase the user's response to make it more patent-friendly, but do not add any new information.
    - If the content includes an image with the path, pass on the image description and path to the add_content tool
 4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the mark_as_completed tool
 Remember:

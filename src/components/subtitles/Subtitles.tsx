@@ -442,7 +442,8 @@ function SubtitlesComponent({
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
           case "create_template": {
-            const result = await ipcRenderer.invoke('create_template', (fc.args as any).title);
+            const title = (fc.args as any).title;
+            const result = await ipcRenderer.invoke('create_template', title);
             // No need to manage session here as it's handled in main.ts
             client.sendToolResponse({
               functionResponses: [
@@ -454,13 +455,18 @@ function SubtitlesComponent({
             });
             hasResponded = true;
             client.send([{ 
-              text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.'. Inform the patent lawyer that the user wants to start documenting their invention called "${(fc.args as any).title}".` 
+              text: `Template is created. Tell the user this: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'.` 
             }]);
             await ipcRenderer.invoke('display_patent');
             console.log(`Created template at ${result.path}`)
+
+            await invokePatentAgent(`I want to start documenting my invention. It's called "${title}".`);
             break;
           }
           case "send_user_response": {
+
+            client.send([{ text: `Tell the user this: 'Give me a few seconds, I will add the content to the document.'` }]);
+
             // Send to orchestrator using the session from main.ts
             const orchestratorResponse = await invokePatentAgent(
               (fc.args as any).message
@@ -581,7 +587,7 @@ function SubtitlesComponent({
   // Add effect to listen for patent questions
   useEffect(() => {
     const handlePatentQuestion = (_: any, { question, reason }: { question: string; reason: string }) => {
-      console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
+      // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
       client.send([{ 
         text: `The laywer asked the following question, which you must ask out loud to the user: ${question}` 
       }]);
@@ -594,6 +600,24 @@ function SubtitlesComponent({
       // console.log('🔍 [handlePatentQuestion] Removed listener');
     };
   }, [client]);
+
+    // Add effect to listen for patent questions
+  useEffect(() => {
+    const sendGeminiMessage = (_: any, { message }: { message: string }) => {
+      // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
+      client.send([{ 
+        text: message 
+      }]);
+    };
+
+    ipcRenderer.on('send-gemini-message', sendGeminiMessage);
+    // console.log('🔍 [handlePatentQuestion] Added listener');
+    return () => {
+      ipcRenderer.removeListener('send-gemini-message', sendGeminiMessage);
+      // console.log('🔍 [handlePatentQuestion] Removed listener');
+    };
+  }, [client]);
+
 
   return (
     <>
