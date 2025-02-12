@@ -15,6 +15,14 @@ module.exports = function override(config, env) {
     tls: false, // same as above
     assert: require.resolve('assert/'),
     util: require.resolve('util/'),
+    async_hooks: false,
+  };
+
+  // Add externals to prevent bundling of certain native modules
+  config.externals = {
+    ...config.externals,
+    electron: 'commonjs electron',
+    'node:async_hooks': 'commonjs async_hooks',
   };
 
   return config;

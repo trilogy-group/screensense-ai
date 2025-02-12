@@ -22,8 +22,6 @@ import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { initializeAutoUpdater } from './updater';
-import { exec } from 'child_process';
-import util from 'util';
 import ffmpeg from 'fluent-ffmpeg';
 dotenv.config();
 
@@ -3133,9 +3131,16 @@ ipcMain.handle('read_patent', async event => {
     }
 
     const contents = fs.readFileSync(mdPath, 'utf8');
-    return { success: true, contents };
+    return {
+      success: true,
+      contents,
+      checklist: patentGeneratorTemplate.sections.map(section => ({
+        name: section.name,
+        details: section.details,
+      })),
+    };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error reading patent';
     logToFile(`Error reading patent: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
@@ -3476,7 +3481,7 @@ ipcMain.on('save-conversation-metadata', async (event, metadata) => {
 
   try {
     await fs.promises.writeFile(filePath, JSON.stringify(metadata, null, 2));
-    console.log(`Saved conversation metadata to ${filePath}`);
+    // console.log(`Saved conversation metadata to ${filePath}`);
   } catch (error) {
     console.error('Error saving conversation metadata:', error);
   }
@@ -3557,7 +3562,7 @@ You don't have to include everything, just enough so that someone can understand
       if (err) {
         console.error('Failed to write transcription to file:', err);
       } else {
-        console.log('Transcription written to file:', textFilePath);
+        // console.log('Transcription written to file:', textFilePath);
       }
     });
   } catch (error: any) {
@@ -3653,7 +3658,7 @@ async function mergeConversationAudio(metadataPath: string, assistantDisplayName
         .save(outputPath);
     });
 
-    console.log('Successfully merged conversation audio');
+    // console.log('Successfully merged conversation audio');
 
     // Transcribe the merged audio
     await transcribeAndMergeConversation(outputPath, assistantDisplayName);
@@ -3772,4 +3777,25 @@ ipcMain.on('request-markdown-content', () => {
 
 ipcMain.on('open-markdown-preview', (_, filePath: string) => {
   createMarkdownPreviewWindow(filePath);
+});
+
+// Add near the top with other IPC handlers
+ipcMain.handle('get-env', async (event, key) => {
+  // Only allow specific env vars to be accessed
+  const allowedKeys = ['REACT_APP_ANTHROPIC_API_KEY'];
+  if (allowedKeys.includes(key)) {
+    return process.env[key];
+  }
+  return null;
+});
+
+ipcMain.on('patent-question', (event, data) => {
+  // console.log('🔄 [main] Received patent question:', data);
+  // Forward to all renderer windows
+  BrowserWindow.getAllWindows().forEach(window => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('patent-question', data);
+      // console.log('✅ [main] Forwarded patent question to window:', window.getTitle());
+    }
+  });
 });

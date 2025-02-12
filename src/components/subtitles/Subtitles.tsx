@@ -454,7 +454,7 @@ function SubtitlesComponent({
             });
             hasResponded = true;
             client.send([{ 
-              text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.' Use the get_next_question function to get the next question to ask the user.` 
+              text: `Template is created. Tell the user this: 'I've created a new patent document for "${(fc.args as any).title}". I will now ask you questions to help document your invention.'. Inform the patent lawyer that the user wants to start documenting their invention called "${(fc.args as any).title}".` 
             }]);
             await ipcRenderer.invoke('display_patent');
             console.log(`Created template at ${result.path}`)
@@ -466,13 +466,16 @@ function SubtitlesComponent({
               (fc.args as any).message
             );
 
+            // Get the last message from the orchestrator
+            const lastMessage = orchestratorResponse.messages.at(-1)?.content?.toString() || '';
+
             client.sendToolResponse({
               functionResponses: [
                 {
                   response: {
                     output: {
                       success: true,
-                      nextAction: orchestratorResponse.messages.at(-1)?.content,
+                      nextAction: lastMessage,
                     },
                   },
                   id: fc.id,
@@ -482,46 +485,12 @@ function SubtitlesComponent({
             hasResponded = true;
             break;
           }
-          case "get_next_question":
-            console.log(`Going to ask anthropic for the next question`);
-            const nextQuestionResponse = await ipcRenderer.invoke('get_next_question');
-            if (nextQuestionResponse.success) {
-              console.log(`Received the next question to ask the user: ${nextQuestionResponse.question}`);
-              client.send([{ text: `Received the next question to ask the user: ${nextQuestionResponse.question}` }]);
-            } else {
-              client.send([{ text: `Failed to get next question: ${nextQuestionResponse.error}` }]);
-            }
-            hasResponded = true;
-            break;
-          case "add_content":
-            const updateResult = await ipcRenderer.invoke('add_content', {
-              content: (fc.args as any).content,
-              section: (fc.args as any).section,
-              // mode: (fc.args as any).mode
-            });
-            if (!updateResult.success) {
-              client.send([{ text: `Failed to update document: ${updateResult.error}` }]);
-            } else {
-              console.log('Updated the document');
-              client.send([{ text: `Updated the document. Use the get_next_question function to get the next question to ask the user.` }]);
-            }
-            hasResponded = true;
-            break;
           case "display_patent":
             const displayResult = await ipcRenderer.invoke('display_patent', (fc.args as any).filename);
             if (displayResult.success) {
               client.send([{ text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?" }]);
             } else {
               client.send([{ text: `Failed to open document: ${displayResult.error}` }]);
-            }
-            hasResponded = true;
-            break;
-          case "read_patent":
-            const readResult = await ipcRenderer.invoke('read_patent', (fc.args as any).filename);
-            if (readResult.success) {
-              client.send([{ text: `Here is the current version of the patent document: ${readResult.contents}` }]);
-            } else {
-              client.send([{ text: `Failed to read patent: ${readResult.error}` }]);
             }
             hasResponded = true;
             break;
@@ -545,7 +514,7 @@ function SubtitlesComponent({
                       }
                     ]
                   })
-                  client.send([{ text: `Saved the screenshot at ${result.path}. Add this to the document using the add_content function.` }]);
+                  client.send([{ text: `Saved the screenshot at ${result.path}. Use the send_user_response function to inform the patent laywer about the image you just saved along with its path.` }]);
                 } else {
                   client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
                 }
@@ -608,6 +577,23 @@ function SubtitlesComponent({
       ipcRenderer.removeListener('set-cursor-visibility', handleCursorVisibility);
     };
   }, []);
+
+  // Add effect to listen for patent questions
+  useEffect(() => {
+    const handlePatentQuestion = (_: any, { question, reason }: { question: string; reason: string }) => {
+      console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
+      client.send([{ 
+        text: `The laywer asked the following question, which you must ask out loud to the user: ${question}` 
+      }]);
+    };
+
+    ipcRenderer.on('patent-question', handlePatentQuestion);
+    // console.log('🔍 [handlePatentQuestion] Added listener');
+    return () => {
+      ipcRenderer.removeListener('patent-question', handlePatentQuestion);
+      // console.log('🔍 [handlePatentQuestion] Removed listener');
+    };
+  }, [client]);
 
   return (
     <>
