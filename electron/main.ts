@@ -3552,7 +3552,7 @@ ipcMain.on('save-code-image', (event, image) => {
 ipcMain.handle('analyse-code', async (event) => {
   console.log("analyse-code");
   const codeDir = path.join(app.getPath('appData'), 'screensense-ai', 'code');
-  let con: any[] = []
+  let _content: any[] = []
   const encodeImage = (imagePath: string): string => {
     const imageBuffer_2 = fs.readFileSync(imagePath);
     return imageBuffer_2.toString("base64");
@@ -3561,7 +3561,7 @@ ipcMain.handle('analyse-code', async (event) => {
   for (const file of files) {
     const filePath = path.join(codeDir, file);
     const base64Image = encodeImage(filePath);
-    con.push({
+    _content.push({
       type: "image_url",
       image_url: { url: `data:image/png;base64,${base64Image}` }
     });
@@ -3578,7 +3578,7 @@ ipcMain.handle('analyse-code', async (event) => {
       },
       {
         role: "user",
-        content: con
+        content: _content
       }
     ],
 
