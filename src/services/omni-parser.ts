@@ -52,12 +52,12 @@ export class OmniParser {
             y: parseFloat(centerMatch[2]),
           },
           boundingBox: {
-            x1: parseFloat(centerMatch[1]) -  0.02,
+            x1: parseFloat(centerMatch[1]) - 0.02,
             y1: parseFloat(centerMatch[2]) - 0.02,
             x2: parseFloat(centerMatch[1]) + 0.02,
             y2: parseFloat(centerMatch[2]) + 0.02,
-          }
-        }
+          },
+        };
 
         return element;
       })

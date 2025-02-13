@@ -15,7 +15,9 @@ export class OpenCVService {
       };
       img.onerror = reject;
       // Use the base64 string directly if it's a data URL, or convert it to one
-      img.src = base64Image.startsWith('data:') ? base64Image : `data:image/png;base64,${base64Image}`;
+      img.src = base64Image.startsWith('data:')
+        ? base64Image
+        : `data:image/png;base64,${base64Image}`;
     });
   }
 
@@ -48,7 +50,7 @@ export class OpenCVService {
 
       const result = new cv.Mat();
       cv.matchTemplate(screenGray, templateGray, result, method);
-      
+
       const mask = new cv.Mat();
       const minMax = cv.minMaxLoc(result, mask);
       mask.delete();
@@ -72,9 +74,9 @@ export class OpenCVService {
         return {
           location: {
             x: centerX,
-            y: centerY
+            y: centerY,
           },
-          confidence: maxVal
+          confidence: maxVal,
         };
       }
 
@@ -101,7 +103,7 @@ export class OpenCVService {
 
       const result = new cv.Mat();
       cv.matchTemplate(screenGray, templateGray, result, cv.TM_CCOEFF_NORMED);
-      
+
       const matches: TemplateMatchResult[] = [];
       for (let y = 0; y < result.rows; y++) {
         for (let x = 0; x < result.cols; x++) {
@@ -110,9 +112,9 @@ export class OpenCVService {
             matches.push({
               location: {
                 x: x + template.cols / 2,
-                y: y + template.rows / 2
+                y: y + template.rows / 2,
               },
-              confidence
+              confidence,
             });
           }
         }
@@ -133,4 +135,4 @@ export class OpenCVService {
   }
 }
 
-export const opencvService = new OpenCVService(); 
+export const opencvService = new OpenCVService();

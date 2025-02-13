@@ -75,7 +75,7 @@ const MediaStreamButton = memo(
 function ControlTray({
   videoRef,
   children,
-  onVideoStreamChange = () => { },
+  onVideoStreamChange = () => {},
   supportsVideo,
   modes,
   selectedOption,
@@ -96,10 +96,12 @@ function ControlTray({
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRecordingSession, setIsRecordingSession] = useState(false);
-  const userAudioChunks = useRef<Array<{blob: Blob, timestamp: number, duration: number}>>([]);
-  const assistantAudioChunks = useRef<Array<{blob: Blob, timestamp: number, duration: number}>>([]);
+  const userAudioChunks = useRef<Array<{ blob: Blob; timestamp: number; duration: number }>>([]);
+  const assistantAudioChunks = useRef<Array<{ blob: Blob; timestamp: number; duration: number }>>(
+    []
+  );
   const sessionStartTime = useRef<number>(0);
-  const lastAssistantTimestamp = useRef<number>(0);  // Track last assistant chunk end time
+  const lastAssistantTimestamp = useRef<number>(0); // Track last assistant chunk end time
   const autoSaveInterval = useRef<number | null>(null);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
@@ -137,13 +139,13 @@ function ControlTray({
         }
         const blob = new Blob([bytes], { type: 'audio/pcm' });
         // Calculate duration based on sample rate and data size
-        const duration = (bytes.length / 2) / 16000 * 1000; // Convert to milliseconds
+        const duration = (bytes.length / 2 / 16000) * 1000; // Convert to milliseconds
         const timestamp = performance.now() - sessionStartTime.current;
         // console.log(`User audio chunk recorded - Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${bytes.length} bytes`);
         userAudioChunks.current.push({
           blob,
           timestamp,
-          duration
+          duration,
         });
       }
     };
@@ -245,13 +247,19 @@ function ControlTray({
     if (connected && client) {
       // Send initial system message about screen sharing state
       if (selectedOption.value === 'screen_capture_record') {
-        client.send([{ text: "Say 'Welcome to Screen Sense AI' and then ask the following question to the user: 'Do you want to start recording action?' If he says yes, then invoke the start_recording function. Give user a confirmation message that you have started recording action or not." }]);
-      }
-      else if (selectedOption.value === 'screen_capture_play') {
-        client.send([{ text: "Say 'Welcome to Screen Sense AI' and then ask the following question to the user: 'Do you want to play recorded action?' If he says yes, invoke the run_action function. If he says no, do nothing. Give user a confirmation message that you have started playing recorded action or not ." }]);
-      }
-      else {
-        client.send([{ text: "Introduce yourself." }]);
+        client.send([
+          {
+            text: "Say 'Welcome to Screen Sense AI' and then ask the following question to the user: 'Do you want to start recording action?' If he says yes, then invoke the start_recording function. Give user a confirmation message that you have started recording action or not.",
+          },
+        ]);
+      } else if (selectedOption.value === 'screen_capture_play') {
+        client.send([
+          {
+            text: "Say 'Welcome to Screen Sense AI' and then ask the following question to the user: 'Do you want to play recorded action?' If he says yes, invoke the run_action function. If he says no, do nothing. Give user a confirmation message that you have started playing recorded action or not .",
+          },
+        ]);
+      } else {
+        client.send([{ text: 'Introduce yourself.' }]);
       }
     }
   }, [connected, client, selectedOption.value]);
@@ -259,103 +267,101 @@ function ControlTray({
   const createWavHeader = (dataLength: number, sampleRate: number = 16000) => {
     const buffer = new ArrayBuffer(44);
     const view = new DataView(buffer);
-    
+
     // "RIFF" chunk descriptor
-    view.setUint32(0, 0x52494646, false);  // "RIFF"
-    view.setUint32(4, 36 + dataLength, true);  // chunk size
-    view.setUint32(8, 0x57415645, false);  // "WAVE"
-    
+    view.setUint32(0, 0x52494646, false); // "RIFF"
+    view.setUint32(4, 36 + dataLength, true); // chunk size
+    view.setUint32(8, 0x57415645, false); // "WAVE"
+
     // "fmt " sub-chunk
-    view.setUint32(12, 0x666D7420, false);  // "fmt "
-    view.setUint32(16, 16, true);  // subchunk size
-    view.setUint16(20, 1, true);  // audio format (PCM)
-    view.setUint16(22, 1, true);  // num channels (mono)
-    view.setUint32(24, sampleRate, true);  // sample rate
-    view.setUint32(28, sampleRate * 2, true);  // byte rate (sample rate * num channels * bytes per sample)
-    view.setUint16(32, 2, true);  // block align
-    view.setUint16(34, 16, true);  // bits per sample
-    
+    view.setUint32(12, 0x666d7420, false); // "fmt "
+    view.setUint32(16, 16, true); // subchunk size
+    view.setUint16(20, 1, true); // audio format (PCM)
+    view.setUint16(22, 1, true); // num channels (mono)
+    view.setUint32(24, sampleRate, true); // sample rate
+    view.setUint32(28, sampleRate * 2, true); // byte rate (sample rate * num channels * bytes per sample)
+    view.setUint16(32, 2, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+
     // "data" sub-chunk
-    view.setUint32(36, 0x64617461, false);  // "data"
-    view.setUint32(40, dataLength, true);  // subchunk size
-    
+    view.setUint32(36, 0x64617461, false); // "data"
+    view.setUint32(40, dataLength, true); // subchunk size
+
     return buffer;
   };
 
-  const saveRecordings = useCallback(async (shouldReset: boolean = false) => {
-    if (userAudioChunks.current.length === 0 && assistantAudioChunks.current.length === 0) {
-      console.log('No audio chunks to save');
-      return;
-    }
+  const saveRecordings = useCallback(
+    async (shouldReset: boolean = false) => {
+      if (userAudioChunks.current.length === 0 && assistantAudioChunks.current.length === 0) {
+        console.log('No audio chunks to save');
+        return;
+      }
 
-    console.log('Saving recordings...');
-    // console.log('User chunks:', userAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
-    // console.log('Assistant chunks:', assistantAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
-    
-    const metadata = {
-      totalDuration: performance.now() - sessionStartTime.current,
-      userChunks: userAudioChunks.current.map(chunk => ({
-        timestamp: chunk.timestamp,
-        duration: chunk.duration
-      })),
-      assistantChunks: assistantAudioChunks.current.map(chunk => ({
-        timestamp: chunk.timestamp,
-        duration: chunk.duration
-      }))
-    };
-    
-    // console.log('Saving metadata:', JSON.stringify(metadata, null, 2));
-    ipcRenderer.send('save-conversation-metadata', metadata);
+      console.log('Saving recordings...');
+      // console.log('User chunks:', userAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
+      // console.log('Assistant chunks:', assistantAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
 
-    // Save individual audio chunks
-    for (let i = 0; i < userAudioChunks.current.length; i++) {
-      const chunk = userAudioChunks.current[i];
-      const arrayBuffer = await chunk.blob.arrayBuffer();
-      const header = createWavHeader(arrayBuffer.byteLength, 16000);
-      const finalBuffer = Buffer.concat([
-        Buffer.from(header),
-        Buffer.from(arrayBuffer)
-      ]);
-      
-      ipcRenderer.send('save-conversation-audio', {
-        buffer: finalBuffer,
-        type: 'user',
-        index: i,
-        timestamp: chunk.timestamp
+      const metadata = {
+        totalDuration: performance.now() - sessionStartTime.current,
+        userChunks: userAudioChunks.current.map(chunk => ({
+          timestamp: chunk.timestamp,
+          duration: chunk.duration,
+        })),
+        assistantChunks: assistantAudioChunks.current.map(chunk => ({
+          timestamp: chunk.timestamp,
+          duration: chunk.duration,
+        })),
+      };
+
+      // console.log('Saving metadata:', JSON.stringify(metadata, null, 2));
+      ipcRenderer.send('save-conversation-metadata', metadata);
+
+      // Save individual audio chunks
+      for (let i = 0; i < userAudioChunks.current.length; i++) {
+        const chunk = userAudioChunks.current[i];
+        const arrayBuffer = await chunk.blob.arrayBuffer();
+        const header = createWavHeader(arrayBuffer.byteLength, 16000);
+        const finalBuffer = Buffer.concat([Buffer.from(header), Buffer.from(arrayBuffer)]);
+
+        ipcRenderer.send('save-conversation-audio', {
+          buffer: finalBuffer,
+          type: 'user',
+          index: i,
+          timestamp: chunk.timestamp,
+        });
+      }
+
+      for (let i = 0; i < assistantAudioChunks.current.length; i++) {
+        const chunk = assistantAudioChunks.current[i];
+        const arrayBuffer = await chunk.blob.arrayBuffer();
+        const header = createWavHeader(arrayBuffer.byteLength, 24000);
+        const finalBuffer = Buffer.concat([Buffer.from(header), Buffer.from(arrayBuffer)]);
+
+        ipcRenderer.send('save-conversation-audio', {
+          buffer: finalBuffer,
+          type: 'assistant',
+          index: i,
+          timestamp: chunk.timestamp,
+        });
+      }
+
+      // Trigger merging of the conversation
+      ipcRenderer.send('merge-conversation-audio', {
+        assistantDisplayName:
+          assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name,
       });
-    }
 
-    for (let i = 0; i < assistantAudioChunks.current.length; i++) {
-      const chunk = assistantAudioChunks.current[i];
-      const arrayBuffer = await chunk.blob.arrayBuffer();
-      const header = createWavHeader(arrayBuffer.byteLength, 24000);
-      const finalBuffer = Buffer.concat([
-        Buffer.from(header),
-        Buffer.from(arrayBuffer)
-      ]);
-      
-      ipcRenderer.send('save-conversation-audio', {
-        buffer: finalBuffer,
-        type: 'assistant',
-        index: i,
-        timestamp: chunk.timestamp
-      });
-    }
-
-    // Trigger merging of the conversation
-    ipcRenderer.send('merge-conversation-audio', {
-      assistantDisplayName: assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name
-    });
-
-    // Reset audio chunks and timestamps if requested
-    if (shouldReset) {
-      console.log('Resetting audio chunks and timestamps');
-      userAudioChunks.current = [];
-      assistantAudioChunks.current = [];
-      sessionStartTime.current = performance.now();
-      lastAssistantTimestamp.current = 0;
-    }
-  }, [selectedOption.value]);
+      // Reset audio chunks and timestamps if requested
+      if (shouldReset) {
+        console.log('Resetting audio chunks and timestamps');
+        userAudioChunks.current = [];
+        assistantAudioChunks.current = [];
+        sessionStartTime.current = performance.now();
+        lastAssistantTimestamp.current = 0;
+      }
+    },
+    [selectedOption.value]
+  );
 
   // Add effect to handle auto-saving
   useEffect(() => {
@@ -387,7 +393,7 @@ function ControlTray({
       userAudioChunks.current = [];
       assistantAudioChunks.current = [];
       sessionStartTime.current = performance.now();
-      lastAssistantTimestamp.current = 0;  // Reset the last timestamp
+      lastAssistantTimestamp.current = 0; // Reset the last timestamp
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
       });
@@ -424,12 +430,20 @@ function ControlTray({
             // Start screen sharing
             changeStreams(screenCapture)().then(() => {
               // Send message to Gemini that screen sharing is enabled
-              client.send([{ text: "Screen sharing has been enabled. You can now use screen data for evaluation. If you have understood, reply with 'Screen sharing enabled'" }]);
+              client.send([
+                {
+                  text: "Screen sharing has been enabled. You can now use screen data for evaluation. If you have understood, reply with 'Screen sharing enabled'",
+                },
+              ]);
             });
           } else {
             // Stop screen sharing and notify Gemini
             changeStreams()();
-            client.send([{ text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Screen sharing disabled'" }]);
+            client.send([
+              {
+                text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Screen sharing disabled'",
+              },
+            ]);
           }
           break;
         case 'webcam':
@@ -494,29 +508,32 @@ function ControlTray({
     const handleAssistantAudio = (event: any, audioData: ArrayBuffer) => {
       if (isRecordingSession) {
         const blob = new Blob([audioData], { type: 'audio/pcm' });
-        const duration = (audioData.byteLength / 2) / 24000 * 1000; // Convert to milliseconds
-        
+        const duration = (audioData.byteLength / 2 / 24000) * 1000; // Convert to milliseconds
+
         // Calculate the proper timestamp based on when we should play this chunk
         let timestamp: number;
-        
+
         // If this is the first chunk in a burst (gap > 500ms from last chunk)
         const now = performance.now() - sessionStartTime.current;
-        if (assistantAudioChunks.current.length === 0 || now - lastAssistantTimestamp.current > 500) {
+        if (
+          assistantAudioChunks.current.length === 0 ||
+          now - lastAssistantTimestamp.current > 500
+        ) {
           // This is the first chunk of a new utterance - use current time
           timestamp = now;
         } else {
           // This is a continuation chunk - should play right after the previous chunk
           timestamp = lastAssistantTimestamp.current;
         }
-        
+
         // Update the last timestamp to be the end of this chunk
         lastAssistantTimestamp.current = timestamp + duration;
-        
+
         // console.log(`Assistant audio chunk received - Actual time: ${now}ms, Assigned Timestamp: ${timestamp}ms, Duration: ${duration}ms, Size: ${audioData.byteLength} bytes`);
         assistantAudioChunks.current.push({
           blob,
           timestamp,
-          duration
+          duration,
         });
       }
     };

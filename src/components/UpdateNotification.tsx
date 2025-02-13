@@ -23,7 +23,7 @@ export const UpdateNotification: React.FC = () => {
   useEffect(() => {
     const handleUpdateStatus = (_event: any, status: string, info?: any) => {
       setUpdateStatus(status);
-      
+
       if (status === 'available' || status === 'not-available') {
         setUpdateInfo(info);
       } else if (status === 'downloading') {
@@ -57,11 +57,7 @@ export const UpdateNotification: React.FC = () => {
 
   return (
     <div className="update-notification">
-      {updateStatus === 'checking' && (
-        <div className="update-status">
-          Checking for updates...
-        </div>
-      )}
+      {updateStatus === 'checking' && <div className="update-status">Checking for updates...</div>}
 
       {updateStatus === 'available' && updateInfo && (
         <div className="update-available">
@@ -96,4 +92,4 @@ export const UpdateNotification: React.FC = () => {
       )}
     </div>
   );
-}; 
+};

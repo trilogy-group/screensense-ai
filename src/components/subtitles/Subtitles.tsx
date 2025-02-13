@@ -16,7 +16,7 @@ interface SubtitlesProps {
   onScreenshot?: () => string | null;
 }
 
-let play_action = true; 
+let play_action = true;
 // Default tool configuration
 function SubtitlesComponent({
   tools,
@@ -58,10 +58,10 @@ function SubtitlesComponent({
             console.log('Template found at:', result.location);
             console.log('Match confidence:', result.confidence);
             return {
-              x: result.location.x -100,
-              y: result.location.y -100,
-              confidence: result.confidence
-            }
+              x: result.location.x - 100,
+              y: result.location.y - 100,
+              confidence: result.confidence,
+            };
           } else {
             console.log('Template not found in the image');
           }
@@ -70,15 +70,21 @@ function SubtitlesComponent({
         }
       }
     }
-    async function get_screenshot(x1: number, y1: number, x2: number, y2: number): Promise<string | null> {
+    async function get_screenshot(
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number
+    ): Promise<string | null> {
       if (onScreenshot) {
-        const screenshot = onScreenshot()
+        const screenshot = onScreenshot();
         if (screenshot) {
-          const base64Data = screenshot.split(',')[1]
+          const base64Data = screenshot.split(',')[1];
 
           // Get window dimensions from electron
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { bounds, workArea, scaleFactor } = await ipcRenderer.invoke('get-window-dimensions');
+          const { bounds, workArea, scaleFactor } =
+            await ipcRenderer.invoke('get-window-dimensions');
 
           const x1_scaled = Math.round(x1 * scaleFactor);
           const y1_scaled = Math.round(y1 * scaleFactor);
@@ -105,7 +111,13 @@ function SubtitlesComponent({
           const blob = new Blob(byteArrays, { type: 'image/jpeg' });
 
           try {
-            const imageBitmap = await createImageBitmap(blob, x1_final, y1_final, x2_final - x1_final, y2_final - y1_final);
+            const imageBitmap = await createImageBitmap(
+              blob,
+              x1_final,
+              y1_final,
+              x2_final - x1_final,
+              y2_final - y1_final
+            );
 
             // Create temporary canvas for conversion
             const canvas = document.createElement('canvas');
@@ -128,18 +140,23 @@ function SubtitlesComponent({
       }
       return null;
     }
-    async function interact(cords: { x: number, y: number }, function_call: string, electron: boolean = true, payload: string = "") {
+    async function interact(
+      cords: { x: number; y: number },
+      function_call: string,
+      electron: boolean = true,
+      payload: string = ''
+    ) {
       switch (function_call) {
-        case "click":
-          ipcRenderer.send('click', cords?.x, cords?.y, 'click', electron)
+        case 'click':
+          ipcRenderer.send('click', cords?.x, cords?.y, 'click', electron);
           break;
-        case "double-click":
-          ipcRenderer.send('click', cords?.x, cords?.y, 'double-click', electron)
+        case 'double-click':
+          ipcRenderer.send('click', cords?.x, cords?.y, 'double-click', electron);
           break;
-        case "right-click":
-          ipcRenderer.send('click', cords?.x, cords?.y, 'right-click', electron)
+        case 'right-click':
+          ipcRenderer.send('click', cords?.x, cords?.y, 'right-click', electron);
           break;
-        case "insert_content":
+        case 'insert_content':
           ipcRenderer.send('insert-content', payload);
           break;
         // case "scroll":
@@ -147,7 +164,11 @@ function SubtitlesComponent({
         //   break;
       }
     }
-    async function find_all_elements_function(onScreenshot: () => string | null, client: any, toolCall: ToolCall): Promise<void> {
+    async function find_all_elements_function(
+      onScreenshot: () => string | null,
+      client: any,
+      toolCall: ToolCall
+    ): Promise<void> {
       if (onScreenshot) {
         const screenshot = onScreenshot();
         if (screenshot) {
@@ -197,8 +218,8 @@ function SubtitlesComponent({
                   y1: Math.round(element.boundingBox.y1 * actualHeight),
                   x2: Math.round(element.boundingBox.x2 * actualWidth),
                   y2: Math.round(element.boundingBox.y2 * actualHeight),
-                }
-              })
+                },
+              }),
             }));
 
             client.sendToolResponse({
@@ -220,8 +241,7 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Found ${scaledElements.length} elements`);
           } catch (error) {
             console.error('Error finding elements:', error);
-            const errorMessage =
-              error instanceof Error ? error.message : 'Unknown error occurred';
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             client.sendToolResponse({
               functionResponses: toolCall.functionCalls.map(fc => ({
                 response: { output: { success: false, error: errorMessage } },
@@ -272,54 +292,56 @@ function SubtitlesComponent({
         );
 
         switch (fc.name) {
-          case "start_recording":
+          case 'start_recording':
             ipcRenderer.send('start-capture-screen');
             client.sendToolResponse({
               functionResponses: toolCall.functionCalls.map(fc => ({
-                response: { output: { success: true, message: "Started recording mouse actions" } },
+                response: { output: { success: true, message: 'Started recording mouse actions' } },
                 id: fc.id,
               })),
             });
             hasResponded = true;
             break;
-          case "stop_recording":
+          case 'stop_recording':
             ipcRenderer.send('stop-capture-screen');
             client.sendToolResponse({
               functionResponses: toolCall.functionCalls.map(fc => ({
-                response: { output: { success: true, message: "Stopped recording mouse actions" } },
+                response: { output: { success: true, message: 'Stopped recording mouse actions' } },
                 id: fc.id,
               })),
             });
             hasResponded = true;
             break;
-          case "render_subtitles":
+          case 'render_subtitles':
             setSubtitles((fc.args as any).subtitles);
             break;
-          case "remove_subtitles":
-            setSubtitles("");
+          case 'remove_subtitles':
+            setSubtitles('');
             ipcRenderer.send('remove_subtitles');
             break;
-          case "render_graph":
+          case 'render_graph':
             setGraphJson((fc.args as any).json_graph);
             break;
-          case "write_text":
+          case 'write_text':
             ipcRenderer.send('write_text', (fc.args as any).content);
             break;
-          case "read_text":
+          case 'read_text':
             const selectedText = await ipcRenderer.invoke('read_selection');
-            console.log("selectedText received", selectedText);
+            console.log('selectedText received', selectedText);
             client.send([{ text: `Found the following text: ${selectedText}` }]);
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          case "set_action_name":
+          case 'set_action_name':
             ipcRenderer.send('set-action-name', (fc.args as any).name);
             lastActionTimeRef.current = Date.now();
             hasResponded = true;
             break;
-          case "record_opencv_action":
+          case 'record_opencv_action':
             const currentTime = Date.now();
-            const timeDiff = lastActionTimeRef.current ? currentTime - lastActionTimeRef.current : 0;
+            const timeDiff = lastActionTimeRef.current
+              ? currentTime - lastActionTimeRef.current
+              : 0;
             lastActionTimeRef.current = currentTime;
 
             const action_opencv = (fc.args as any).action;
@@ -347,7 +369,14 @@ function SubtitlesComponent({
                 await ipcRenderer.invoke('restore-system-cursor', originalPosition);
                 // Call interact after cursor is restored
                 if (ss_mouse) {
-                  ipcRenderer.send('record-opencv-action', ss_mouse, action_opencv, description_opencv, payload_opencv, timeDiff);
+                  ipcRenderer.send(
+                    'record-opencv-action',
+                    ss_mouse,
+                    action_opencv,
+                    description_opencv,
+                    payload_opencv,
+                    timeDiff
+                  );
                   await interact(mousePosition, action_opencv, true, payload_opencv);
                 }
               }
@@ -360,37 +389,49 @@ function SubtitlesComponent({
             }
             hasResponded = true;
             break;
-          case "opencv_perform_action":
-          case "run_action":
+          case 'opencv_perform_action':
+          case 'run_action':
             // const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
-            const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action')
+            const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action');
             if (actionData_opencv) {
               ipcRenderer.send('show-action');
               for (const action of actionData_opencv) {
-                ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
-                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 2000)));
+                ipcRenderer.send('update-action', {
+                  imagePath: action.filepath,
+                  text: action.function_call,
+                });
+                await new Promise(resolve =>
+                  setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 2000))
+                );
                 const templatePath = action.filepath.replace(/\\/g, '/');
-                console.log(templatePath)
+                console.log(templatePath);
                 if (onScreenshot) {
                   ipcRenderer.send('hide-action');
                   // Add delay to ensure window is hidden
                   await new Promise(resolve => setTimeout(resolve, 200));
                   const screenshot = await ipcRenderer.invoke('get-screenshot');
                   ipcRenderer.send('show-action');
-                  ipcRenderer.send('update-action', { imagePath: action.filepath, text: action.function_call });
+                  ipcRenderer.send('update-action', {
+                    imagePath: action.filepath,
+                    text: action.function_call,
+                  });
                   const cords = await get_opencv_coordinates(templatePath, screenshot);
-                  
+
                   if (cords) {
-                    console.log(cords.confidence)
-                    if(cords.confidence < 0.5) {
-                      client.send([{text: "Say the following sentence : 'I am not able to find the element on your screen. Please perform the current action youself and when you are done, tell me to continue the action'. When user asks you to continue the action, call the continue_action function."}]);
+                    console.log(cords.confidence);
+                    if (cords.confidence < 0.5) {
+                      client.send([
+                        {
+                          text: "Say the following sentence : 'I am not able to find the element on your screen. Please perform the current action youself and when you are done, tell me to continue the action'. When user asks you to continue the action, call the continue_action function.",
+                        },
+                      ]);
                       play_action = false;
                     }
-                    if(play_action) {
+                    if (play_action) {
                       await interact(cords, action.function_call, false, action.payload);
                     }
                   }
-                  while(!play_action) {
+                  while (!play_action) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                   }
                 }
@@ -399,49 +440,54 @@ function SubtitlesComponent({
             }
             hasResponded = true;
             break;
-          case "continue_action":
+          case 'continue_action':
             play_action = true;
             break;
-          case "select_content":
-            ipcRenderer.send('select-content',
+          case 'select_content':
+            ipcRenderer.send(
+              'select-content',
               (fc.args as any).x1 || 500,
               (fc.args as any).y1 || 500,
               (fc.args as any).x2 || 1000,
               (fc.args as any).y2 || 1000
             );
-            hasResponded = true
+            hasResponded = true;
             break;
-          case "scroll":
-            ipcRenderer.send('scroll', (fc.args as any).direction || "up", (fc.args as any).amount || 50);
-            hasResponded = true
+          case 'scroll':
+            ipcRenderer.send(
+              'scroll',
+              (fc.args as any).direction || 'up',
+              (fc.args as any).amount || 50
+            );
+            hasResponded = true;
             break;
-          case "insert_content":
-            console.log(`test message : ${(fc.args as any).content}`)
+          case 'insert_content':
+            console.log(`test message : ${(fc.args as any).content}`);
             ipcRenderer.send('insert-content', (fc.args as any).content);
-            hasResponded = true
+            hasResponded = true;
             break;
-          case "find_all_elements":
+          case 'find_all_elements':
             if (onScreenshot) {
               await find_all_elements_function(onScreenshot, client, toolCall);
             }
             hasResponded = true;
             break;
-          case "highlight_element":
+          case 'highlight_element':
             const coordinates = (fc.args as any).coordinates;
-            console.log(coordinates)
+            console.log(coordinates);
             ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
             break;
-          case "highlight_element_box":
+          case 'highlight_element_box':
             const box = (fc.args as any).boundingBox;
             console.log('Highlighting box:', box);
             ipcRenderer.send('show-box', box.x1, box.y1, box.x2, box.y2);
             break;
-          case "click_element":
+          case 'click_element':
             const args = fc.args as any;
-            console.log(args.coordinates)
+            console.log(args.coordinates);
             ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
-          case "create_template": {
+          case 'create_template': {
             const title = (fc.args as any).title;
             const result = await ipcRenderer.invoke('create_template', title);
             client.sendToolResponse({
@@ -453,111 +499,132 @@ function SubtitlesComponent({
               ],
             });
             hasResponded = true;
-            client.send([{ 
-              text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.` 
-            }]);
+            client.send([
+              {
+                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
+              },
+            ]);
             await ipcRenderer.invoke('display_patent');
-            console.log(`Created template at ${result.path}`)
+            console.log(`Created template at ${result.path}`);
 
-            await invokePatentAgent(`I want to start documenting my invention. It's called "${title}".`);
+            await invokePatentAgent(
+              `I want to start documenting my invention. It's called "${title}".`
+            );
             break;
           }
-          case "resume_patent_creation": {
+          case 'resume_patent_creation': {
             const currentSession = await ipcRenderer.invoke('get_current_session');
             if (!currentSession) {
               client.sendToolResponse({
                 functionResponses: [
                   {
-                    response: { 
-                      output: { 
-                        success: false, 
-                        error: 'No active patent session found' 
-                      } 
+                    response: {
+                      output: {
+                        success: false,
+                        error: 'No active patent session found',
+                      },
                     },
                     id: fc.id,
                   },
                 ],
               });
-              client.send([{ text: `Tell the user this out loud: 'I couldn't find any existing patent session. Would you like to start a new one?'` }]);
+              client.send([
+                {
+                  text: `Tell the user this out loud: 'I couldn't find any existing patent session. Would you like to start a new one?'`,
+                },
+              ]);
               hasResponded = true;
               break;
             }
 
             // Display the patent document
             await ipcRenderer.invoke('display_patent');
-            
+
             // Tell the patent agent to resume
-            await invokePatentAgent(`I want to continue documenting my invention titled "${currentSession.title}". Please continue from where we left off.`);
+            await invokePatentAgent(
+              `I want to continue documenting my invention titled "${currentSession.title}". Please continue from where we left off.`
+            );
 
             client.sendToolResponse({
               functionResponses: [
                 {
-                  response: { 
-                    output: { 
-                      success: true, 
-                      session: currentSession 
-                    } 
+                  response: {
+                    output: {
+                      success: true,
+                      session: currentSession,
+                    },
                   },
                   id: fc.id,
                 },
               ],
             });
-            
-            client.send([{ 
-              text: `Patent session resumed. Tell the user this out loud: 'I've reopened your patent document for "${currentSession.title}". I will continue asking questions to help document your invention.'` 
-            }]);
-            
+
+            client.send([
+              {
+                text: `Patent session resumed. Tell the user this out loud: 'I've reopened your patent document for "${currentSession.title}". I will continue asking questions to help document your invention.'`,
+              },
+            ]);
+
             hasResponded = true;
             break;
           }
-          case "export_as_pdf": {
+          case 'export_as_pdf': {
             // client.send([{ text: `Tell the user this out loud: 'I'll convert your patent document to PDF. This will include all the content and images.'` }]);
-            
+
             const result = await ipcRenderer.invoke('export_patent_pdf');
-            
+
             if (result.success) {
               client.sendToolResponse({
                 functionResponses: [
                   {
-                    response: { 
-                      output: { 
+                    response: {
+                      output: {
                         success: true,
-                        path: result.path 
-                      } 
+                        path: result.path,
+                      },
                     },
                     id: fc.id,
                   },
                 ],
               });
-              client.send([{ text: `Successfully exported the patent to PDF at ${result.path}. Tell the user this out loud: 'I've created a PDF version of your patent document. You can find it at ${result.path}'` }]);
+              client.send([
+                {
+                  text: `Successfully exported the patent to PDF at ${result.path}. Tell the user this out loud: 'I've created a PDF version of your patent document. You can find it at ${result.path}'`,
+                },
+              ]);
             } else {
               client.sendToolResponse({
                 functionResponses: [
                   {
-                    response: { 
-                      output: { 
-                        success: false, 
-                        error: result.error 
-                      } 
+                    response: {
+                      output: {
+                        success: false,
+                        error: result.error,
+                      },
                     },
                     id: fc.id,
                   },
                 ],
               });
-              client.send([{ text: `Failed to export PDF: ${result.error}. Tell the user this out loud: 'I encountered an error while creating the PDF because of <short explanation of error>. Please try again.'` }]);
+              client.send([
+                {
+                  text: `Failed to export PDF: ${result.error}. Tell the user this out loud: 'I encountered an error while creating the PDF because of <short explanation of error>. Please try again.'`,
+                },
+              ]);
             }
-            
+
             hasResponded = true;
             break;
           }
-          case "send_user_response": {
-
-            client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.` }]);
+          case 'send_user_response': {
+            client.send([
+              {
+                text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,
+              },
+            ]);
 
             // Send to orchestrator using the session from main.ts
-            const orchestratorResponse = await invokePatentAgent(
-              (fc.args as any).message
-            );
+            const orchestratorResponse = await invokePatentAgent((fc.args as any).message);
 
             // Get the last message from the orchestrator
             const lastMessage = orchestratorResponse.messages.at(-1)?.content?.toString() || '';
@@ -578,16 +645,23 @@ function SubtitlesComponent({
             hasResponded = true;
             break;
           }
-          case "display_patent":
-            const displayResult = await ipcRenderer.invoke('display_patent', (fc.args as any).filename);
+          case 'display_patent':
+            const displayResult = await ipcRenderer.invoke(
+              'display_patent',
+              (fc.args as any).filename
+            );
             if (displayResult.success) {
-              client.send([{ text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?" }]);
+              client.send([
+                {
+                  text: "Opened the file. Tell the user this: I've opened the current version of the patent document for you to review. Would you like to continue documenting any particular aspect?",
+                },
+              ]);
             } else {
               client.send([{ text: `Failed to open document: ${displayResult.error}` }]);
             }
             hasResponded = true;
             break;
-          case "capture_screenshot":
+          case 'capture_screenshot':
             if (onScreenshot) {
               const screenshot = onScreenshot();
               if (screenshot) {
@@ -595,19 +669,23 @@ function SubtitlesComponent({
                 // Send the screenshot to be saved in the patent's assets folder
                 const result = await ipcRenderer.invoke('save_patent_screenshot', {
                   screenshot,
-                  description
+                  description,
                 });
-                
+
                 if (result.success) {
                   client.sendToolResponse({
                     functionResponses: [
                       {
-                        response: {output: {success: true}},
-                        id: fc.id
-                      }
-                    ]
-                  })
-                  client.send([{ text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.` }]);
+                        response: { output: { success: true } },
+                        id: fc.id,
+                      },
+                    ],
+                  });
+                  client.send([
+                    {
+                      text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.`,
+                    },
+                  ]);
                   await sendImageToPatentAgent(result.path, description);
                 } else {
                   client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
@@ -623,13 +701,14 @@ function SubtitlesComponent({
         }
         if (!hasResponded) {
           client.sendToolResponse({
-            functionResponses:[ 
-            {
-              response: {
-                output: {success: true}
+            functionResponses: [
+              {
+                response: {
+                  output: { success: true },
+                },
+                id: fc.id,
               },
-              id: fc.id
-            }]
+            ],
           });
         }
       }
@@ -674,11 +753,16 @@ function SubtitlesComponent({
 
   // Add effect to listen for patent questions
   useEffect(() => {
-    const handlePatentQuestion = (_: any, { question, reason }: { question: string; reason: string }) => {
+    const handlePatentQuestion = (
+      _: any,
+      { question, reason }: { question: string; reason: string }
+    ) => {
       // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
-      client.send([{ 
-        text: `The laywer asked the following question, which you must ask out loud to the user: ${question}` 
-      }]);
+      client.send([
+        {
+          text: `The laywer asked the following question, which you must ask out loud to the user: ${question}`,
+        },
+      ]);
     };
 
     ipcRenderer.on('patent-question', handlePatentQuestion);
@@ -689,13 +773,15 @@ function SubtitlesComponent({
     };
   }, [client]);
 
-    // Add effect to listen for patent questions
+  // Add effect to listen for patent questions
   useEffect(() => {
     const sendGeminiMessage = (_: any, { message }: { message: string }) => {
       // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
-      client.send([{ 
-        text: message 
-      }]);
+      client.send([
+        {
+          text: message,
+        },
+      ]);
     };
 
     ipcRenderer.on('send-gemini-message', sendGeminiMessage);
@@ -705,7 +791,6 @@ function SubtitlesComponent({
       // console.log('🔍 [handlePatentQuestion] Removed listener');
     };
   }, [client]);
-
 
   return (
     <>
