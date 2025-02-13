@@ -552,7 +552,7 @@ function SubtitlesComponent({
           }
           case "send_user_response": {
 
-            client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'` }]);
+            client.send([{ text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.` }]);
 
             // Send to orchestrator using the session from main.ts
             const orchestratorResponse = await invokePatentAgent(

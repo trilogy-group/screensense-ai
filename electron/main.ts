@@ -3090,7 +3090,7 @@ ${section}
     }
 
     updateSessionModified();
-    return { success: true };
+    return { success: true, updatedContent };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error updating markdown: ${errorMessage}`);

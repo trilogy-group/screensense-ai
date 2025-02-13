@@ -47,6 +47,34 @@ const askNextQuestion = tool(
   }
 );
 
+const replyToUser = tool(
+  async ({ content }) => {
+    console.log('💬 [replyToUser] Called with content length:', content.length);
+    try {
+      ipcRenderer.send('send-gemini-message', {
+        message: `The laywer has replied, tell the user this out loud: ${content}`,
+      });
+      return {
+        success: true,
+        message: 'Message sent to user successfully',
+      };
+    } catch (error) {
+      console.error('❌ [replyToUser] Error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error sending message',
+      };
+    }
+  },
+  {
+    name: 'reply_to_user',
+    description: 'Sends your reply to the user',
+    schema: z.object({
+      content: z.string().describe('The message content to send to the user'),
+    }),
+  }
+);
+
 const addContent = tool(
   async ({ content, section }) => {
     console.log('📝 [addContent] Called with:', { section, contentLength: content.length });
@@ -130,7 +158,7 @@ const markAsCompleted = tool(
 );
 
 // Define all tools available to the agent
-const tools = [askNextQuestion, addContent, readPatent, markAsCompleted];
+const tools = [askNextQuestion, addContent, readPatent, markAsCompleted, replyToUser];
 
 // Initialize the model
 console.log('🤖 Initializing Claude model');
@@ -215,11 +243,17 @@ Process:
 1. You can make use of the read_patent tool to read the current patent document, and a checklist of what all information is required to be documented
 2. Use ask_next_question to ask the user the next question to fill the patent document, and then wait for the user's response. This will be sent as a new message to you.
    - Make sure to add one question at a time, so as not to overwhelm the user.
+   - The question should have just one part, and must not be very long.
 3. Once the user responds to the question, use add_content to add the user's response to the patent document
    - You must make sure to call the add_content tool every single time you receive information from the user.
    - Make sure to use language that is appropriate for a patent document. Be thorough and detailed, but do not make up any information. You are allowed to rephrase the user's response to make it more patent-friendly, but do not add any new information.
    - If the content includes an image with the path, pass on the image description and path to the add_content tool
+   - If you are making changes to an existing section, you can simply mention what is new or what needs to be added, not the entire section again
+   - If the user has requested a particular change in the formatting or structure, you can simply call add_content with the correct section, and in the content field pass in the user's instructions in the format 'The user has asked to ...'
+   - If the answer does not completely answer your question, first add whatever the user said to the document, and then ask further clarifying or folllow up questions.
+   - Based on the user's answers, you can ask other questions that are not necessarily included in the checklist.
 4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the mark_as_completed tool
+5. If at any point the user asks you a question, you can reply with the reply_to_user tool.
 Remember:
 - Be thorough but efficient in gathering information
 - Never make up information - only use what the user provides, as making up information could create an invalid patent document
