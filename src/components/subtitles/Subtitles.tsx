@@ -582,33 +582,34 @@ function SubtitlesComponent({
             }
             hasResponded = true;
             break;
-          case "start_code_analysis":
-            ipcRenderer.send('clear-code-images', `Starting code analysis`);
-            await new Promise(resolve => setTimeout(resolve, 100));
-            code_analysis_active = true;
-            while(code_analysis_active) {
-              if(onScreenshot) {
-                console.log('Taking screenshot');
-                const screenshot = onScreenshot();
-                if (screenshot) {
-                  code_images.push(screenshot);
-                  ipcRenderer.send('save-code-image', screenshot);
-                }
+          case "analyse_screen":
+            if(onScreenshot) {
+              console.log('Taking screenshot');
+              const screenshot = onScreenshot();
+              if (screenshot) {
+                const analysis = await ipcRenderer.invoke('analyse-code', screenshot);
+                // await ipcRenderer.invoke('add_content', {
+                //   content : analysis, 
+                //   section : "Implementation Details"
+                // });
+                console.log(analysis);
               }
-              await new Promise(resolve => setTimeout(resolve, 1000));
             }
             hasResponded = true;
             break;
-          case "stop_code_analysis":
-            code_analysis_active = false;
-            console.log('Stopping code analysis');
-            // const analysis = await ipcRenderer.invoke('analyse-code');
-            const analysis = await ipcRenderer.invoke('analyse-code');
-            // console.log(analysis);
-            ipcRenderer.send('add_content', analysis, "Implementation Details");
-            code_images = [];
-            hasResponded = true;
-            break;  
+          // case "stop_code_analysis":
+          //   code_analysis_active = false;
+          //   console.log('Stopping code analysis');
+          //   // const analysis = await ipcRenderer.invoke('analyse-code');
+          //   const analysis = await ipcRenderer.invoke('analyse-code');
+          //   console.log("analysis received");
+          //   await ipcRenderer.invoke('add_content', {
+          //     content : analysis, 
+          //     section : "Implementation Details"
+          //   });
+          //   code_images = [];
+          //   hasResponded = true;
+          //   break;  
         }
         if (!hasResponded) {
           // new Promise(resolve => setTimeout(resolve, 2000)).then()

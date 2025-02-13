@@ -19,7 +19,7 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
-import { anthropic_completion, analyseCode } from '../shared/services/anthropic';
+import { anthropic_completion, analyseCode, sendBase64ImageToClaude } from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { initializeAutoUpdater } from './updater';
 dotenv.config();
@@ -3088,6 +3088,7 @@ Your output must be a JSON object with the following format:
 // Update the add_content handler to mark sections as completed
 ipcMain.handle('add_content', async (event, { content, section }) => {
   try {
+    console.log("adding content");
     const session = getCurrentSession();
     const mdPath = path.join(session.path, 'main.md');
     // const jsonPath = path.join(session.path, 'metadata.json');
@@ -3138,6 +3139,7 @@ ${section}
     // const response = await anthropic_completion(prompt, process.env.REACT_APP_ANTHROPIC_API_KEY!!);
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    console.log("calling gpt for adding content");
     const response = await openai.chat.completions.create({
       model: 'o3-mini',
       messages: [{ role: 'user', content: prompt }],
@@ -3549,49 +3551,56 @@ ipcMain.on('save-code-image', (event, image) => {
 //   }
 // });
 
-ipcMain.handle('analyse-code', async (event) => {
+ipcMain.handle('analyse-code', async (event, screenshot) => {
   console.log("analyse-code");
-  const codeDir = path.join(app.getPath('appData'), 'screensense-ai', 'code');
-  let _content: any[] = []
-  const encodeImage = (imagePath: string): string => {
-    const imageBuffer_2 = fs.readFileSync(imagePath);
-    return imageBuffer_2.toString("base64");
-  };
-  const files = fs.readdirSync(codeDir);
-  for (const file of files) {
-    const filePath = path.join(codeDir, file);
-    const base64Image = encodeImage(filePath);
-    _content.push({
-      type: "image_url",
-      image_url: { url: `data:image/png;base64,${base64Image}` }
-    });
-  }
-
+  const b64 = screenshot.replace(/^data:image\/\w+;base64,/, '');
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   // Send the image to GPT for analysis
-  const response = await openai.chat.completions.create({
+  console.log("sending to gpt");
+  const analysis = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: "You are and expert at extracting code from images. Given a set of images, you will extract the code and return it in a structured format. The code you return should be properly formatted and readable. The code should be in the language of the code in the image."
+        content: `
+You are a patent agent specializing in drafting patent applications. I will provide you with a screenshot containing a piece of code or a diagram. Your task is to analyze the content and generate a well-structured patent description suitable for inclusion in a patent document. Remember that the image given to you is not a complete paten content just a part of it. So, do not consider it as complete imformation. Just describe the image and its purpose in detail.
+
+Follow these guidelines:
+
+- Clearly explain the purpose and function of the code or diagram.
+- Use formal patent language, avoiding unnecessary ambiguity.
+- If the image contains a diagram, describe its components, relationships, and functionality in a structured manner.
+- If the image contains code, provide a high-level functional description, explaining the logic, interactions, and any novel aspects.
+- Identify and highlight any inventive steps or unique aspects that differentiate this from prior art.
+- Format the response as a well-written patent application section, including potential claims if applicable.
+        `
       },
       {
         role: "user",
-        content: _content
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${b64}` }
+          }
+        ]
       }
     ],
 
   });
+  // const analysis = await sendBase64ImageToClaude(screenshot, 'image/png', `
+  // You are a patent agent specializing in drafting patent applications. I will provide you with a screenshot containing a piece of code or a diagram. Your task is to analyze the content and generate a well-structured patent description suitable for inclusion in a patent document.
 
-  // Log the response from GPT
-  const prompt = response.choices[0].message.content;
-  const apiKey = process.env.REACT_APP_ANTHROPIC_API_KEY;
-  if (!prompt || !apiKey) {
-    throw new Error('No prompt or API key found');
-  }
-  const systemPrompt = "The user will provide you some code in text format. Your job is to understand the underlying logic behind the code and return a detailed summary of the code. The summary should be in a way that is easy to understand for a non-technical person."
-  const analysis = await anthropic_completion(prompt, apiKey, true, systemPrompt);
-  // console.log(analysis);
-  return analysis;
+  // Follow these guidelines:
+
+  // - Clearly explain the purpose and function of the code or diagram.
+  // - Use formal patent language, avoiding unnecessary ambiguity.
+  // - If the image contains a diagram, describe its components, relationships, and functionality in a structured manner.
+  // - If the image contains code, provide a high-level functional description, explaining the logic, interactions, and any novel aspects.
+  // - Identify and highlight any inventive steps or unique aspects that differentiate this from prior art.
+  // - Format the response as a well-written patent application section, including potential claims if applicable.
+  // `, process.env.REACT_APP_ANTHROPIC_API_KEY || '');
+  console.log("analysis completed");
+  const final_analysis = analysis.choices[0].message.content;
+  // console.log(final_analysis);
+  return final_analysis;
 });
