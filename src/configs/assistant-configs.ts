@@ -546,7 +546,7 @@ export const patentGeneratorTools: Tool[] = [
         },
       },
       {
-        name: 'analyse_screen',
+        name: 'code_diagram_analysis',
         description: 'Analyse the screen and provide a detailed explanation of the code or diagram',
       },
     ],
@@ -752,7 +752,7 @@ Important Guidelines:
 - Ask clarifying questions when needed, so that the answer to the question is clear, unambiguous and complete
 - Update the document frequently to capture insights. Make sure you're calling the add_content function frequently. Each time the user answers something, update the document. Ensure you're calling the add_content function every time you want to add something to the document, and don't try to add it yourself.
 - When the user wants to demonstrate something visually, encourage them to show it on screen and use the capture_screenshot function to save it
-- When the user is sharing some very important information, like a piece of code or architecture of the system, call the analyse_screen function to do an indepth analysis of the shared information and document it.
+- When the user is sharing some very important information, like a piece of code or architecture of the system, call the code_diagram_analysis function to do an indepth analysis of the shared information and document it.
 `,
   },
   insight_generator: {
@@ -792,7 +792,7 @@ Important Instructions:
 Your task is to analyse the code on the user's screen and provide a detailed explanation of the code.
 
 Your Tools:
-- You have access to the analyse_screen function. Whenever the user wants to start important code analysis or diagram analysis, call the analyse_screen function.
+- You have access to the code_diagram_analysis function. Whenever the user wants to start important code analysis or diagram analysis, call the code_diagram_analysis function.
 `,
   },
 } as const;

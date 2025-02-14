@@ -582,7 +582,7 @@ function SubtitlesComponent({
             }
             hasResponded = true;
             break;
-          case "analyse_screen":
+          case "code_diagram_analysis":
             if(onScreenshot) {
               console.log('Taking screenshot');
               const screenshot = onScreenshot();
