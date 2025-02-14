@@ -2,6 +2,7 @@ import { autoUpdater } from 'electron-updater';
 import { BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log';
 import { app } from 'electron';
+import { createUpdateWindow } from '../src/windows/UpdateWindow';
 
 let updateWindow: BrowserWindow | null = null;
 
@@ -10,7 +11,7 @@ async function showUpdateWindow() {
     if (!updateWindow) {
       console.log('Creating new update window');
       log.info('Creating new update window');
-      updateWindow = await (global as any).createUpdateWindow();
+      updateWindow = await createUpdateWindow();
       if (!updateWindow) {
         console.error('Failed to create update window');
         log.error('Failed to create update window');
