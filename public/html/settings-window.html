@@ -289,7 +289,7 @@
               <div class="form-group">
                 <label class="form-label">Application Version</label>
                 <div class="version-info">
-                  <span class="version-text">Version ${app.getVersion()}</span>
+                  <span id="version-text" class="version-text">Version -</span>
                   <div style="flex: 1"></div>
                   <button type="button" class="check-update-btn" onclick="checkForUpdates()">
                     Check for Updates
@@ -316,11 +316,13 @@
       const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
       const saveButton = document.getElementById('save-button');
       const cancelButton = document.getElementById('cancel-button');
+      const versionText = document.getElementById('version-text');
 
-      // Initialize with current API keys
-      ipcRenderer.on('init-settings', (event, { geminiApiKey }) => {
+      // Initialize with current API keys and version
+      ipcRenderer.on('init-settings', (event, { geminiApiKey, appVersion }) => {
         geminiApiKeyInput.value = geminiApiKey || '';
         saveButton.disabled = !geminiApiKey;
+        versionText.textContent = `Version ${appVersion}`;
       });
 
       // Enable/disable save button based on input

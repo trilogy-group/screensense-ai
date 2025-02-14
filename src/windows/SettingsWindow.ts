@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, app, ipcMain } from 'electron';
 import { loadSettings, saveSettings } from '../utils/settings-utils';
 import { loadHtmlFile } from '../utils/window-utils';
 import { sendSettingsUpdate } from './ControlWindow';
@@ -40,7 +40,10 @@ export async function createSettingsWindow() {
       settingsWindow.show();
       // Initialize settings with saved data
       const savedSettings = loadSettings();
-      settingsWindow.webContents.send('init-settings', savedSettings);
+      settingsWindow.webContents.send('init-settings', {
+        ...savedSettings,
+        appVersion: app.getVersion(),
+      });
     }
   });
 
@@ -80,7 +83,10 @@ export function initializeSettingsWindow() {
 
   ipcMain.on('settings-data', (event, settings) => {
     if (settingsWindow && !settingsWindow.isDestroyed()) {
-      settingsWindow.webContents.send('init-settings', settings);
+      settingsWindow.webContents.send('init-settings', {
+        ...settings,
+        appVersion: app.getVersion(),
+      });
     }
   });
 
