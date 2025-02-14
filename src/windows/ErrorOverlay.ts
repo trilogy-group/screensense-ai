@@ -1,8 +1,10 @@
-import { BrowserWindow, ipcMain, screen } from 'electron';
+import { BrowserWindow, ipcMain, screen, app } from 'electron';
+import * as path from 'path';
+import { logToFile } from '../utils/logger';
 
 let errorOverlayWindow: BrowserWindow | null = null;
 
-function createErrorOverlayWindow() {
+async function createErrorOverlayWindow() {
   if (errorOverlayWindow && !errorOverlayWindow.isDestroyed()) {
     return errorOverlayWindow;
   }
@@ -22,78 +24,25 @@ function createErrorOverlayWindow() {
 
   errorOverlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: transparent;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          }
-          #error-message {
-            background-color: rgba(220, 53, 69, 0.9);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 500;
-            text-align: center;
-            max-width: 90%;
-            opacity: 0;
-            transition: opacity 0.2s ease-in-out;
-            position: relative;
-            text-rendering: optimizeLegibility;
-            -webkit-font-smoothing: antialiased;
-            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-          }
-          #error-message.visible {
-            opacity: 1;
-          }
-        </style>
-      </head>
-      <body>
-        <div id="error-message"></div>
-        <script>
-          const { ipcRenderer } = require('electron');
-          const errorMessage = document.getElementById('error-message');
-          
-          ipcRenderer.on('update-error', (event, text) => {
-            if (text) {
-              errorMessage.textContent = text;
-              errorMessage.style.display = 'block';
-              errorMessage.classList.add('visible');
-              
-              // Auto-hide after 5 seconds
-              setTimeout(() => {
-                errorMessage.classList.remove('visible');
-                setTimeout(() => {
-                  errorMessage.style.display = 'none';
-                  ipcRenderer.send('hide-error-overlay');
-                }, 200);
-              }, 5000);
-            } else {
-              errorMessage.classList.remove('visible');
-              setTimeout(() => {
-                errorMessage.style.display = 'none';
-              }, 200);
-            }
-          });
-        </script>
-      </body>
-    </html>
-  `;
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
+  let htmlPath;
+  if (isDev) {
+    // In development, load from public directory
+    htmlPath = path.join(app.getAppPath(), 'public', 'html', 'error-overlay.html');
+  } else {
+    // In production, load from the build directory
+    const basePath = app.getAppPath().replace('.asar', '.asar.unpacked');
+    htmlPath = path.join(basePath, 'build', 'html', 'error-overlay.html');
+  }
 
-  errorOverlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+  logToFile(`Loading error overlay HTML from: ${htmlPath}`);
+  try {
+    await errorOverlayWindow.loadFile(htmlPath);
+    logToFile('Successfully loaded error overlay HTML');
+  } catch (error) {
+    logToFile(`Error loading error overlay HTML: ${error}`);
+    throw error;
+  }
 
   // Position the window in the center of the screen
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
@@ -110,8 +59,8 @@ function createErrorOverlayWindow() {
   return errorOverlayWindow;
 }
 
-export function showErrorOverlay(errorMessage: string) {
-  const window = createErrorOverlayWindow();
+export async function showErrorOverlay(errorMessage: string) {
+  const window = await createErrorOverlayWindow();
   if (window && !window.isDestroyed()) {
     window.showInactive();
     window.webContents.send('update-error', errorMessage);

@@ -2,13 +2,10 @@ import { BrowserWindow, app, nativeImage, WebContents, ipcMain } from 'electron'
 import * as path from 'path';
 import * as fs from 'fs';
 import { initializeAutoUpdater } from '../../electron/updater';
-let mainWindow: BrowserWindow | null = null;
+import { closeControlWindow } from './ControlWindow';
+import { logToFile } from '../utils/logger';
 
-function logToFile(message: string) {
-  const logPath = app.getPath('userData') + '/app.log';
-  const timestamp = new Date().toISOString();
-  fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
-}
+let mainWindow: BrowserWindow | null = null;
 
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -271,6 +268,7 @@ export function initializeMainWindow() {
   // Register IPC Handlers
   ipcMain.on('close-main-window', () => {
     closeMainWindow();
+    closeControlWindow();
   });
 
   ipcMain.on('show-main-window', () => {

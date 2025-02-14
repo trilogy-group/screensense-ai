@@ -10,20 +10,26 @@ import {
   desktopCapturer,
   screen as electron_screen,
   ipcMain,
-  nativeImage,
   shell,
-  WebContents,
 } from 'electron';
+import ffmpeg from 'fluent-ffmpeg';
 import * as fs from 'fs';
+import { mdToPdf } from 'md-to-pdf';
 import OpenAI from 'openai';
 import * as path from 'path';
 import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
-import ffmpeg from 'fluent-ffmpeg';
-import { mdToPdf } from 'md-to-pdf';
-import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
+import { logToFile } from '../src/utils/logger';
+import {
+  createControlWindow,
+  initializeControlWindow,
+  sendApiKeyCheck,
+  sendCarouselUpdate,
+  sendControlUpdate,
+  sendSettingsUpdate,
+} from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
 import {
   createMainWindow,
@@ -31,12 +37,12 @@ import {
   initializeMainWindow,
   initSavedSettings,
   mainWindowExists,
-  requestModeUpdate,
   sendCarouselAction,
   sendControlAction,
   showMainWindow,
   updateSettings,
 } from '../src/windows/MainWindow';
+import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -280,7 +286,6 @@ uIOhook.start();
 keyboard.config.autoDelayMs = 0;
 
 let overlayWindow: BrowserWindow | null = null;
-let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
@@ -289,12 +294,6 @@ let actionWindow: BrowserWindow | null = null;
 let markdownPreviewWindow: BrowserWindow | null = null;
 let currentMarkdownFile: string | null = null;
 // let fileWatcher: any = null;
-
-function logToFile(message: string) {
-  const logPath = app.getPath('userData') + '/app.log';
-  const timestamp = new Date().toISOString();
-  fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
-}
 
 // Add settings storage functions
 function getSettingsPath() {
@@ -352,650 +351,6 @@ ipcMain.handle('check-first-launch', async () => {
   const machineId = await getMachineId();
   return checkFirstLaunch(machineId);
 });
-
-async function createControlWindow() {
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    return controlWindow;
-  }
-
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-  controlWindow = new BrowserWindow({
-    width: 250,
-    height: 100,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    alwaysOnTop: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      devTools: true,
-    },
-  });
-
-  // When control window is closed, close all other windows and quit the app
-  controlWindow.on('closed', () => {
-    // Force close all windows by removing their close event listeners
-    ipcMain.emit('close-main-window');
-    if (settingsWindow) {
-      settingsWindow.removeAllListeners('close');
-      settingsWindow.close();
-    }
-    if (overlayWindow) {
-      overlayWindow.removeAllListeners('close');
-      overlayWindow.close();
-    }
-    controlWindow = null;
-    app.quit();
-  });
-
-  // Open DevTools in a new window for control window
-  // if (isDev) {
-  //   controlWindow.webContents.openDevTools({ mode: "detach" });
-  // }
-
-  // Ensure it stays on top even when other windows request always on top
-  controlWindow.setAlwaysOnTop(true, 'screen-saver');
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          html, body {
-            margin: 0;
-            padding: 0;
-            background: transparent;
-            color: white;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            height: 100%;
-            overflow: hidden;
-            -webkit-app-region: drag;
-            isolation: isolate;
-          }
-          body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(5px);
-            background: transparent;
-          }
-          .window-content {
-            position: relative;
-            background: rgba(23, 23, 23, 0.6);
-            width: 100%;
-            height: 100%;
-            transition: background-color 0.3s ease;
-            /* Clear any potential background content */
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            transform: translateZ(0);
-            isolation: isolate;
-            z-index: 1;
-          }
-          .window-content:hover {
-            background: rgba(23, 23, 23, 0.95);
-          }
-          .control-tray {
-            position: relative;
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-            z-index: 2;
-            background: transparent;
-          }
-          .control-tray-container {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 3;
-          }
-          .actions-nav {
-            position: relative;
-            display: flex;
-            gap: 4px;
-            justify-content: center;
-            align-items: center;
-            z-index: 4;
-            background: transparent;
-          }
-          .carousel-container {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            width: 100%;
-            padding: 0;
-            z-index: 4;
-            background: transparent;
-          }
-          .carousel-content {
-            position: relative;
-            flex: 1;
-            text-align: center;
-            justify-content: center;
-            display: flex;
-            align-items: center;
-            z-index: 5;
-            background: transparent;
-            isolation: isolate;
-            transform: translateZ(0);
-          }
-          .carousel-slide {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 6;
-            background: transparent;
-            transform: translateZ(0);
-            -webkit-font-smoothing: antialiased;
-          }
-          .carousel-text {
-            position: relative;
-            color: white;
-            font-size: 14px;
-            font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding: 0 4px;
-            z-index: 6;
-            opacity: 0.9;
-            background: transparent;
-            mix-blend-mode: normal;
-            transform: translateZ(0);
-            -webkit-font-smoothing: antialiased;
-            will-change: contents;
-            text-rendering: optimizeLegibility;
-          }
-          button, .action-button, .carousel-button {
-            -webkit-app-region: no-drag;
-          }
-          .close-button {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: none;
-            border: none;
-            color: rgba(255, 255, 255, 0.8);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            font-size: 18px;
-            -webkit-app-region: no-drag;
-            transition: all 0.2s ease;
-            opacity: 0.6;
-            z-index: 1000;
-            pointer-events: auto;
-            transform: translateZ(0);
-          }
-          .window-content:hover .close-button {
-            opacity: 1;
-          }
-          .close-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-          }
-          .close-button .material-symbols-outlined {
-            font-size: 16px;
-          }
-          .material-symbols-outlined {
-            font-family: 'Material Symbols Outlined';
-            font-weight: normal;
-            font-style: normal;
-            font-size: 20px;
-            line-height: 1;
-            letter-spacing: normal;
-            text-transform: none;
-            display: inline-block;
-            white-space: nowrap;
-            word-wrap: normal;
-            direction: ltr;
-            -webkit-font-smoothing: antialiased;
-          }
-          .filled {
-            font-variation-settings: 'FILL' 1;
-          }
-          .carousel-button {
-            position: relative;
-            width: 24px;
-            height: 24px;
-            background: transparent;
-            border: none;
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s;
-            border-radius: 4px;
-            padding: 0;
-          }
-          .carousel-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-          }
-          .window-content:hover .carousel-text {
-            opacity: 1;
-          }
-          .message-overlay {
-            display: none;
-          }
-          .key-button {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: none;
-            border: none;
-            color: rgba(255, 255, 255, 0.8);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            font-size: 18px;
-            -webkit-app-region: no-drag;
-            transition: all 0.2s ease;
-            opacity: 0.6;
-            z-index: 1000;
-            pointer-events: auto;
-            transform: translateZ(0);
-          }
-          .window-content:hover .key-button {
-            opacity: 1;
-          }
-          .key-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-          }
-          .key-button .material-symbols-outlined {
-            font-size: 16px;
-          }
-
-          body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: transparent;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            position: relative;
-          }
-
-          .error-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-            z-index: 2000;
-          }
-
-          .error-overlay.visible {
-            opacity: 1;
-          }
-
-          .error-message {
-            background: #f44336;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-          }
-
-          .action-button {
-            position: relative;
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 50%;
-            transition: all 0.2s ease-in-out;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 32px;
-            z-index: 5;
-            mix-blend-mode: normal;
-            -webkit-font-smoothing: antialiased;
-          }
-          .action-button:not(.disabled):hover {
-            background-color: rgba(255, 255, 255, 0.1);
-          }
-          .actions-nav.disabled .action-button:not(.connect-button) {
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-          }
-          .carousel-slide {
-            position: relative;
-            z-index: 6;
-            background: transparent;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transform: translateZ(0);
-            -webkit-font-smoothing: antialiased;
-          }
-          /* Force hardware acceleration and prevent ghosting */
-          * {
-            transform: translate3d(0, 0, 0);
-            backface-visibility: hidden;
-            perspective: 1000;
-            transform-style: preserve-3d;
-          }
-
-          .marker {
-            width: 101px;
-            height: 101px;
-            background: rgba(255, 0, 0, 0.3);
-            border: 2px solid rgba(255, 0, 0, 0.8);
-            position: absolute;
-            animation: pulse 1s infinite;
-            box-sizing: border-box;
-          }
-          @keyframes pulse {
-            0% { opacity: 0.4; }
-            50% { opacity: 0.6; }
-            100% { opacity: 0.4; }
-          }
-        </style>
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-      </head>
-      <body>
-        <div class="window-content">
-          <button class="key-button" title="Settings">
-            <span class="material-symbols-outlined">settings</span>
-          </button>
-
-          <button class="close-button" title="Close window">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-
-          <section class="control-tray">
-            <div class="control-tray-container">
-              <nav class="actions-nav disabled">
-                <button class="action-button mic-button">
-                  <span class="material-symbols-outlined filled">mic</span>
-                </button>
-
-                <button class="action-button screen-button" style="display: none;">
-                  <span class="material-symbols-outlined">present_to_all</span>
-                </button>
-
-                <button class="action-button webcam-button">
-                  <span class="material-symbols-outlined">videocam</span>
-                </button>
-
-                <button class="action-button connect-button">
-                  <span class="material-symbols-outlined">play_arrow</span>
-                </button>
-              </nav>
-
-              <div class="carousel-container">
-                <button class="carousel-button prev-button">
-                  <span class="material-symbols-outlined">chevron_left</span>
-                </button>
-
-                <div class="carousel-content">
-                  <div id="carousel-text-container" class="carousel-slide">
-                    <span id="mode-text" class="carousel-text">Default Mode</span>
-                  </div>
-                </div>
-
-                <button class="carousel-button next-button">
-                  <span class="material-symbols-outlined">chevron_right</span>
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div class="error-overlay">
-          <div class="error-message">API key is required to connect</div>
-        </div>
-
-        <script>
-          const { ipcRenderer } = require('electron');
-          
-          const micButton = document.querySelector('.mic-button');
-          const screenButton = document.querySelector('.screen-button');
-          const webcamButton = document.querySelector('.webcam-button');
-          const connectButton = document.querySelector('.connect-button');
-          const actionsNav = document.querySelector('.actions-nav');
-          const closeButton = document.querySelector('.close-button');
-          const prevButton = document.querySelector('.prev-button');
-          const nextButton = document.querySelector('.next-button');
-          const carouselText = document.querySelector('.carousel-text');
-          const settingsButton = document.querySelector('.key-button');
-          const errorOverlay = document.querySelector('.error-overlay');
-          const errorMessage = errorOverlay.querySelector('.error-message');
-          
-          let isMuted = false;
-          let isScreenSharing = false;
-          let isWebcamOn = false;
-          let isConnected = false;
-
-          // Carousel handlers
-          prevButton.addEventListener('click', () => {
-            if (isConnected) {
-              // If connected, disconnect first
-              isConnected = false;
-              connectButton.querySelector('span').textContent = 'play_arrow';
-              connectButton.querySelector('span').classList.remove('filled');
-              actionsNav.classList.add('disabled');
-              // Send disconnect action
-              ipcRenderer.send('control-action', { type: 'connect', value: false });
-              // Then change carousel
-              ipcRenderer.send('carousel-action', 'prev');
-            } else {
-              ipcRenderer.send('carousel-action', 'prev');
-            }
-          });
-
-          nextButton.addEventListener('click', () => {
-            if (isConnected) {
-              // If connected, disconnect first
-              isConnected = false;
-              connectButton.querySelector('span').textContent = 'play_arrow';
-              connectButton.querySelector('span').classList.remove('filled');
-              actionsNav.classList.add('disabled');
-              // Send disconnect action
-              ipcRenderer.send('control-action', { type: 'connect', value: false });
-              // Then change carousel
-              ipcRenderer.send('carousel-action', 'next');
-            } else {
-              ipcRenderer.send('carousel-action', 'next');
-            }
-          });
-
-          // Handle carousel updates
-          ipcRenderer.on('update-carousel', (event, { modeName, requiresDisplay }) => {
-            const modeText = document.getElementById('mode-text');
-            const container = document.getElementById('carousel-text-container');
-            
-            // Create a new text element
-            const newText = document.createElement('span');
-            newText.className = 'carousel-text';
-            newText.textContent = modeName;
-            
-            // Fade out the old text
-            modeText.style.opacity = '0';
-            
-            // After fade out, update the text
-            setTimeout(() => {
-              modeText.textContent = modeName;
-              modeText.style.opacity = '0.9';
-            }, 100);
-            
-            screenButton.style.display = requiresDisplay ? '' : 'none';
-            webcamButton.style.display = requiresDisplay ? '' : 'none';
-          });
-
-          micButton.addEventListener('click', () => {
-            if (!isConnected) return;
-            isMuted = !isMuted;
-            micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
-            ipcRenderer.send('control-action', { type: 'mic', value: !isMuted });
-          });
-
-          screenButton.addEventListener('click', () => {
-            if (!isConnected) return;
-            if (isScreenSharing) {
-              isScreenSharing = false;
-              screenButton.querySelector('span').textContent = 'present_to_all';
-              screenButton.querySelector('span').classList.remove('filled');
-              ipcRenderer.send('control-action', { type: 'screen', value: false });
-            } else {
-              ipcRenderer.send('control-action', { type: 'screen', value: true });
-            }
-          });
-
-          webcamButton.addEventListener('click', () => {
-            if (!isConnected) return;
-            isWebcamOn = !isWebcamOn;
-            webcamButton.querySelector('span').textContent = isWebcamOn ? 'videocam_off' : 'videocam';
-            ipcRenderer.send('control-action', { type: 'webcam', value: isWebcamOn });
-          });
-
-          // Function to show error message
-          function showError(message, duration = 2000) {
-            errorMessage.textContent = message;
-            errorOverlay.classList.add('visible');
-            setTimeout(() => {
-              errorOverlay.classList.remove('visible');
-            }, duration);
-          }
-
-          connectButton.addEventListener('click', async () => {
-            if (!isConnected) {
-              await ipcRenderer.send('session-start');
-              console.log('Session started');
-              isConnected = true;
-              connectButton.querySelector('span').textContent = 'pause';
-              connectButton.querySelector('span').classList.add('filled');
-              actionsNav.classList.remove('disabled');
-              ipcRenderer.send('control-action', { type: 'connect', value: true });
-            } else {
-              isConnected = false;
-              connectButton.querySelector('span').textContent = 'play_arrow';
-              connectButton.querySelector('span').classList.remove('filled');
-              actionsNav.classList.add('disabled');
-              ipcRenderer.send('control-action', { type: 'connect', value: false });
-            }
-          });
-
-          // Handle API key check response
-          ipcRenderer.on('api-key-check', (event, hasApiKey) => {
-            if (hasApiKey) {
-              ipcRenderer.send('control-action', { type: 'connect', value: !isConnected });
-            }
-          });
-
-          // Handle screen share result
-          ipcRenderer.on('screen-share-result', (event, success) => {
-            if (success) {
-              isScreenSharing = true;
-              screenButton.querySelector('span').textContent = 'cancel_presentation';
-              screenButton.querySelector('span').classList.add('filled');
-            }
-          });
-          // Handle state updates from main process
-          ipcRenderer.on('update-controls', (event, state) => {
-            isMuted = state.isMuted;
-            isScreenSharing = state.isScreenSharing;
-            isWebcamOn = state.isWebcamOn;
-            isConnected = state.isConnected;
-
-            // Update button states
-            micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
-            screenButton.querySelector('span').textContent = isScreenSharing ? 'cancel_presentation' : 'present_to_all';
-            webcamButton.querySelector('span').textContent = isWebcamOn ? 'videocam_off' : 'videocam';
-            connectButton.querySelector('span').textContent = isConnected ? 'pause' : 'play_arrow';
-
-            // Update filled states
-            micButton.querySelector('span').classList.toggle('filled', !isMuted);
-            screenButton.querySelector('span').classList.toggle('filled', isScreenSharing);
-            webcamButton.querySelector('span').classList.toggle('filled', isWebcamOn);
-            connectButton.querySelector('span').classList.toggle('filled', isConnected);
-
-            // Update disabled state of the nav
-            actionsNav.classList.toggle('disabled', !isConnected);
-          });
-
-          // Add close button handler
-          closeButton.addEventListener('click', () => {
-            ipcRenderer.send('close-control-window');
-          });
-
-          // Add settings button handler
-          settingsButton.addEventListener('click', () => {
-            ipcRenderer.send('show-settings');
-          });
-
-          // Handle settings update (just enable/disable connect button)
-          ipcRenderer.on('settings-updated', (event, hasApiKey) => {
-            if (!hasApiKey) {
-              connectButton.querySelector('span').textContent = 'play_arrow';
-              connectButton.querySelector('span').classList.remove('filled');
-              actionsNav.classList.add('disabled');
-            }
-          });
-
-          // Handle connection state revert
-          ipcRenderer.on('revert-connection-state', () => {
-            isConnected = false;
-            connectButton.querySelector('span').textContent = 'play_arrow';
-            connectButton.querySelector('span').classList.remove('filled');
-            actionsNav.classList.add('disabled');
-          });
-        </script>
-      </body>
-    </html>
-  `;
-
-  controlWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-
-  // Wait for window to be ready before showing
-  controlWindow.once('ready-to-show', () => {
-    // Send initial mode update
-    requestModeUpdate();
-  });
-
-  // Handle window close
-  controlWindow.on('closed', () => {
-    controlWindow = null;
-  });
-
-  return controlWindow;
-}
 
 function createOverlayWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -1481,9 +836,7 @@ ipcMain.handle('check-api-key', async () => {
   }
 
   // Also notify control window about API key status
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('api-key-check', hasApiKey);
-  }
+  sendApiKeyCheck(hasApiKey);
 
   return hasApiKey;
 });
@@ -1508,9 +861,7 @@ ipcMain.on('save-settings', (event, settings) => {
   updateSettings(settings);
 
   // Just notify control window about API key availability without starting session
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('settings-updated', settings.apiKey);
-  }
+  sendSettingsUpdate(settings.apiKey);
 
   // Close settings window
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -1528,6 +879,7 @@ ipcMain.on('close-settings', () => {
 async function initializeApp() {
   // Initialize window modules
   initializeMainWindow();
+  initializeControlWindow();
   initializeUpdateWindow();
   initializeErrorOverlay();
 
@@ -1559,17 +911,10 @@ app.on('activate', () => {
 
 // Update main window close handler to clean up other windows
 ipcMain.on('close-main-window', () => {
-  // TODO: Remove this handler once control and overlay windows have their own files
-  // if (mainWindow) {
-  // Clean up all windows when main window is closed
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.close();
-  }
+  // TODO: Remove this handler once the overlay window has its own file
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.close();
   }
-  // mainWindow.close();
-  // }
 });
 
 // Update subtitle handlers to check for destroyed windows
@@ -1739,28 +1084,13 @@ ipcMain.on('control-action', async (event, action) => {
 // Add this to handle state updates from the main window
 ipcMain.on('update-control-state', (event, state) => {
   try {
-    if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.webContents.send('update-controls', state);
-    }
+    sendControlUpdate(state);
   } catch (error) {
     logToFile(`Error updating control state: ${error}`);
   }
 });
 
 // Add this to handle screen selection result
-ipcMain.on('screen-share-result', (event, success) => {
-  try {
-    if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.webContents.send('screen-share-result', success);
-      // If screen sharing failed, hide the main window
-      if (!success && mainWindowExists()) {
-        hideMainWindow();
-      }
-    }
-  } catch (error) {
-    logToFile(`Error handling screen share result: ${error}`);
-  }
-});
 
 // Add this to handle carousel actions
 ipcMain.on('carousel-action', async (event, direction) => {
@@ -1779,18 +1109,9 @@ ipcMain.on('carousel-action', async (event, direction) => {
 // Add this to handle carousel updates
 ipcMain.on('update-carousel', (event, modeName) => {
   try {
-    if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.webContents.send('update-carousel', modeName);
-    }
+    sendCarouselUpdate(modeName);
   } catch (error) {
     logToFile(`Error updating carousel: ${error}`);
-  }
-});
-
-// Add this to handle control window close
-ipcMain.on('close-control-window', event => {
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.close();
   }
 });
 
@@ -2030,48 +1351,6 @@ ipcMain.handle('perform-action', async (event, name) => {
       // Return the actions data before executing them
       const actionData = actions;
       return actionData;
-      // Execute the actions
-      // for (let action of actions) {
-      //   switch (action.function_call) {
-      //     case "click":
-      //       if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
-      //         await mouse.setPosition(new Point(action.args.x, action.args.y));
-      //         await mouse.leftClick();
-      //       }
-      //       break;
-      //     case "select_content":
-      //       if (action.args && action.args.x1 !== undefined && action.args.y1 !== undefined &&
-      //         action.args.x2 !== undefined && action.args.y2 !== undefined) {
-      //         await mouse.setPosition(new Point(action.args.x1, action.args.y1));
-      //         await mouse.pressButton(0);
-      //         await mouse.setPosition(new Point(action.args.x2, action.args.y2));
-      //         await mouse.releaseButton(0);
-      //         await keyboard.pressKey(modifier, Key.C);
-      //         await keyboard.releaseKey(modifier, Key.C);
-      //       }
-      //       break;
-      //     case "scroll":
-      //       if (action.args && action.args.direction && action.args.amount !== undefined) {
-      //         if (action.args.direction === "up") {
-      //           await mouse.scrollUp(action.args.amount);
-      //         } else if (action.args.direction === "down") {
-      //           await mouse.scrollDown(action.args.amount);
-      //         }
-      //       }
-      //       break;
-      //     case "insert_content":
-      //       if (action.args && action.args.x !== undefined && action.args.y !== undefined) {
-      //         await mouse.setPosition(new Point(action.args.x, action.args.y));
-      //         await mouse.leftClick();
-      //         await new Promise(resolve => setTimeout(resolve, 50));
-      //         await keyboard.pressKey(modifier, Key.V);
-      //         await keyboard.releaseKey(modifier, Key.V);
-      //       }
-      //       break;
-      //   }
-      //   await new Promise(resolve => setTimeout(resolve, action.delay));
-      // }
-      // return actionData;
     } else {
       logToFile(`No action data found for: ${actionName}`);
       return null;
@@ -3527,9 +2806,14 @@ ipcMain.handle('export_patent_pdf', async () => {
   }
 });
 
-ipcMain.on('revert-control-button', () => {
-  console.log('revert-control-button');
-  if (controlWindow && !controlWindow.isDestroyed()) {
-    controlWindow.webContents.send('revert-connection-state');
+ipcMain.on('close-settings-window', () => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.close();
+  }
+});
+
+ipcMain.on('close-overlay-window', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close();
   }
 });
