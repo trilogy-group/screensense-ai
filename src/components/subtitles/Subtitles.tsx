@@ -760,7 +760,7 @@ function SubtitlesComponent({
       // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
       client.send([
         {
-          text: `The laywer asked the following question, which you must ask out loud to the user: ${question}`,
+          text: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`,
         },
       ]);
     };

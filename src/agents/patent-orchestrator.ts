@@ -136,29 +136,8 @@ const readPatent = tool(
   }
 );
 
-const markAsCompleted = tool(
-  async () => {
-    console.log('🏁 [markAsCompleted] Patent documentation completed');
-    // Send completion message via IPC
-    ipcRenderer.send('patent-question', {
-      question:
-        "The patent documentation is now complete. I've reviewed all sections and confirmed that we have documented your invention thoroughly.",
-      reason:
-        'The patent lawyer has determined that all necessary information has been captured and properly documented.',
-    });
-    console.log('✅ [markAsCompleted] Completion message sent via IPC');
-    return { success: true };
-  },
-  {
-    name: 'mark_as_completed',
-    description: 'Marks the patent document as completed',
-    schema: z.object({}),
-    returnDirect: true,
-  }
-);
-
 // Define all tools available to the agent
-const tools = [askNextQuestion, addContent, readPatent, markAsCompleted, replyToUser];
+const tools = [askNextQuestion, addContent, readPatent, replyToUser];
 
 // Initialize the model
 console.log('🤖 Initializing Claude model');
@@ -252,7 +231,7 @@ Process:
    - If the user has requested a particular change in the formatting or structure, you can simply call add_content with the correct section, and in the content field pass in the user's instructions in the format 'The user has asked to ...'
    - If the answer does not completely answer your question, first add whatever the user said to the document, and then ask further clarifying or folllow up questions.
    - Based on the user's answers, you can ask other questions that are not necessarily included in the checklist.
-4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the mark_as_completed tool
+4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the reply_to_user tool to tell the user that the document is complete.
 5. If at any point the user asks you a question, you can reply with the reply_to_user tool.
 Remember:
 - Be thorough but efficient in gathering information
