@@ -22,26 +22,14 @@ import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
 import { logToFile } from '../src/utils/logger';
-import {
-  createControlWindow,
-  initializeControlWindow,
-  sendApiKeyCheck,
-  sendCarouselUpdate,
-  sendControlUpdate,
-  sendSettingsUpdate,
-} from '../src/windows/ControlWindow';
+import { createControlWindow, initializeControlWindow } from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
 import {
   createMainWindow,
-  hideMainWindow,
   initializeMainWindow,
   initSavedSettings,
-  mainWindowExists,
-  sendCarouselAction,
-  sendControlAction,
-  showMainWindow,
-  updateSettings,
 } from '../src/windows/MainWindow';
+import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import {
   createSubtitleOverlayWindow,
   initializeSubtitleOverlay,
@@ -289,7 +277,6 @@ uIOhook.start();
 
 keyboard.config.autoDelayMs = 0;
 
-let settingsWindow: BrowserWindow | null = null;
 let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
 let actionWindow: BrowserWindow | null = null;
@@ -355,422 +342,9 @@ ipcMain.handle('check-first-launch', async () => {
   return checkFirstLaunch(machineId);
 });
 
-async function createSettingsWindow() {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.show();
-    settingsWindow.focus();
-    return settingsWindow;
-  }
-
-  settingsWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
-    frame: true,
-    show: false,
-    resizable: false,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  // Prevent window from being closed directly
-  settingsWindow.on('close', event => {
-    event.preventDefault();
-    settingsWindow?.hide();
-  });
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-        <style>
-          :root {
-            --primary-color: #2196F3;
-            --primary-hover: #1976D2;
-            --background: #1a1a1a;
-            --surface: #2d2d2d;
-            --text: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.7);
-            --border: rgba(255, 255, 255, 0.1);
-            --spacing-xs: 4px;
-            --spacing-sm: 8px;
-            --spacing-md: 16px;
-            --spacing-lg: 24px;
-            --spacing-xl: 32px;
-          }
-
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          }
-
-          body {
-            background: var(--background);
-            color: var(--text);
-            min-height: 100vh;
-            line-height: 1.5;
-            font-size: 14px;
-          }
-
-          .container {
-            height: 100vh;
-            display: grid;
-            grid-template-rows: auto 1fr auto;
-          }
-
-          .header {
-            padding: var(--spacing-lg) var(--spacing-xl);
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            text-align: center;
-            height: 50px;
-          }
-
-          .header h1 {
-            font-size: 20px;
-            color: var(--text);
-            margin: -10px;
-          }
-
-          .content {
-            padding: var(--spacing-xl);
-            overflow-y: auto;
-          }
-
-          .settings-section {
-            max-width: 100%;
-            margin: 0 auto;
-          }
-
-          .settings-group {
-            background: var(--surface);
-            border-radius: 12px;
-            padding: var(--spacing-lg);
-            margin-bottom: var(--spacing-lg);
-          }
-
-          .form-group {
-            margin-bottom: var(--spacing-lg);
-          }
-
-          .form-group:last-child {
-            margin-bottom: 0;
-          }
-
-          .form-label {
-            display: block;
-            margin-bottom: var(--spacing-sm);
-            color: var(--text);
-            font-weight: 500;
-          }
-
-          .input-group {
-            display: flex;
-            gap: var(--spacing-md);
-            align-items: center;
-          }
-
-          .form-input {
-            flex: 1;
-            padding: 10px 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            font-size: 14px;
-            transition: all 0.2s ease;
-          }
-
-          .form-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            background: rgba(255, 255, 255, 0.1);
-          }
-
-          .form-input::placeholder {
-            color: var(--text-secondary);
-          }
-
-          .help-link {
-            display: inline-flex;
-            align-items: center;
-            padding: 8px 12px;
-            color: var(--primary-color);
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-          }
-
-          .help-link:hover {
-            background: rgba(33, 150, 243, 0.1);
-          }
-
-          .help-link svg {
-            margin-left: var(--spacing-xs);
-          }
-
-          .actions {
-            display: flex;
-            justify-content: flex-end;
-            height: 50px;
-            align-items: center;
-            justify-content: center;
-            gap: var(--spacing-md);
-            padding: var(--spacing-lg) var(--spacing-xl);
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-          }
-
-          .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-          }
-
-          .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-
-          .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text);
-          }
-
-          .btn-secondary:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.15);
-          }
-
-          .btn-primary {
-            background: var(--primary-color);
-            color: white;
-          }
-
-          .btn-primary:hover:not(:disabled) {
-            background: var(--primary-hover);
-          }
-
-          .version-info {
-            display: flex;
-            align-items: center;
-            gap: var(--spacing-md);
-          }
-
-          .version-text {
-            color: var(--text-secondary);
-            font-size: 14px;
-          }
-
-          .check-update-btn {
-            background: var(--primary-color);
-            border: none;
-            color: white;
-            font-size: 14px;
-            cursor: pointer;
-            padding: 8px 16px;
-            border-radius: 6px;
-            transition: all 0.2s ease;
-            font-weight: 500;
-          }
-
-          .check-update-btn:hover {
-            background: var(--primary-hover);
-          }
-
-          @keyframes fadeIn {
-            from {
-              opacity: 0;
-              transform: translateY(10px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          .settings-section {
-            animation: fadeIn 0.3s ease;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <header class="header">
-            <h1>Settings</h1>
-          </header>
-
-          <main class="content">
-            <div class="settings-section">
-              <form id="settings-form">
-                <div class="settings-group">                  
-                  <div class="form-group">
-                    <label class="form-label" for="gemini-api-key-input">Gemini API Key</label>
-                    <div class="input-group">
-                      <input
-                        type="password"
-                        id="gemini-api-key-input"
-                        placeholder="Enter your API key"
-                        class="form-input"
-                      />
-                      <a href="https://aistudio.google.com/apikey" 
-                         target="_blank" 
-                         class="help-link"
-                      >
-                        Get API key
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 8.66667V12.6667C12 13.0203 11.8595 13.3594 11.6095 13.6095C11.3594 13.8595 11.0203 14 10.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V5.33333C2 4.97971 2.14048 4.64057 2.39052 4.39052C2.64057 4.14048 2.97971 4 3.33333 4H7.33333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M10 2H14V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M6.66666 9.33333L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="settings-group">
-                  <div class="form-group">
-                    <label class="form-label">Application Version</label>
-                    <div class="version-info">
-                      <span class="version-text">Version ${app.getVersion()}</span>
-                      <div style="flex: 1"></div>
-                      <button type="button" class="check-update-btn" onclick="checkForUpdates()">Check for Updates</button>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </main>
-
-          <footer class="actions">
-            <button type="button" id="cancel-button" class="btn btn-secondary">Cancel</button>
-            <button type="submit" id="save-button" form="settings-form" class="btn btn-primary">Save Changes</button>
-          </footer>
-        </div>
-
-        <script>
-          const { ipcRenderer } = require('electron');
-          
-          const form = document.getElementById('settings-form');
-          const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
-          const saveButton = document.getElementById('save-button');
-          const cancelButton = document.getElementById('cancel-button');
-
-          // Initialize with current API keys
-          ipcRenderer.on('init-settings', (event, { geminiApiKey }) => {
-            geminiApiKeyInput.value = geminiApiKey || '';
-            saveButton.disabled = !geminiApiKey;
-          });
-
-          // Enable/disable save button based on input
-          const checkInputs = () => {
-            const hasGeminiKey = geminiApiKeyInput.value.trim();
-            saveButton.disabled = !hasGeminiKey;
-          };
-          
-          geminiApiKeyInput.addEventListener('input', checkInputs);
-
-          // Handle form submission
-          form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const geminiApiKey = geminiApiKeyInput.value.trim();
-            if (geminiApiKey) {
-              ipcRenderer.send('save-settings', { geminiApiKey });
-            }
-          });
-
-          // Handle cancel button
-          cancelButton.addEventListener('click', () => {
-            ipcRenderer.send('close-settings');
-          });
-
-          // Handle check for updates
-          function checkForUpdates() {
-            ipcRenderer.send('check-for-update');
-          }
-        </script>
-      </body>
-    </html>
-  `;
-
-  settingsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-
-  settingsWindow.once('ready-to-show', () => {
-    if (settingsWindow) {
-      settingsWindow.show();
-      // Initialize settings with saved data
-      const savedSettings = loadSettings();
-      settingsWindow.webContents.send('init-settings', savedSettings);
-    }
-  });
-
-  settingsWindow.on('closed', () => {
-    settingsWindow = null;
-  });
-
-  return settingsWindow;
-}
-
-// Update show-settings handler to not show main window
-ipcMain.on('show-settings', async () => {
-  await createSettingsWindow();
-});
-
-// Add new handler
-ipcMain.handle('check-api-key', async () => {
-  const settings = loadSettings();
-  const hasApiKey = !!settings.geminiApiKey;
-
-  if (!hasApiKey) {
-    await createSettingsWindow();
-  }
-
-  // Also notify control window about API key status
-  sendApiKeyCheck(hasApiKey);
-
-  return hasApiKey;
-});
-
 // Add handler for logging to file
 ipcMain.on('log-to-file', (event, message) => {
   logToFile(message);
-});
-
-// Add new IPC handlers for settings window
-ipcMain.on('settings-data', (event, settings) => {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.webContents.send('init-settings', settings);
-  }
-});
-
-ipcMain.on('save-settings', (event, settings) => {
-  // Save settings to file
-  saveSettings(settings);
-
-  // Send settings to main window
-  updateSettings(settings);
-
-  // Just notify control window about API key availability without starting session
-  sendSettingsUpdate(settings.apiKey);
-
-  // Close settings window
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.hide();
-  }
-});
-
-ipcMain.on('close-settings', () => {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.close();
-  }
 });
 
 // Initialize app with saved settings
@@ -781,9 +355,10 @@ async function initializeApp() {
   initializeUpdateWindow();
   initializeErrorOverlay();
   initializeSubtitleOverlay();
+  initializeSettingsWindow();
 
   // Load saved settings first
-  const savedSettings = loadSettings();
+  // const savedSettings = loadSettings();
 
   // Create windows
   await createMainWindow();
@@ -792,7 +367,7 @@ async function initializeApp() {
   console.log('App is ready. Listening for global mouse events...');
 
   // Send saved settings to main window
-  initSavedSettings(savedSettings);
+  // initSavedSettings(savedSettings);
 }
 
 // Call it after registering all handlers
@@ -914,77 +489,6 @@ ipcMain.on('scroll', async (event, direction: string, amount: number = 200) => {
     }
   } catch (error) {
     logToFile(`Error scrolling: ${error}`);
-  }
-});
-
-// Update the control-action handler to handle all cases
-ipcMain.on('control-action', async (event, action) => {
-  try {
-    // Create main window if it doesn't exist for any control action
-    if (!mainWindowExists()) {
-      await createMainWindow();
-    }
-
-    if (mainWindowExists()) {
-      // Show window if screen sharing is being activated
-      if (action.type === 'screen' && action.value === true) {
-        showMainWindow();
-      }
-      // Hide window if screen sharing is being deactivated
-      else if (action.type === 'screen' && action.value === false) {
-        hideMainWindow();
-      }
-      // Show window if webcam is being activated
-      else if (action.type === 'webcam' && action.value === true) {
-        showMainWindow();
-      }
-      // else if (action.type === 'connect' && action.value === true) {
-      //   if (!customSessionName) {
-      //     // Only prompt for name if not already set
-      //     mainWindow?.webContents.send('prompt-session-name');
-      //   }
-      // }
-      sendControlAction(action);
-    }
-  } catch (error) {
-    logToFile(`Error handling control action: ${error}`);
-    event.reply('control-action-error', {
-      error: 'Failed to process control action',
-    });
-  }
-});
-
-// Add this to handle state updates from the main window
-ipcMain.on('update-control-state', (event, state) => {
-  try {
-    sendControlUpdate(state);
-  } catch (error) {
-    logToFile(`Error updating control state: ${error}`);
-  }
-});
-
-// Add this to handle screen selection result
-
-// Add this to handle carousel actions
-ipcMain.on('carousel-action', async (event, direction) => {
-  try {
-    if (!mainWindowExists()) {
-      await createMainWindow();
-    }
-    if (mainWindowExists()) {
-      sendCarouselAction(direction);
-    }
-  } catch (error) {
-    logToFile(`Error handling carousel action: ${error}`);
-  }
-});
-
-// Add this to handle carousel updates
-ipcMain.on('update-carousel', (event, modeName) => {
-  try {
-    sendCarouselUpdate(modeName);
-  } catch (error) {
-    logToFile(`Error updating carousel: ${error}`);
   }
 });
 
@@ -2676,11 +2180,5 @@ ipcMain.handle('export_patent_pdf', async () => {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error exporting PDF',
     };
-  }
-});
-
-ipcMain.on('close-settings-window', () => {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.close();
   }
 });

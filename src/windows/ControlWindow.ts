@@ -4,6 +4,7 @@ import { closeMainWindow, hideMainWindow, mainWindowExists, requestModeUpdate } 
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile } from '../utils/window-utils';
 import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
+import { closeSettingsWindow } from './SettingsWindow';
 
 let controlWindow: BrowserWindow | null = null;
 
@@ -76,8 +77,7 @@ export async function createControlWindow() {
   controlWindow.on('closed', () => {
     // Force close all windows by removing their close event listeners
     closeMainWindow();
-    // TODO: Use functions instead of ipcMain.emit
-    ipcMain.emit('close-settings-window');
+    closeSettingsWindow();
     closeSubtitleOverlayWindow();
     controlWindow = null;
     app.quit();
@@ -129,6 +129,22 @@ export function initializeControlWindow() {
   ipcMain.on('revert-control-button', () => {
     if (controlWindowExists()) {
       controlWindow?.webContents.send('revert-connection-state');
+    }
+  });
+
+  ipcMain.on('update-carousel', (event, modeName) => {
+    try {
+      sendCarouselUpdate(modeName);
+    } catch (error) {
+      logToFile(`Error updating carousel: ${error}`);
+    }
+  });
+
+  ipcMain.on('update-control-state', (event, state) => {
+    try {
+      sendControlUpdate(state);
+    } catch (error) {
+      logToFile(`Error updating control state: ${error}`);
     }
   });
 }

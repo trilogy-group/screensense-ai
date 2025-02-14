@@ -264,4 +264,49 @@ export function initializeMainWindow() {
   ipcMain.on('assistant-audio', (event, audioData) => {
     sendAssistantAudio(audioData);
   });
+
+  ipcMain.on('carousel-action', async (event, direction) => {
+    try {
+      if (!mainWindowExists()) {
+        await createMainWindow();
+      }
+      if (mainWindowExists()) {
+        sendCarouselAction(direction);
+      }
+    } catch (error) {
+      logToFile(`Error handling carousel action: ${error}`);
+    }
+  });
+
+  ipcMain.on('control-action', async (event, action) => {
+    try {
+      // Create main window if it doesn't exist for any control action
+      if (!mainWindowExists()) {
+        await createMainWindow();
+      }
+
+      if (mainWindowExists()) {
+        // Show window if screen sharing is being activated
+        if (action.type === 'screen' && action.value === true) {
+          showMainWindow();
+        }
+        // Hide window if screen sharing is being deactivated
+        else if (action.type === 'screen' && action.value === false) {
+          hideMainWindow();
+        }
+        // Show window if webcam is being activated
+        else if (action.type === 'webcam' && action.value === true) {
+          showMainWindow();
+        }
+        sendControlAction(action);
+      }
+    } catch (error) {
+      logToFile(`Error handling control action: ${error}`);
+      event.reply('control-action-error', {
+        error: 'Failed to process control action',
+      });
+    }
+  });
+
+  initSavedSettings(loadSettings());
 }
