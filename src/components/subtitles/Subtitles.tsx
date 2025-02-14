@@ -435,7 +435,6 @@ function SubtitlesComponent({
     }
   }, [subtitles]);
 
-
   // Add effect to handle cursor visibility
   useEffect(() => {
     const handleCursorVisibility = (_: any, visibility: string) => {
