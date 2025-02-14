@@ -126,11 +126,6 @@ export function hideErrorOverlay() {
 
 // Initialize module
 export function initializeErrorOverlay() {
-  // Register IPC Handlers
-  ipcMain.on('show-error-overlay', async (event, errorMessage) => {
-    showErrorOverlay(errorMessage);
-  });
-
   ipcMain.on('hide-error-overlay', () => {
     hideErrorOverlay();
   });

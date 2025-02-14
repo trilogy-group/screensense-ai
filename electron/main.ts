@@ -21,11 +21,22 @@ import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import anthropic_completion from '../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../shared/templates/patent-generator-template';
-import { initializeAutoUpdater } from './updater';
 import ffmpeg from 'fluent-ffmpeg';
 import { mdToPdf } from 'md-to-pdf';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
+import {
+  createMainWindow,
+  hideMainWindow,
+  initializeMainWindow,
+  initSavedSettings,
+  mainWindowExists,
+  requestModeUpdate,
+  sendCarouselAction,
+  sendControlAction,
+  showMainWindow,
+  updateSettings,
+} from '../src/windows/MainWindow';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -268,7 +279,6 @@ uIOhook.start();
 
 keyboard.config.autoDelayMs = 0;
 
-let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let controlWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
@@ -343,187 +353,6 @@ ipcMain.handle('check-first-launch', async () => {
   return checkFirstLaunch(machineId);
 });
 
-async function createMainWindow() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    return mainWindow; // Return existing window if it's still valid
-  }
-
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-  logToFile(`Starting app in ${isDev ? 'development' : 'production'} mode`);
-
-  // Resolve icon path differently for dev mode
-  let iconPath;
-  if (isDev) {
-    // In development, try multiple possible locations
-    iconPath = path.resolve(
-      __dirname,
-      '..',
-      'icons',
-      process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
-    );
-    logToFile(`Using dev icon path: ${iconPath}`);
-    if (!fs.existsSync(iconPath)) {
-      logToFile('Warning: Could not find icon file in development mode');
-    }
-  } else {
-    // Production path resolution
-    iconPath = path.join(
-      app.getAppPath(),
-      'public',
-      'icons',
-      process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
-    );
-    if (!fs.existsSync(iconPath)) {
-      logToFile('Warning: Could not find icon file in expected location');
-    }
-  }
-
-  logToFile(`Using icon path: ${iconPath}`);
-  try {
-    const iconDir = path.dirname(iconPath);
-    if (!fs.existsSync(iconDir)) {
-      logToFile(`Icon directory doesn't exist: ${iconDir}`);
-    } else {
-      logToFile(`Icon directory contents: ${fs.readdirSync(iconDir)}`);
-    }
-  } catch (error) {
-    logToFile(`Error checking icon path: ${error}`);
-  }
-
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    frame: false,
-    show: false,
-    ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
-    // For macOS, set the app icon explicitly
-    ...(process.platform === 'darwin'
-      ? {
-          titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 10, y: 10 },
-        }
-      : {}),
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false, // Temporarily disable for debugging
-      devTools: true,
-    },
-  });
-
-  // Initialize auto-updater
-  initializeAutoUpdater(mainWindow);
-
-  // Prevent window from being closed directly
-  mainWindow.on('close', event => {
-    event.preventDefault();
-    mainWindow?.hide();
-  });
-
-  // Open DevTools in a new window
-  if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
-
-  // Remove menu from the window
-  mainWindow.setMenu(null);
-
-  // Add IPC handler for closing main window
-  ipcMain.on('close-main-window', () => {
-    if (mainWindow) {
-      mainWindow.close();
-    }
-  });
-
-  // Set dock icon explicitly for macOS
-  if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
-    try {
-      const dockIcon = nativeImage.createFromPath(iconPath);
-      if (!dockIcon.isEmpty()) {
-        app.dock.setIcon(dockIcon);
-      } else {
-        logToFile('Warning: Dock icon image is empty');
-      }
-    } catch (error) {
-      logToFile(`Error setting dock icon: ${error}`);
-    }
-  }
-
-  // Set permissions for media access
-  if (mainWindow) {
-    mainWindow.webContents.session.setPermissionRequestHandler(
-      (webContents: WebContents, permission: string, callback: (granted: boolean) => void) => {
-        const allowedPermissions = ['media', 'display-capture', 'screen', 'mediaKeySystem'];
-        if (allowedPermissions.includes(permission)) {
-          callback(true);
-        } else {
-          callback(false);
-        }
-      }
-    );
-
-    // Enable screen capture
-    mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-      mainWindow?.webContents.send('show-screen-picker');
-      callback({}); // Let the renderer handle source selection
-    });
-
-    let loadUrl: string;
-    if (isDev) {
-      loadUrl = 'http://localhost:3000';
-    } else {
-      // In production, use the app.getAppPath() to get the correct base path
-      const appPath = app.getAppPath();
-      // Remove .asar from the path to access unpacked resources
-      const basePath = appPath.replace('.asar', '.asar.unpacked');
-      const indexPath = path.join(basePath, 'build', 'index.html');
-
-      // Log more details about the paths
-      logToFile(`Base path: ${basePath}`);
-      logToFile(`Index path: ${indexPath}`);
-      logToFile(`Directory contents of build:`);
-      try {
-        const buildContents = fs.readdirSync(path.join(basePath, 'build'));
-        logToFile(JSON.stringify(buildContents, null, 2));
-      } catch (error) {
-        logToFile(`Error reading build directory: ${error}`);
-      }
-
-      loadUrl = `file://${indexPath}`;
-    }
-
-    logToFile(`App path: ${app.getAppPath()}`);
-    logToFile(`Attempting to load URL: ${loadUrl}`);
-    logToFile(`Build path exists: ${fs.existsSync(loadUrl.replace('file://', ''))}`);
-
-    try {
-      await mainWindow.loadURL(loadUrl);
-      logToFile('Successfully loaded the window URL');
-    } catch (error) {
-      logToFile(`Error loading URL: ${error}`);
-    }
-
-    // Log when the page finishes loading
-    mainWindow.webContents.on('did-finish-load', () => {
-      logToFile('Page finished loading');
-      // Send saved settings to the renderer
-      const savedSettings = loadSettings();
-      mainWindow?.webContents.send('init-saved-settings', savedSettings);
-    });
-
-    // Log any errors that occur during page load
-    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-      logToFile(`Failed to load: ${errorDescription} (${errorCode})`);
-    });
-
-    // Add console logging from the renderer process
-    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-      logToFile(`Console [${level}]: ${message} (${sourceId}:${line})`);
-    });
-  }
-  return mainWindow;
-}
-
 async function createControlWindow() {
   if (controlWindow && !controlWindow.isDestroyed()) {
     return controlWindow;
@@ -547,10 +376,7 @@ async function createControlWindow() {
   // When control window is closed, close all other windows and quit the app
   controlWindow.on('closed', () => {
     // Force close all windows by removing their close event listeners
-    if (mainWindow) {
-      mainWindow.removeAllListeners('close');
-      mainWindow.close();
-    }
+    ipcMain.emit('close-main-window');
     if (settingsWindow) {
       settingsWindow.removeAllListeners('close');
       settingsWindow.close();
@@ -976,14 +802,12 @@ async function createControlWindow() {
           let isScreenSharing = false;
           let isWebcamOn = false;
           let isConnected = false;
-          let isConnecting = false;
 
           // Carousel handlers
           prevButton.addEventListener('click', () => {
             if (isConnected) {
               // If connected, disconnect first
               isConnected = false;
-              isConnecting = false;
               connectButton.querySelector('span').textContent = 'play_arrow';
               connectButton.querySelector('span').classList.remove('filled');
               actionsNav.classList.add('disabled');
@@ -1000,7 +824,6 @@ async function createControlWindow() {
             if (isConnected) {
               // If connected, disconnect first
               isConnected = false;
-              isConnecting = false;
               connectButton.querySelector('span').textContent = 'play_arrow';
               connectButton.querySelector('span').classList.remove('filled');
               actionsNav.classList.add('disabled');
@@ -1076,14 +899,12 @@ async function createControlWindow() {
               await ipcRenderer.send('session-start');
               console.log('Session started');
               isConnected = true;
-              isConnecting = true;
               connectButton.querySelector('span').textContent = 'pause';
               connectButton.querySelector('span').classList.add('filled');
               actionsNav.classList.remove('disabled');
               ipcRenderer.send('control-action', { type: 'connect', value: true });
             } else {
               isConnected = false;
-              isConnecting = false;
               connectButton.querySelector('span').textContent = 'play_arrow';
               connectButton.querySelector('span').classList.remove('filled');
               actionsNav.classList.add('disabled');
@@ -1095,8 +916,6 @@ async function createControlWindow() {
           ipcRenderer.on('api-key-check', (event, hasApiKey) => {
             if (hasApiKey) {
               ipcRenderer.send('control-action', { type: 'connect', value: !isConnected });
-            } else {
-              isConnecting = false;
             }
           });
 
@@ -1108,14 +927,12 @@ async function createControlWindow() {
               screenButton.querySelector('span').classList.add('filled');
             }
           });
-
           // Handle state updates from main process
           ipcRenderer.on('update-controls', (event, state) => {
             isMuted = state.isMuted;
             isScreenSharing = state.isScreenSharing;
             isWebcamOn = state.isWebcamOn;
             isConnected = state.isConnected;
-            isConnecting = false;
 
             // Update button states
             micButton.querySelector('span').textContent = isMuted ? 'mic_off' : 'mic';
@@ -1145,12 +962,19 @@ async function createControlWindow() {
 
           // Handle settings update (just enable/disable connect button)
           ipcRenderer.on('settings-updated', (event, hasApiKey) => {
-            isConnecting = false;
             if (!hasApiKey) {
               connectButton.querySelector('span').textContent = 'play_arrow';
               connectButton.querySelector('span').classList.remove('filled');
               actionsNav.classList.add('disabled');
             }
+          });
+
+          // Handle connection state revert
+          ipcRenderer.on('revert-connection-state', () => {
+            isConnected = false;
+            connectButton.querySelector('span').textContent = 'play_arrow';
+            connectButton.querySelector('span').classList.remove('filled');
+            actionsNav.classList.add('disabled');
           });
         </script>
       </body>
@@ -1162,10 +986,7 @@ async function createControlWindow() {
   // Wait for window to be ready before showing
   controlWindow.once('ready-to-show', () => {
     // Send initial mode update
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      // Force a mode update from the main window
-      mainWindow.webContents.send('request-mode-update');
-    }
+    requestModeUpdate();
   });
 
   // Handle window close
@@ -1650,32 +1471,21 @@ ipcMain.on('show-settings', async () => {
   await createSettingsWindow();
 });
 
-// Handle API key check
-ipcMain.on('check-api-key', async event => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-
-  // Create a promise to wait for the API key check result
-  const hasApiKey = await new Promise(resolve => {
-    // We know mainWindow is not null here
-    (mainWindow as BrowserWindow).webContents.send('check-api-key');
-    const handleApiKeyCheck = (_: any, result: boolean) => {
-      ipcMain.removeListener('api-key-check-result', handleApiKeyCheck);
-      resolve(result);
-    };
-    ipcMain.on('api-key-check-result', handleApiKeyCheck);
-  });
+// Add new handler
+ipcMain.handle('check-api-key', async () => {
+  const settings = loadSettings();
+  const hasApiKey = !!settings.geminiApiKey;
 
   if (!hasApiKey) {
-    // Show settings directly if no API key
     await createSettingsWindow();
   }
-});
 
-// Handle API key check result
-ipcMain.on('api-key-check-result', (event, hasApiKey) => {
+  // Also notify control window about API key status
   if (controlWindow && !controlWindow.isDestroyed()) {
     controlWindow.webContents.send('api-key-check', hasApiKey);
   }
+
+  return hasApiKey;
 });
 
 // Add handler for logging to file
@@ -1695,9 +1505,7 @@ ipcMain.on('save-settings', (event, settings) => {
   saveSettings(settings);
 
   // Send settings to main window
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-settings', settings);
-  }
+  updateSettings(settings);
 
   // Just notify control window about API key availability without starting session
   if (controlWindow && !controlWindow.isDestroyed()) {
@@ -1719,6 +1527,7 @@ ipcMain.on('close-settings', () => {
 // Initialize app with saved settings
 async function initializeApp() {
   // Initialize window modules
+  initializeMainWindow();
   initializeUpdateWindow();
   initializeErrorOverlay();
 
@@ -1732,9 +1541,7 @@ async function initializeApp() {
   console.log('App is ready. Listening for global mouse events...');
 
   // Send saved settings to main window
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('init-saved-settings', savedSettings);
-  }
+  initSavedSettings(savedSettings);
 }
 
 // Call it after registering all handlers
@@ -1752,16 +1559,17 @@ app.on('activate', () => {
 
 // Update main window close handler to clean up other windows
 ipcMain.on('close-main-window', () => {
-  if (mainWindow) {
-    // Clean up all windows when main window is closed
-    if (controlWindow && !controlWindow.isDestroyed()) {
-      controlWindow.close();
-    }
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.close();
-    }
-    mainWindow.close();
+  // TODO: Remove this handler once control and overlay windows have their own files
+  // if (mainWindow) {
+  // Clean up all windows when main window is closed
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.close();
   }
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close();
+  }
+  // mainWindow.close();
+  // }
 });
 
 // Update subtitle handlers to check for destroyed windows
@@ -1895,24 +1703,22 @@ ipcMain.on('scroll', async (event, direction: string, amount: number = 200) => {
 ipcMain.on('control-action', async (event, action) => {
   try {
     // Create main window if it doesn't exist for any control action
-    if (!mainWindow || mainWindow.isDestroyed()) {
+    if (!mainWindowExists()) {
       await createMainWindow();
     }
 
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindowExists()) {
       // Show window if screen sharing is being activated
       if (action.type === 'screen' && action.value === true) {
-        mainWindow.show();
-        mainWindow.focus();
+        showMainWindow();
       }
       // Hide window if screen sharing is being deactivated
       else if (action.type === 'screen' && action.value === false) {
-        mainWindow.hide();
+        hideMainWindow();
       }
       // Show window if webcam is being activated
       else if (action.type === 'webcam' && action.value === true) {
-        mainWindow.show();
-        mainWindow.focus();
+        showMainWindow();
       }
       // else if (action.type === 'connect' && action.value === true) {
       //   if (!customSessionName) {
@@ -1920,7 +1726,7 @@ ipcMain.on('control-action', async (event, action) => {
       //     mainWindow?.webContents.send('prompt-session-name');
       //   }
       // }
-      mainWindow.webContents.send('control-action', action);
+      sendControlAction(action);
     }
   } catch (error) {
     logToFile(`Error handling control action: ${error}`);
@@ -1947,8 +1753,8 @@ ipcMain.on('screen-share-result', (event, success) => {
     if (controlWindow && !controlWindow.isDestroyed()) {
       controlWindow.webContents.send('screen-share-result', success);
       // If screen sharing failed, hide the main window
-      if (!success && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.hide();
+      if (!success && mainWindowExists()) {
+        hideMainWindow();
       }
     }
   } catch (error) {
@@ -1959,11 +1765,11 @@ ipcMain.on('screen-share-result', (event, success) => {
 // Add this to handle carousel actions
 ipcMain.on('carousel-action', async (event, direction) => {
   try {
-    if (!mainWindow || mainWindow.isDestroyed()) {
+    if (!mainWindowExists()) {
       await createMainWindow();
     }
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('carousel-action', direction);
+    if (mainWindowExists()) {
+      sendCarouselAction(direction);
     }
   } catch (error) {
     logToFile(`Error handling carousel action: ${error}`);
@@ -2041,20 +1847,6 @@ async function getSelectedText() {
 // Add this with other IPC handlers
 ipcMain.handle('get-selected-text', async () => {
   return await getSelectedText();
-});
-
-// Add this with other IPC handlers
-ipcMain.on('show-main-window', () => {
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
-  }
-});
-
-ipcMain.on('hide-main-window', () => {
-  if (mainWindow) {
-    mainWindow.hide();
-  }
 });
 
 // Get unique machine ID
@@ -3553,11 +3345,6 @@ ipcMain.on('merge-conversation-audio', async (event, data: { assistantDisplayNam
   }
 });
 
-// Forward assistant audio to renderer for recording
-ipcMain.on('assistant-audio', (event, audioData) => {
-  mainWindow?.webContents.send('assistant-audio', audioData);
-});
-
 async function createMarkdownPreviewWindow(filePath: string) {
   if (markdownPreviewWindow) {
     markdownPreviewWindow.focus();
@@ -3737,5 +3524,12 @@ ipcMain.handle('export_patent_pdf', async () => {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error exporting PDF',
     };
+  }
+});
+
+ipcMain.on('revert-control-button', () => {
+  console.log('revert-control-button');
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send('revert-connection-state');
   }
 });

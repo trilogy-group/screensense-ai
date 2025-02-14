@@ -387,8 +387,9 @@ function ControlTray({
   }, [isRecordingSession, saveRecordings]);
 
   const handleConnect = useCallback(() => {
-    console.log('Going to handle connect');
+    console.log('[ControlTray] Going to handle connect');
     if (!connected) {
+      console.log('[ControlTray] Initiating connection...');
       setIsRecordingSession(true);
       userAudioChunks.current = [];
       assistantAudioChunks.current = [];
@@ -399,8 +400,9 @@ function ControlTray({
       });
       connect();
     } else {
+      console.log('[ControlTray] Initiating disconnection...');
       setIsRecordingSession(false);
-      console.log(`Going to save recordings`);
+      console.log(`[ControlTray] Going to save recordings`);
       saveRecordings(false); // Save without resetting on disconnect
       disconnect();
     }

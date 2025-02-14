@@ -164,16 +164,19 @@ function App() {
 
   // Handle API key check
   useEffect(() => {
-    const handleCheckApiKey = () => {
-      console.log('Checking API key:', geminiApiKey);
-      ipcRenderer.send('api-key-check-result', !!geminiApiKey);
+    const checkApiKey = async () => {
+      try {
+        const hasApiKey = await ipcRenderer.invoke('check-api-key');
+        if (!hasApiKey) {
+          console.log('No API key found');
+        }
+      } catch (error) {
+        console.error('Error checking API key:', error);
+      }
     };
 
-    ipcRenderer.on('check-api-key', handleCheckApiKey);
-    return () => {
-      ipcRenderer.removeListener('check-api-key', handleCheckApiKey);
-    };
-  }, [geminiApiKey]);
+    checkApiKey();
+  }, []); // Run once on mount
 
   // Handle mode update requests
   useEffect(() => {
