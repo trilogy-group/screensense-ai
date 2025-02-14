@@ -115,6 +115,10 @@ export const patentGeneratorTools: Tool[] = [
               type: SchemaType.STRING,
               description: 'A brief description of what the screenshot shows',
             },
+            isCodeOrDiagram : {
+              type: SchemaType.BOOLEAN,
+              description: 'Whether the screenshot is a code or a diagram',
+            }
           },
           required: ['description'],
         },

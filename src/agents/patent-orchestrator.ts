@@ -307,7 +307,8 @@ export function resetPatentThread() {
 // New function to handle image loading and sending
 export async function sendImageToPatentAgent(
   imagePath: string,
-  description: string
+  description: string,
+  isCodeOrDiagram: boolean
 ): Promise<OrchestratorResponse> {
   if (!patentAgent) {
     throw new Error('Patent agent not initialized');
@@ -337,15 +338,31 @@ export async function sendImageToPatentAgent(
               : 'image/png';
 
     // Create message with both text and image
+    let prompt = ""
+    if(isCodeOrDiagram){
+      prompt =`The user has provided you with a screenshot containing a piece of code or a diagram.
+Follow these guidelines:
+- Clearly explain the purpose and function of the code or diagram.
+- Use formal patent language, avoiding unnecessary ambiguity.
+- If the image contains a diagram, describe its components, relationships, and functionality in a structured manner.
+- If the image contains code, provide a high-level functional description, explaining the logic, interactions, and any novel aspects.
+- Identify and highlight any inventive steps or unique aspects that differentiate this from prior art.
+- Format the response as a well-written patent application section, including potential claims if applicable.
+The image is located at: ${imagePath} and you need to add it to the patent document along with the necessary textual content.` 
+    }
+    else{
+      prompt = `The user shared a screenshot of their invention.
+The description of the screenshot is: ${description}
+It is located at: ${imagePath}
+Analyze the image and the description, and then insert the image and any relevant information into the patent document.`
+    }
+
     const userMsg = {
       role: 'user',
       content: [
         {
           type: 'text',
-          text: `The user shared a screenshot of their invention.
-The description of the screenshot is: ${description}
-It is located at: ${imagePath}
-Analyze the image and the description, and then insert the image and any relevant information into the patent document.`,
+          text: prompt,
         },
         {
           type: 'image_url',

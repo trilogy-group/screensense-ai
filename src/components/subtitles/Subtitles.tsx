@@ -375,10 +375,12 @@ function SubtitlesComponent({
               const screenshot = onScreenshot();
               if (screenshot) {
                 const description = (fc.args as any).description;
+                const isCodeOrDiagram = (fc.args as any).isCodeOrDiagram;
                 // Send the screenshot to be saved in the patent's assets folder
                 const result = await ipcRenderer.invoke('save_patent_screenshot', {
                   screenshot,
                   description,
+                  isCodeOrDiagram,
                 });
 
                 if (result.success) {
@@ -395,7 +397,7 @@ function SubtitlesComponent({
                       text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.`,
                     },
                   ]);
-                  await sendImageToPatentAgent(result.path, description);
+                  await sendImageToPatentAgent(result.path, description, isCodeOrDiagram);
                 } else {
                   client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
                 }
