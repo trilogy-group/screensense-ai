@@ -1,12 +1,10 @@
 import { type Tool } from '@google/generative-ai';
-import { useEffect, useState, useRef, memo } from 'react';
+import { memo, useEffect, useState } from 'react';
+import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
-import vegaEmbed from 'vega-embed';
-import { trackEvent } from '../../shared/analytics';
-import { omniParser } from '../../services/omni-parser';
 import { opencvService } from '../../services/opencv-service';
-import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
+import { trackEvent } from '../../shared/analytics';
 const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
@@ -25,10 +23,7 @@ function SubtitlesComponent({
   onScreenshot,
 }: SubtitlesProps) {
   const [subtitles, setSubtitles] = useState<string>('');
-  const [graphJson, setGraphJson] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
-  const graphRef = useRef<HTMLDivElement>(null);
-  const lastActionTimeRef = useRef<number>(0);
 
   useEffect(() => {
     setConfig({
@@ -70,76 +65,7 @@ function SubtitlesComponent({
         }
       }
     }
-    async function get_screenshot(
-      x1: number,
-      y1: number,
-      x2: number,
-      y2: number
-    ): Promise<string | null> {
-      if (onScreenshot) {
-        const screenshot = onScreenshot();
-        if (screenshot) {
-          const base64Data = screenshot.split(',')[1];
 
-          // Get window dimensions from electron
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { bounds, workArea, scaleFactor } =
-            await ipcRenderer.invoke('get-window-dimensions');
-
-          const x1_scaled = Math.round(x1 * scaleFactor);
-          const y1_scaled = Math.round(y1 * scaleFactor);
-          const x2_scaled = Math.round(x2 * scaleFactor);
-          const y2_scaled = Math.round(y2 * scaleFactor);
-
-          // Add display bounds offset
-          const x1_final = x1_scaled + bounds.x;
-          const y1_final = y1_scaled + bounds.y;
-          const x2_final = x2_scaled + bounds.x;
-          const y2_final = y2_scaled + bounds.y;
-
-          // Convert base64 to blob
-          const byteCharacters = atob(base64Data);
-          const byteArrays = [];
-          for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-            const slice = byteCharacters.slice(offset, offset + 512);
-            const byteNumbers = new Array(slice.length);
-            for (let i = 0; i < slice.length; i++) {
-              byteNumbers[i] = slice.charCodeAt(i);
-            }
-            byteArrays.push(new Uint8Array(byteNumbers));
-          }
-          const blob = new Blob(byteArrays, { type: 'image/jpeg' });
-
-          try {
-            const imageBitmap = await createImageBitmap(
-              blob,
-              x1_final,
-              y1_final,
-              x2_final - x1_final,
-              y2_final - y1_final
-            );
-
-            // Create temporary canvas for conversion
-            const canvas = document.createElement('canvas');
-            canvas.width = imageBitmap.width;
-            canvas.height = imageBitmap.height;
-            const ctx = canvas.getContext('2d');
-
-            if (ctx) {
-              ctx.drawImage(imageBitmap, 0, 0);
-              const croppedBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
-              imageBitmap.close();
-              return croppedBase64;
-            }
-
-            imageBitmap.close();
-          } catch (error) {
-            console.error('Error processing image:', error);
-          }
-        }
-      }
-      return null;
-    }
     async function interact(
       cords: { x: number; y: number },
       function_call: string,
@@ -159,118 +85,6 @@ function SubtitlesComponent({
         case 'insert_content':
           ipcRenderer.send('insert-content', payload);
           break;
-        // case "scroll":
-        //   ipcRenderer.send('scroll', payload);
-        //   break;
-      }
-    }
-    async function find_all_elements_function(
-      onScreenshot: () => string | null,
-      client: any,
-      toolCall: ToolCall
-    ): Promise<void> {
-      if (onScreenshot) {
-        const screenshot = onScreenshot();
-        if (screenshot) {
-          try {
-            // Convert base64 to blob
-            const base64Data = screenshot.split(',')[1];
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'image/jpeg' });
-
-            const video = document.querySelector('video');
-            if (!video) {
-              throw new Error('Video element not found');
-            }
-
-            const videoWidth = video.videoWidth;
-            const videoHeight = video.videoHeight;
-            const devicePixelRatio = window.devicePixelRatio || 1;
-            const actualWidth = Math.round(videoWidth / devicePixelRatio);
-            const actualHeight = Math.round(videoHeight / devicePixelRatio);
-
-            // Get the video element's display dimensions
-            const videoRect = video.getBoundingClientRect();
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const scaleX = videoRect.width / videoWidth;
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const scaleY = videoRect.height / videoHeight;
-
-            // Get elements from ML model
-            const detectionResult = await omniParser.detectElements(blob);
-            const elements = detectionResult.data[1];
-
-            // Scale all coordinates to actual screen dimensions
-            const scaledElements = elements.map(element => ({
-              ...element,
-              center: {
-                x: Math.round(element.center.x * actualWidth),
-                y: Math.round(element.center.y * actualHeight),
-              },
-              ...(element.boundingBox && {
-                boundingBox: {
-                  x1: Math.round(element.boundingBox.x1 * actualWidth),
-                  y1: Math.round(element.boundingBox.y1 * actualHeight),
-                  x2: Math.round(element.boundingBox.x2 * actualWidth),
-                  y2: Math.round(element.boundingBox.y2 * actualHeight),
-                },
-              }),
-            }));
-
-            client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map(fc => ({
-                response: {
-                  output: {
-                    success: true,
-                    // elements: scaledElements
-                  },
-                },
-                id: fc.id,
-              })),
-            });
-            client.send([
-              { text: `Found the following elements: ${JSON.stringify(scaledElements)}` },
-            ]);
-            console.log('sent coordinates');
-
-            ipcRenderer.send('log-to-file', `Found ${scaledElements.length} elements`);
-          } catch (error) {
-            console.error('Error finding elements:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-            client.sendToolResponse({
-              functionResponses: toolCall.functionCalls.map(fc => ({
-                response: { output: { success: false, error: errorMessage } },
-                id: fc.id,
-              })),
-            });
-            client.send([{ text: `Error finding elements: ${errorMessage}` }]);
-            ipcRenderer.send('log-to-file', `Error finding elements: ${errorMessage}`);
-          }
-        } else {
-          client.sendToolResponse({
-            functionResponses: toolCall.functionCalls.map(fc => ({
-              response: { output: { success: false, error: 'Failed to capture screenshot' } },
-              id: fc.id,
-            })),
-          });
-          client.send([{ text: `Failed to capture screenshot` }]);
-          ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
-        }
-      } else {
-        console.log('no onScreenshot function');
-        client.sendToolResponse({
-          functionResponses: toolCall.functionCalls.map(fc => ({
-            response: { output: { success: false } },
-            id: fc.id,
-          })),
-        });
-        client.send([{ text: `Failed to capture screenshot.` }]);
-        ipcRenderer.send('log-to-file', `Failed to capture screenshot`);
       }
     }
     const onToolCall = async (toolCall: ToolCall) => {
@@ -317,10 +131,7 @@ function SubtitlesComponent({
             break;
           case 'remove_subtitles':
             setSubtitles('');
-            ipcRenderer.send('remove_subtitles');
-            break;
-          case 'render_graph':
-            setGraphJson((fc.args as any).json_graph);
+            ipcRenderer.send('remove-subtitles');
             break;
           case 'write_text':
             ipcRenderer.send('write_text', (fc.args as any).content);
@@ -332,64 +143,6 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          case 'set_action_name':
-            ipcRenderer.send('set-action-name', (fc.args as any).name);
-            lastActionTimeRef.current = Date.now();
-            hasResponded = true;
-            break;
-          case 'record_opencv_action':
-            const currentTime = Date.now();
-            const timeDiff = lastActionTimeRef.current
-              ? currentTime - lastActionTimeRef.current
-              : 0;
-            lastActionTimeRef.current = currentTime;
-
-            const action_opencv = (fc.args as any).action;
-            const payload_opencv = (fc.args as any).payload;
-            const description_opencv = (fc.args as any).description;
-
-            const mousePosition = await ipcRenderer.invoke('get-mouse-position');
-            console.log('Mouse coordinates:', mousePosition);
-            const x1_mouse = mousePosition.x - 50;
-            const y1_mouse = mousePosition.y - 50;
-            const x2_mouse = mousePosition.x + 50;
-            const y2_mouse = mousePosition.y + 50;
-
-            try {
-              // Hide cursor using both CSS and system-level
-              document.body.style.cursor = 'none';
-              const originalPosition = await ipcRenderer.invoke('hide-system-cursor');
-              await new Promise(resolve => setTimeout(resolve, 600));
-
-              const ss_mouse = await get_screenshot(x1_mouse, y1_mouse, x2_mouse, y2_mouse);
-
-              // Restore cursor using both CSS and system-level
-              document.body.style.cursor = 'default';
-              if (originalPosition) {
-                await ipcRenderer.invoke('restore-system-cursor', originalPosition);
-                // Call interact after cursor is restored
-                if (ss_mouse) {
-                  ipcRenderer.send(
-                    'record-opencv-action',
-                    ss_mouse,
-                    action_opencv,
-                    description_opencv,
-                    payload_opencv,
-                    timeDiff
-                  );
-                  await interact(mousePosition, action_opencv, true, payload_opencv);
-                }
-              }
-            } catch (error) {
-              // Ensure cursor is restored even if there's an error
-              document.body.style.cursor = 'default';
-              const currentPos = await ipcRenderer.invoke('get-mouse-position');
-              await ipcRenderer.invoke('restore-system-cursor', currentPos);
-              console.error('Error during screenshot capture:', error);
-            }
-            hasResponded = true;
-            break;
-          case 'opencv_perform_action':
           case 'run_action':
             // const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
             const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action');
@@ -442,50 +195,6 @@ function SubtitlesComponent({
             break;
           case 'continue_action':
             play_action = true;
-            break;
-          case 'select_content':
-            ipcRenderer.send(
-              'select-content',
-              (fc.args as any).x1 || 500,
-              (fc.args as any).y1 || 500,
-              (fc.args as any).x2 || 1000,
-              (fc.args as any).y2 || 1000
-            );
-            hasResponded = true;
-            break;
-          case 'scroll':
-            ipcRenderer.send(
-              'scroll',
-              (fc.args as any).direction || 'up',
-              (fc.args as any).amount || 50
-            );
-            hasResponded = true;
-            break;
-          case 'insert_content':
-            console.log(`test message : ${(fc.args as any).content}`);
-            ipcRenderer.send('insert-content', (fc.args as any).content);
-            hasResponded = true;
-            break;
-          case 'find_all_elements':
-            if (onScreenshot) {
-              await find_all_elements_function(onScreenshot, client, toolCall);
-            }
-            hasResponded = true;
-            break;
-          case 'highlight_element':
-            const coordinates = (fc.args as any).coordinates;
-            console.log(coordinates);
-            ipcRenderer.send('show-coordinates', coordinates.x, coordinates.y);
-            break;
-          case 'highlight_element_box':
-            const box = (fc.args as any).boundingBox;
-            console.log('Highlighting box:', box);
-            ipcRenderer.send('show-box', box.x1, box.y1, box.x2, box.y2);
-            break;
-          case 'click_element':
-            const args = fc.args as any;
-            console.log(args.coordinates);
-            ipcRenderer.send('click', args.coordinates.x, args.coordinates.y, args.action);
             break;
           case 'create_template': {
             const title = (fc.args as any).title;
@@ -726,18 +435,6 @@ function SubtitlesComponent({
     }
   }, [subtitles]);
 
-  useEffect(() => {
-    if (graphRef.current && graphJson) {
-      try {
-        vegaEmbed(graphRef.current, JSON.parse(graphJson));
-      } catch (error) {
-        console.error('Failed to render graph:', error);
-        // Log graph rendering errors
-        ipcRenderer.send('log-to-file', `Error rendering graph: ${error}`);
-      }
-    }
-  }, [graphRef, graphJson]);
-
   // Add effect to handle cursor visibility
   useEffect(() => {
     const handleCursorVisibility = (_: any, visibility: string) => {
@@ -792,11 +489,7 @@ function SubtitlesComponent({
     };
   }, [client]);
 
-  return (
-    <>
-      <div className="vega-embed" ref={graphRef} />
-    </>
-  );
+  return <></>;
 }
 
 export const Subtitles = memo(SubtitlesComponent);

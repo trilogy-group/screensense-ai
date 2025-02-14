@@ -184,6 +184,7 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
       this.ws.close();
       this.ws = null;
       this.log('client.close', `Disconnected`);
+      ipcRenderer.send('revert-control-button');
       return true;
     }
     return false;

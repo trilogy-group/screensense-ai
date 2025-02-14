@@ -58,7 +58,7 @@
     "publish": "cross-env NODE_ENV=production npm run build:react && npm run electron:tsc && electron-builder --publish always",
     "electron-pack": "cross-env NODE_ENV=production electron-builder",
     "postinstall": "electron-builder install-app-deps",
-    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"electron/**/*.{js,jsx,ts,tsx,json}\""
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md,html}\" \"electron/**/*.{js,jsx,ts,tsx,json,html}\""
   },
   "build": {
     "appId": "com.screensense.ai",

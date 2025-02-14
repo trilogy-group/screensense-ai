@@ -253,7 +253,7 @@ electron_1.ipcMain.on('update-subtitles', function (event, text) {
     }
   }
 });
-electron_1.ipcMain.on('remove_subtitles', function () {
+electron_1.ipcMain.on('remove-subtitles', function () {
   if (overlayWindow) {
     overlayWindow.hide();
   }
