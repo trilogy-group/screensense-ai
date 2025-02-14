@@ -270,8 +270,6 @@ uIOhook.start();
 
 keyboard.config.autoDelayMs = 0;
 
-let customSessionName: string | null = null;
-let markerWindow: BrowserWindow | null = null;
 let actionWindow: BrowserWindow | null = null;
 
 function getFirstLaunchPath(machineId: string) {
@@ -313,17 +311,12 @@ async function initializeApp() {
   initializeSubtitleOverlay();
   initializeSettingsWindow();
   initializeMarkdownPreviewWindow();
-  // Load saved settings first
-  // const savedSettings = loadSettings();
 
   // Create windows
   await createMainWindow();
   createSubtitleOverlayWindow();
   createControlWindow();
   console.log('App is ready. Listening for global mouse events...');
-
-  // Send saved settings to main window
-  // initSavedSettings(savedSettings);
 }
 
 // Call it after registering all handlers
@@ -376,47 +369,6 @@ ipcMain.on('write_text', async (event, content) => {
   }
 });
 
-// ipcMain.on('click', async (event, x: number, y: number) => {
-//   try {
-//     // Move mouse to coordinates and click
-//     await mouse.setPosition(new Point(x, y));
-//     await mouse.leftClick();
-//     logToFile(`Clicked at coordinates: x=${x}, y=${y}`);
-//   } catch (error) {
-//     logToFile(`Error performing click: ${error}`);
-//     console.log("error performing click", error);
-//   }
-// });
-
-ipcMain.on('select-content', async (event, x1: number, y1: number, x2: number, y2: number) => {
-  try {
-    // Move to start position
-    await mouse.setPosition(new Point(x1, y1));
-
-    await new Promise(resolve => setTimeout(resolve, 50));
-    // Press and hold left mouse button
-    await mouse.pressButton(0); // 0 is left button in nut-js
-    // Small delay to ensure button press registered
-    await new Promise(resolve => setTimeout(resolve, 50));
-    // Move to end position
-    await mouse.setPosition(new Point(x2, y2));
-    // Small delay before release
-    await new Promise(resolve => setTimeout(resolve, 50));
-    // Release left mouse button
-    await mouse.releaseButton(0);
-
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
-    await keyboard.pressKey(modifier, Key.C);
-    await keyboard.releaseKey(modifier, Key.C);
-
-    logToFile(`Selected content from (${x1},${y1}) to (${x2},${y2})`);
-  } catch (error) {
-    logToFile(`Error selecting content: ${error}`);
-  }
-});
-
 ipcMain.on('insert-content', async (event, content: string) => {
   try {
     // Store previous clipboard content
@@ -433,41 +385,6 @@ ipcMain.on('insert-content', async (event, content: string) => {
     clipboard.writeText(previousClipboard);
   } catch (error) {
     logToFile(`Error inserting content: ${error}`);
-  }
-});
-
-ipcMain.on('scroll', async (event, direction: string, amount: number = 200) => {
-  try {
-    if (direction === 'up') {
-      await mouse.scrollUp(amount);
-    } else if (direction === 'down') {
-      await mouse.scrollDown(amount);
-    }
-  } catch (error) {
-    logToFile(`Error scrolling: ${error}`);
-  }
-});
-
-// Add this after the other ipcMain handlers
-ipcMain.on('paste-content', async (event, content) => {
-  try {
-    // Save the current clipboard content
-    const previousClipboard = clipboard.readText();
-
-    // Set new content to clipboard
-    clipboard.writeText(content);
-
-    // Simulate Cmd+V (for macOS) or Ctrl+V (for other platforms)
-    const modifier = process.platform === 'darwin' ? Key.LeftCmd : Key.LeftControl;
-    await keyboard.pressKey(modifier, Key.V);
-    await keyboard.releaseKey(modifier, Key.V);
-
-    // Restore previous clipboard content after a short delay
-    setTimeout(() => {
-      clipboard.writeText(previousClipboard);
-    }, 100);
-  } catch (error) {
-    logToFile(`Error pasting content: ${error}`);
   }
 });
 
@@ -497,11 +414,6 @@ async function getSelectedText() {
     return '';
   }
 }
-
-// Add this with other IPC handlers
-ipcMain.handle('get-selected-text', async () => {
-  return await getSelectedText();
-});
 
 // Get unique machine ID
 async function getMachineId(): Promise<string> {
@@ -616,58 +528,8 @@ function saveConversations(conversations: Conversations) {
   }
 }
 
-// Modified handler for setting session name
-ipcMain.on('set-action-name', (event, name) => {
-  try {
-    const sanitizedName = name.replace(/[^a-zA-Z0-9-_ ]/g, '_');
-    customSessionName = sanitizedName.trim().toLowerCase();
-
-    // Initialize or overwrite the session in the conversations file
-    const conversations = loadConversations();
-    if (customSessionName) {
-      // Overwrite the existing array or create a new one
-      conversations[customSessionName] = [];
-      saveConversations(conversations);
-      logToFile(`Set/Reset session name: ${customSessionName}`);
-    }
-  } catch (error) {
-    logToFile(`Error setting session name: ${error}`);
-  }
-});
-
-// Modified record-conversation handler
-ipcMain.on('record-conversation', (event, function_call, description, payload = '') => {
-  try {
-    if (!customSessionName) {
-      logToFile('No session name set, cannot record conversation');
-      return;
-    }
-
-    const conversations = loadConversations();
-    const sessionName = customSessionName;
-
-    if (!conversations[sessionName]) {
-      conversations[sessionName] = [];
-    }
-
-    const filepath = '';
-    conversations[sessionName].push({
-      function_call,
-      description,
-      filepath,
-      payload,
-    });
-
-    saveConversations(conversations);
-    logToFile(`Recorded conversation for session: ${sessionName}`);
-  } catch (error) {
-    logToFile(`Error recording conversation: ${error}`);
-  }
-});
-
 // Reset only the session name when app starts or restarts
 app.on('ready', () => {
-  customSessionName = null;
   loadSession();
 });
 
@@ -692,144 +554,6 @@ ipcMain.handle('perform-action', async (event, name) => {
     logToFile(`Error getting action data: ${error}`);
     return null;
   }
-});
-
-function showCoordinateMarker(x: number, y: number) {
-  if (markerWindow && !markerWindow.isDestroyed()) {
-    markerWindow.close();
-  }
-
-  // Adjust window size to be smaller since we're showing a smaller marker
-  const markerSize = 20; // Diameter (2 * radius)
-  markerWindow = new BrowserWindow({
-    width: markerSize,
-    height: markerSize,
-    x: x - markerSize / 2, // Center the marker on the coordinates
-    y: y - markerSize / 2,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  const markerHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: transparent;
-          }
-          .marker {
-            width: 20px;
-            height: 20px;
-            background: rgba(255, 0, 0, 0.3);
-            border: 2px solid rgba(255, 0, 0, 0.8);
-            position: absolute;
-            animation: pulse 1s infinite;
-            box-sizing: border-box;
-            border-radius: 50%; /* Make it circular */
-          }
-          @keyframes pulse {
-            0% { opacity: 0.4; }
-            50% { opacity: 0.6; }
-            100% { opacity: 0.4; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="marker"></div>
-        <script>
-          // Auto-close after 10 seconds
-          setTimeout(() => window.close(), 10000);
-        </script>
-      </body>
-    </html>
-  `;
-
-  markerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`);
-  markerWindow.setIgnoreMouseEvents(true);
-}
-
-function showBoxMarker(x1: number, y1: number, x2: number, y2: number) {
-  if (markerWindow && !markerWindow.isDestroyed()) {
-    markerWindow.close();
-  }
-
-  const width = x2 - x1;
-  const height = y2 - y1;
-
-  markerWindow = new BrowserWindow({
-    width: width,
-    height: height,
-    x: x1,
-    y: y1,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  const markerHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: transparent;
-          }
-          .box-marker {
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 0, 0, 0.2);
-            border: 2px solid rgba(255, 0, 0, 0.8);
-            position: absolute;
-            animation: pulse 1s infinite;
-            box-sizing: border-box;
-          }
-          @keyframes pulse {
-            0% { opacity: 0.4; }
-            50% { opacity: 0.6; }
-            100% { opacity: 0.4; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="box-marker"></div>
-        <script>
-          // Auto-close after 5 seconds
-          setTimeout(() => window.close(), 5000);
-        </script>
-      </body>
-    </html>
-  `;
-
-  markerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(markerHtml)}`);
-  markerWindow.setIgnoreMouseEvents(true);
-}
-
-// Add IPC handler for showing coordinates
-ipcMain.on('show-coordinates', (_, x: number, y: number) => {
-  showCoordinateMarker(x, y);
-});
-
-// Add IPC handler for showing bounding box
-ipcMain.on('show-box', (_, x1: number, y1: number, x2: number, y2: number) => {
-  showBoxMarker(x1, y1, x2, y2);
 });
 
 ipcMain.on(
@@ -876,188 +600,6 @@ ipcMain.on(
     }
   }
 );
-
-// Add screenshot saving handler
-ipcMain.on(
-  'record-opencv-action',
-  async (event, base64Data, function_call, description, payload = '', timeSinceLastAction = 0) => {
-    try {
-      // Hide cursor before taking screenshot
-      BrowserWindow.getAllWindows().forEach(window => {
-        window.webContents.send('set-cursor-visibility', 'none');
-      });
-
-      // Add a small delay to ensure cursor is hidden
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      if (!customSessionName) {
-        logToFile('No session name set, cannot record conversation');
-        return;
-      }
-
-      const conversations = loadConversations();
-      const sessionName = customSessionName;
-
-      if (!conversations[sessionName]) {
-        conversations[sessionName] = [];
-      }
-
-      saveConversations(conversations);
-      logToFile(`Recorded conversation for session: ${sessionName}`);
-
-      logToFile('Starting screenshot save process');
-      // Create screenshots directory if it doesn't exist
-      const screenshotsDir = path.join(
-        app.getPath('appData'),
-        'screensense-ai',
-        'actions',
-        sessionName
-      );
-      if (!fs.existsSync(screenshotsDir)) {
-        logToFile(`Creating screenshots directory at: ${screenshotsDir}`);
-        fs.mkdirSync(screenshotsDir, { recursive: true });
-      }
-
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `screenshot-${timestamp}.png`;
-      const filepath = path.join(screenshotsDir, filename);
-      logToFile(`Generated filepath: ${filepath}`);
-
-      // Convert base64 to buffer and save
-      const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
-      const imageBuffer = Buffer.from(base64Image, 'base64');
-      logToFile(`Created image buffer of size: ${imageBuffer.length} bytes`);
-
-      fs.writeFileSync(filepath, imageBuffer);
-      logToFile(`Screenshot saved successfully`);
-
-      conversations[sessionName].push({
-        function_call,
-        description,
-        filepath,
-        payload,
-        timeSinceLastAction,
-      });
-      saveConversations(conversations);
-      logToFile(
-        `Recorded conversation for session: ${sessionName} with time since last action: ${timeSinceLastAction}ms`
-      );
-
-      // Show cursor after screenshot is saved
-      BrowserWindow.getAllWindows().forEach(window => {
-        window.webContents.send('set-cursor-visibility', 'default');
-      });
-
-      return filepath;
-    } catch (error) {
-      // Show cursor even if there's an error
-      BrowserWindow.getAllWindows().forEach(window => {
-        window.webContents.send('set-cursor-visibility', 'default');
-      });
-
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logToFile(`Error saving screenshot: ${errorMessage}`);
-      console.error('Error saving screenshot:', error);
-      throw error;
-    }
-  }
-);
-
-// Add this with other ipcMain handlers
-ipcMain.handle('get-window-dimensions', () => {
-  const primaryDisplay = electron_screen.getPrimaryDisplay();
-  const { bounds, workArea, scaleFactor } = primaryDisplay;
-  return {
-    bounds: bounds,
-    workArea: workArea,
-    scaleFactor: scaleFactor,
-  };
-});
-
-// Add mouse position handler
-ipcMain.handle('get-mouse-position', () => {
-  const mousePosition = electron_screen.getCursorScreenPoint();
-  return mousePosition;
-});
-
-// Add IPC handlers for cursor visibility
-ipcMain.handle('hide-cursor', () => {
-  // Send message to renderer to hide cursor via CSS
-  BrowserWindow.getAllWindows().forEach(window => {
-    window.webContents.send('set-cursor-visibility', 'none');
-  });
-});
-
-ipcMain.handle('show-cursor', () => {
-  // Send message to renderer to show cursor via CSS
-  BrowserWindow.getAllWindows().forEach(window => {
-    window.webContents.send('set-cursor-visibility', 'default');
-  });
-});
-
-// Add system-level cursor visibility handlers
-ipcMain.handle('hide-system-cursor', async () => {
-  try {
-    // Store current mouse position
-    const currentPos = electron_screen.getCursorScreenPoint();
-
-    // Move cursor off screen temporarily
-    await mouse.setPosition(new Point(-10000, -10000));
-
-    return currentPos;
-  } catch (error) {
-    console.error('Error hiding system cursor:', error);
-    return null;
-  }
-});
-
-ipcMain.handle('restore-system-cursor', async (_, position: { x: number; y: number }) => {
-  try {
-    // Restore cursor to original position
-    await mouse.setPosition(new Point(position.x, position.y));
-  } catch (error) {
-    console.error('Error restoring system cursor:', error);
-  }
-});
-
-// Add function to process image with OmniParser
-// async function processImageWithOmniParser(imagePath: string) {
-//   try {
-//     logToFile(`Processing image with OmniParser: ${imagePath}`);
-
-//     // Read the PNG file into a buffer
-//     const imageBuffer = fs.readFileSync(imagePath);
-
-//     // Create a Blob with the correct MIME type
-//     const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
-
-//     // Process the image with OmniParser
-//     const result = await omniParser.detectElements(imageBlob);
-
-//     // Log the results
-//     logToFile('OmniParser detection results:');
-//     if (result && result.data && result.data[1]) {
-//       logToFile('Detected elements:');
-//       result.data[1].forEach((element, index: number) => {
-//         logToFile(`\nElement ${index + 1}:`);
-//         logToFile(`Type: ${element.type}`);
-//         logToFile(`Content: ${element.content}`);
-//         logToFile(`Interactive: ${element.interactivity}`);
-//         logToFile(`Position: (${element.center.x}, ${element.center.y})`);
-//         logToFile(`Bounding Box: (${element.boundingBox.x1}, ${element.boundingBox.y1}) to (${element.boundingBox.x2}, ${element.boundingBox.y2})`);
-//       });
-//     } else {
-//       logToFile('No detection results available');
-//     }
-
-//     return result;
-//   } catch (error) {
-//     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-//     logToFile(`Error processing image with OmniParser: ${errorMessage}`);
-//     throw error;
-//   }
-// }
 
 async function createActionWindow() {
   if (actionWindow && !actionWindow.isDestroyed()) {
