@@ -1,5 +1,4 @@
-import { BrowserWindow, app, ipcMain } from 'electron';
-import { logToFile } from '../utils/logger';
+import { BrowserWindow, ipcMain } from 'electron';
 import { loadHtmlFile } from '../utils/window-utils';
 
 let updateWindow: BrowserWindow | null = null;

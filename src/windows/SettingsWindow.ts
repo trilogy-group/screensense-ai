@@ -111,4 +111,8 @@ export function initializeSettingsWindow() {
       settingsWindow?.close();
     }
   });
+
+  ipcMain.handle('get-saved-settings', async () => {
+    return loadSettings();
+  });
 }

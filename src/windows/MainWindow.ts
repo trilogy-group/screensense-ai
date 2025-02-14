@@ -244,6 +244,12 @@ export function sendAssistantAudio(audioData: any) {
   }
 }
 
+export function sendPatentQuestion(data: { question: string; reason: string }) {
+  if (mainWindowExists()) {
+    mainWindow?.webContents.send('patent-question', data);
+  }
+}
+
 // Initialize module
 export function initializeMainWindow() {
   // Register IPC Handlers
