@@ -3563,7 +3563,7 @@ ipcMain.handle('analyse-code', async (event, screenshot) => {
       {
         role: "system",
         content: `
-You are a patent agent specializing in drafting patent applications. I will provide you with a screenshot containing a piece of code or a diagram. Your task is to analyze the content and generate a well-structured patent description suitable for inclusion in a patent document. Remember that the image given to you is not a complete paten content just a part of it. So, do not consider it as complete imformation. Just describe the image and its purpose in detail.
+You are a patent agent specializing in drafting patent applications. I will provide you with a screenshot containing a piece of code or a diagram. Your task is to analyze the content and generate a well-structured patent description suitable for inclusion in a patent document. Remember that the image given to you is not a complete paten content just a part of it. So, do not consider it as complete information. Just describe the image and its purpose in detail.
 
 Follow these guidelines:
 

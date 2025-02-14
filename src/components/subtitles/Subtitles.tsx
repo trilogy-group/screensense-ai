@@ -588,11 +588,11 @@ function SubtitlesComponent({
               const screenshot = onScreenshot();
               if (screenshot) {
                 const analysis = await ipcRenderer.invoke('analyse-code', screenshot);
-                // await ipcRenderer.invoke('add_content', {
-                //   content : analysis, 
-                //   section : "Implementation Details"
-                // });
-                console.log(analysis);
+                console.log("analysis received now adding to the document");
+                await ipcRenderer.invoke('add_content', {
+                  content : analysis, 
+                  section : "Implementation Details"
+                });
               }
             }
             hasResponded = true;
