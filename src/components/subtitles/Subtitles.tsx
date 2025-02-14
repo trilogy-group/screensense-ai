@@ -317,7 +317,7 @@ function SubtitlesComponent({
             break;
           case 'remove_subtitles':
             setSubtitles('');
-            ipcRenderer.send('remove_subtitles');
+            ipcRenderer.send('remove-subtitles');
             break;
           case 'render_graph':
             setGraphJson((fc.args as any).json_graph);

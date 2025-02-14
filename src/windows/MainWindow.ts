@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import { initializeAutoUpdater } from '../../electron/updater';
 import { closeControlWindow } from './ControlWindow';
 import { logToFile } from '../utils/logger';
+import { loadHtmlFile, loadUrl } from '../utils/window-utils';
+import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -142,39 +144,18 @@ export async function createMainWindow() {
       callback({}); // Let the renderer handle source selection
     });
 
-    let loadUrl: string;
-    if (isDev) {
-      loadUrl = 'http://localhost:3000';
-    } else {
-      // In production, use the app.getAppPath() to get the correct base path
-      const appPath = app.getAppPath();
-      // Remove .asar from the path to access unpacked resources
-      const basePath = appPath.replace('.asar', '.asar.unpacked');
-      const indexPath = path.join(basePath, 'build', 'index.html');
-
-      // Log more details about the paths
-      logToFile(`Base path: ${basePath}`);
-      logToFile(`Index path: ${indexPath}`);
-      logToFile(`Directory contents of build:`);
-      try {
-        const buildContents = fs.readdirSync(path.join(basePath, 'build'));
-        logToFile(JSON.stringify(buildContents, null, 2));
-      } catch (error) {
-        logToFile(`Error reading build directory: ${error}`);
-      }
-
-      loadUrl = `file://${indexPath}`;
-    }
-
-    logToFile(`App path: ${app.getAppPath()}`);
-    logToFile(`Attempting to load URL: ${loadUrl}`);
-    logToFile(`Build path exists: ${fs.existsSync(loadUrl.replace('file://', ''))}`);
-
     try {
-      await mainWindow.loadURL(loadUrl);
-      logToFile('Successfully loaded the window URL');
+      if (isDev) {
+        await loadUrl(mainWindow, 'http://localhost:3000', { logPrefix: 'main window' });
+      } else {
+        await loadHtmlFile(mainWindow, 'index.html', {
+          logPrefix: 'main window',
+          useHtmlDir: false,
+        });
+      }
     } catch (error) {
-      logToFile(`Error loading URL: ${error}`);
+      logToFile(`Error loading main window content: ${error}`);
+      throw error;
     }
 
     // Log when the page finishes loading
@@ -269,6 +250,7 @@ export function initializeMainWindow() {
   ipcMain.on('close-main-window', () => {
     closeMainWindow();
     closeControlWindow();
+    closeSubtitleOverlayWindow();
   });
 
   ipcMain.on('show-main-window', () => {

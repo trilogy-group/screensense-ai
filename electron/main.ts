@@ -42,6 +42,10 @@ import {
   showMainWindow,
   updateSettings,
 } from '../src/windows/MainWindow';
+import {
+  createSubtitleOverlayWindow,
+  initializeSubtitleOverlay,
+} from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 dotenv.config();
 
@@ -285,7 +289,6 @@ uIOhook.start();
 
 keyboard.config.autoDelayMs = 0;
 
-let overlayWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let customSessionName: string | null = null;
 let markerWindow: BrowserWindow | null = null;
@@ -351,111 +354,6 @@ ipcMain.handle('check-first-launch', async () => {
   const machineId = await getMachineId();
   return checkFirstLaunch(machineId);
 });
-
-function createOverlayWindow() {
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    return overlayWindow; // Return existing window if it's still valid
-  }
-
-  overlayWindow = new BrowserWindow({
-    width: 800,
-    height: 100,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  // Prevent window from being closed directly
-  overlayWindow.on('close', event => {
-    event.preventDefault();
-    overlayWindow?.hide();
-  });
-
-  overlayWindow.setIgnoreMouseEvents(true);
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: transparent;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          }
-          #subtitles {
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 24px;
-            font-weight: 500;
-            text-align: center;
-            max-width: 80%;
-            opacity: 0;
-            transition: opacity 0.2s ease-in-out;
-            position: relative;
-            text-rendering: optimizeLegibility;
-            -webkit-font-smoothing: antialiased;
-          }
-          #subtitles.visible {
-            opacity: 1;
-          }
-        </style>
-      </head>
-      <body>
-        <div id="subtitles"></div>
-        <script>
-          const { ipcRenderer } = require('electron');
-          const subtitles = document.getElementById('subtitles');
-          
-          ipcRenderer.on('update-subtitles', (event, text) => {
-            if (text) {
-              // First remove the visible class to trigger fade out
-              subtitles.classList.remove('visible');
-              
-              // Wait for the fade out transition to complete
-              setTimeout(() => {
-                subtitles.textContent = text;
-                subtitles.style.display = 'block';
-                // Force a reflow to ensure the transition works
-                subtitles.offsetHeight;
-                subtitles.classList.add('visible');
-              }, 200);
-            } else {
-              subtitles.classList.remove('visible');
-              setTimeout(() => {
-                subtitles.style.display = 'none';
-                subtitles.textContent = '';
-              }, 200);
-            }
-          });
-        </script>
-      </body>
-    </html>
-  `;
-
-  overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-
-  // Handle window close
-  overlayWindow.on('closed', () => {
-    overlayWindow = null;
-  });
-
-  return overlayWindow;
-}
 
 async function createSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -882,13 +780,14 @@ async function initializeApp() {
   initializeControlWindow();
   initializeUpdateWindow();
   initializeErrorOverlay();
+  initializeSubtitleOverlay();
 
   // Load saved settings first
   const savedSettings = loadSettings();
 
   // Create windows
   await createMainWindow();
-  createOverlayWindow();
+  createSubtitleOverlayWindow();
   createControlWindow();
   console.log('App is ready. Listening for global mouse events...');
 
@@ -906,32 +805,6 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     initializeApp();
-  }
-});
-
-// Update main window close handler to clean up other windows
-ipcMain.on('close-main-window', () => {
-  // TODO: Remove this handler once the overlay window has its own file
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.close();
-  }
-});
-
-// Update subtitle handlers to check for destroyed windows
-ipcMain.on('update-subtitles', (event, text) => {
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('update-subtitles', text);
-    if (text) {
-      overlayWindow.showInactive();
-    } else {
-      overlayWindow.hide();
-    }
-  }
-});
-
-ipcMain.on('remove_subtitles', () => {
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.hide();
   }
 });
 
@@ -2809,11 +2682,5 @@ ipcMain.handle('export_patent_pdf', async () => {
 ipcMain.on('close-settings-window', () => {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.close();
-  }
-});
-
-ipcMain.on('close-overlay-window', () => {
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.close();
   }
 });

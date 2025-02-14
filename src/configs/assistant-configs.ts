@@ -29,29 +29,6 @@ const translationTools: Tool[] = [
   },
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const graphingTools: Tool[] = [
-  {
-    functionDeclarations: [
-      {
-        name: 'render_graph',
-        description: 'Displays a graph using Vega-Lite/Altair JSON specification.',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            json_graph: {
-              type: SchemaType.STRING,
-              description:
-                'JSON STRING representation of the graph to render. Must be a string, not a json object',
-            },
-          },
-          required: ['json_graph'],
-        },
-      },
-    ],
-  },
-];
-
 export const clickerTools: Tool[] = [
   {
     functionDeclarations: [
@@ -141,83 +118,6 @@ export const readWriteTools: Tool[] = [
             content: {
               type: SchemaType.STRING,
               description: 'The text content to write at the current cursor position',
-            },
-          },
-          required: ['content'],
-        },
-      },
-    ],
-  },
-];
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const interactionTools: Tool[] = [
-  {
-    functionDeclarations: [
-      // {
-      //   name: "find_element",
-      //   description: "Locates and returns the coordinates of a specific element on the screen",
-      //   parameters: {
-      //     type: SchemaType.OBJECT,
-      //     properties: {
-      //       description: {
-      //         type: SchemaType.STRING,
-      //         description: "Description of the element to find (e.g., 'the submit button', 'the search box', etc.)"
-      //       }
-      //     },
-      //     required: ["description"]
-      //   }
-      // },
-      {
-        name: 'find_all_elements',
-        description: 'Returns a list of all UI elements visible on the screen with their locations',
-      },
-      {
-        name: 'highlight_element',
-        description: 'Highlights the element at the given coordinates',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            coordinates: {
-              type: SchemaType.OBJECT,
-              properties: {
-                x: { type: SchemaType.NUMBER },
-                y: { type: SchemaType.NUMBER },
-              },
-            },
-          },
-        },
-      },
-      {
-        name: 'click_element',
-        description: 'Clicks the element at the given coordinates',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            coordinates: {
-              type: SchemaType.OBJECT,
-              properties: {
-                x: { type: SchemaType.NUMBER },
-                y: { type: SchemaType.NUMBER },
-              },
-            },
-            action: {
-              type: SchemaType.STRING,
-              description: 'The action to perform on the element',
-              enum: ['click', 'double-click', 'right-click'],
-            },
-          },
-        },
-      },
-      {
-        name: 'insert_content',
-        description: 'Inserts the content at the given coordinates',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            content: {
-              type: SchemaType.STRING,
-              description: 'The content that needs to be inserted',
             },
           },
           required: ['content'],
@@ -693,39 +593,19 @@ Important Instructions:
     display_name: 'Transcriber',
     tools: translationTools,
     requiresDisplay: false,
-    systemInstruction: `You are ScreenSense AI, operating in Translator Mode.
+    systemInstruction: `You are ScreenSense AI in Translator Mode.
 
-Primary Purpose: Convert everything you hear into English subtitles in real time.
+Primary Purpose: Convert spoken content into English subtitles in real time.
 
-Your Tools:
-- You have access to translation tools to perform live translations. 
-- Only you should invoke these tools. Never instruct the user to do so themselves.
-- Do not repeatedly invoke the same tool with the same arguments in a loop.
+Key Behaviors:
+- Display English subtitles for all spoken content using render_subtitles tool
+- Stop and hide subtitles only when the user requests to stop translating
+- Do not add commentary or speak/reply to the user
+- You must transcribe only the user's spoken content, NOT your own responses
+- Do not repeat phrases
+- Do not discuss technical details or tools
 
-Key Directives:
-1. Subtitling Behavior:
-   - Provide English subtitles for all spoken content you hear.
-   - Stop displaying subtitles when the user requests you to stop translating.
-   - Do not add additional commentary or non-essential text.
-2. Introductions:
-   - If asked to introduce yourself or describe your capabilities, state that you are ScreenSense AI in Translator Mode, designed to provide real-time subtitles.
-3. Interaction Restrictions:
-   - Do not speak on your own initiative; only display translated subtitles.
-   - Offer clarifications or comments only if absolutely necessary.
-4. Privacy & Confidentiality:
-   - Do not reveal or discuss the source audio unless explicitly prompted.
-   - Restrict your output to essential translations or instructions regarding subtitles.
-5. Tool Usage:
-   - Never mention or discuss the underlying tools and functions being used.
-   - Keep all technical implementation details hidden from the user.
-   - Do not repeat the same phrase multiple times while translating.
-
-Example Behavior:
-- Actively listen and translate any spoken content into English subtitles.
-- If the user says "Stop translating," hide all subtitles and cease translation immediately.
-
-Your mission: Provide accurate, real-time English subtitles from spoken content using your translator tools. Avoid asking the user to employ these tools themselves, and remain silent otherwise.
-`,
+Remember: Your only role is to silently provide accurate subtitles. Do not engage in conversation or provide any responses beyond the subtitles themselves.`,
   },
   tutor: {
     display_name: 'Tutor',

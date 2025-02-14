@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import { closeMainWindow, hideMainWindow, mainWindowExists, requestModeUpdate } from './MainWindow';
 import { logToFile } from '../utils/logger';
+import { loadHtmlFile } from '../utils/window-utils';
+import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
 
 let controlWindow: BrowserWindow | null = null;
 
@@ -76,7 +78,7 @@ export async function createControlWindow() {
     closeMainWindow();
     // TODO: Use functions instead of ipcMain.emit
     ipcMain.emit('close-settings-window');
-    ipcMain.emit('close-overlay-window');
+    closeSubtitleOverlayWindow();
     controlWindow = null;
     app.quit();
   });
@@ -90,25 +92,9 @@ export async function createControlWindow() {
     requestModeUpdate();
   });
 
-  // Load the HTML file
-  let htmlPath;
-  if (isDev) {
-    // In development, load from public directory
-    htmlPath = path.join(app.getAppPath(), 'public', 'html', 'control-window.html');
-  } else {
-    // In production, load from the build directory
-    const basePath = app.getAppPath().replace('.asar', '.asar.unpacked');
-    htmlPath = path.join(basePath, 'build', 'html', 'control-window.html');
-  }
-
-  logToFile(`Loading control window HTML from: ${htmlPath}`);
-  try {
-    await controlWindow.loadFile(htmlPath);
-    logToFile('Successfully loaded control window HTML');
-  } catch (error) {
-    logToFile(`Error loading control window HTML: ${error}`);
-    throw error;
-  }
+  await loadHtmlFile(controlWindow, 'control-window.html', {
+    logPrefix: 'control window',
+  });
 
   return controlWindow;
 }

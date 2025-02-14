@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, screen, app } from 'electron';
-import * as path from 'path';
 import { logToFile } from '../utils/logger';
+import { loadHtmlFile } from '../utils/window-utils';
 
 let errorOverlayWindow: BrowserWindow | null = null;
 
@@ -24,25 +24,9 @@ async function createErrorOverlayWindow() {
 
   errorOverlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-  let htmlPath;
-  if (isDev) {
-    // In development, load from public directory
-    htmlPath = path.join(app.getAppPath(), 'public', 'html', 'error-overlay.html');
-  } else {
-    // In production, load from the build directory
-    const basePath = app.getAppPath().replace('.asar', '.asar.unpacked');
-    htmlPath = path.join(basePath, 'build', 'html', 'error-overlay.html');
-  }
-
-  logToFile(`Loading error overlay HTML from: ${htmlPath}`);
-  try {
-    await errorOverlayWindow.loadFile(htmlPath);
-    logToFile('Successfully loaded error overlay HTML');
-  } catch (error) {
-    logToFile(`Error loading error overlay HTML: ${error}`);
-    throw error;
-  }
+  await loadHtmlFile(errorOverlayWindow, 'error-overlay.html', {
+    logPrefix: 'error overlay window',
+  });
 
   // Position the window in the center of the screen
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
