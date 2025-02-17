@@ -186,7 +186,6 @@ function SubtitlesComponent({
           case "run_action":
             // Check if OmniParser is busy
             if (omniParser.isProcessing()) {
-              const activeCount = omniParser.getActiveRequestCount();
               client.send([{ text: `Say : "Action recording is in progress. Please wait for it to complete to perform the action."` }]);
             }
 

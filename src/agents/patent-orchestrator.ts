@@ -277,7 +277,7 @@ Patent Extraction Process:
    - The essence of the invention
    - What makes it unique
    - Key technical achievements
-   - Any visual demonstrations shared
+   - Any visual demonstrations shared, by passing the image path and image description
    - The core innovative elements for the patent
 
 Tools:
@@ -392,12 +392,12 @@ Follow these guidelines:
 - If the image contains code, provide a high-level functional description, explaining the logic, interactions, and any novel aspects.
 - Identify and highlight any inventive steps or unique aspects that differentiate this from prior art.
 - Format the response as a well-written patent application section, including potential claims if applicable.
-The image is located at: ${imagePath} and you need to add it to the patent document along with the necessary textual content.`;
+The image is located at: ${imagePath}`;
     } else {
       prompt = `The user shared a screenshot of their invention.
 The description of the screenshot is: ${description}
 It is located at: ${imagePath}
-Analyze the image and the description, and then insert the image and any relevant information into the patent document.`;
+Analyze the image and the description.`;
     }
 
     const userMsg = {
