@@ -5,8 +5,9 @@ import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
 import { trackEvent } from '../../shared/analytics';
-const { ipcRenderer } = window.require('electron');
 import { omniParser } from '../../services/omni-parser';
+
+const { ipcRenderer } = window.require('electron');
 
 interface SubtitlesProps {
   tools: Tool[];
