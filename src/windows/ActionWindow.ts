@@ -6,6 +6,10 @@ import sharp from 'sharp';
 import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile } from '../utils/window-utils';
+import { getMainWindow } from './MainWindow';
+import { zodResponseFormat } from "openai/helpers/zod";
+import { z } from "zod";
+import OpenAI from "openai";
 
 let actionWindow: BrowserWindow | null = null;
 let screenshotInterval: NodeJS.Timeout | null = null;
@@ -18,6 +22,7 @@ interface ConversationScreenshot {
   function_call: string;
   description: string;
   filepath: string;
+  accuratePath: string;
   payload: string;
   timeSinceLastAction: number;
 }
@@ -241,10 +246,6 @@ export function initializeActionWindow() {
     await showActionWindow();
   });
 
-  ipcMain.on('update-action', (event, data) => {
-    updateActionWindow(data);
-  });
-
   ipcMain.on('update-action', async (event, data) => {
     updateActionWindow(data);
   });
@@ -387,6 +388,104 @@ export function initializeActionWindow() {
     }
   });
 
+  ipcMain.on('gradio-result', async (event, result, cursorPos, screenshot, accuratePath) => {
+    console.log("Gradio-Result Running")
+    if (!result.success) {
+      console.log("Omniparser Error", result.error);
+      return;
+    }
+    try {
+      const primaryDisplay = electron_screen.getPrimaryDisplay();
+      const { bounds } = primaryDisplay;
+  
+  
+      // Get the actual screen dimensions
+      const actualWidth = bounds.width;
+      const actualHeight = bounds.height;
+  
+      // Calculate scaling factors
+      const scaleX = 1920 / actualWidth;
+      const scaleY = 1080 / actualHeight;
+  
+      // Scale cursor position to 1920x1080 space
+      const scaledX = Math.round(cursorPos.x * scaleX);
+      const scaledY = Math.round(cursorPos.y * scaleY);
+      let newDetectionResult = [];
+      for (const element of result.detectionResult) {
+        element.center.x *= 1920;
+        element.center.y *= 1080;
+        element.boundingBox.x1 *= 1920;
+        element.boundingBox.y1 *= 1080;
+        element.boundingBox.x2 *= 1920;
+        element.boundingBox.y2 *= 1080;
+        newDetectionResult.push(element);
+      }
+  
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+  
+      const Coordinates = z.object({
+        x1: z.number(),
+        y1: z.number(),
+        x2: z.number(),
+        y2: z.number(),
+      });
+  
+  
+  
+      console.log("trying to detect the element");
+      const completion = await openai.beta.chat.completions.parse({
+        model: "gpt-4o-2024-08-06",
+        messages: [
+          {
+            role: "system", content: `
+  The user will provide you a list of elements along with their center and bounding box. 
+  Finally, He will give you the cursor position.
+  Your job is to return the bounding box of the element that is under the cursor.
+          ` },
+          {
+            role: "user", content: `
+          Here is the list of elements:
+          ${JSON.stringify(newDetectionResult)}
+  
+          Here is the cursor position:
+          ${JSON.stringify({ x: scaledX, y: scaledY })}
+          ` },
+        ],
+        response_format: zodResponseFormat(Coordinates, "coordinates"),
+      });
+      const box = completion.choices[0].message.parsed;
+      console.log("box : ", box);;
+  
+  
+      // Calculate crop area based on the bounding box returned by OpenAI
+      if (box) {
+        const cropWidth = Math.round(box.x2 - box.x1);
+        const cropHeight = Math.round(box.y2 - box.y1);
+  
+  
+        // Ensure crop bounds are within image boundaries
+        const cropX = Math.round(Math.max(0, Math.min(1920, box.x1)));
+        const cropY = Math.round(Math.max(0, Math.min(1080, box.y1)));
+  
+        // Crop the element from the original screenshot
+        await sharp(screenshot)
+          .extract({
+            left: cropX,
+            top: cropY,
+            width: cropWidth,
+            height: cropHeight,
+          })
+          .toFile(accuratePath);
+  
+        console.log(`Element under cursor saved to: ${accuratePath}`);
+      }
+    } catch (error) {
+      console.log("Error in gradio-result: ", error);
+    }
+  });
+
   // Initialize global event listener
   uIOhook.on('mousedown', async (e: UiohookMouseEvent) => {
     // Only process clicks if recording is active and we have a screenshot
@@ -435,6 +534,8 @@ export function initializeActionWindow() {
       if (!fs.existsSync(cropped_images_dir)) {
         fs.mkdirSync(cropped_images_dir, { recursive: true });
       }
+
+      const accuratePath = path.join(cropped_images_dir, `accurate-${timestamp}.png`);
       const cropPath = path.join(cropped_images_dir, `cropped-${timestamp}.png`);
       const originalPath = path.join(cropped_images_dir, `original-${timestamp}.png`);
 
@@ -452,10 +553,10 @@ export function initializeActionWindow() {
         .toBuffer()
         .then(async buffer => {
           // Write the bordered image
-          await fs.promises.writeFile(originalPath, buffer);
+          // await fs.promises.writeFile(originalPath, buffer);
 
           // Then crop from the bordered image
-          await sharp(originalPath)
+          await sharp(buffer)
             .extract({
               left: cropX,
               top: cropY,
@@ -464,7 +565,16 @@ export function initializeActionWindow() {
             })
             .toFile(cropPath);
         });
-
+      
+      const mainWindow = getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        mainWindow.webContents.send('process-click', {
+          screenshot: originalPath,
+          cursorPos,
+          bounds,
+          accuratePath
+        });
+      }
       console.log(`Click area saved to: ${cropPath}`);
       console.log(`Original screenshot saved to: ${originalPath}`);
 
@@ -487,6 +597,7 @@ export function initializeActionWindow() {
         function_call: clickType,
         description: `perform a ${clickType} here`,
         filepath: cropPath,
+        accuratePath: accuratePath,
         payload: '',
         timeSinceLastAction: timeSinceLastClick,
       });

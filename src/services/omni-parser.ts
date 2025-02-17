@@ -27,18 +27,41 @@ interface ParsedDetectionResult {
 export class OmniParser {
   private client: Client | null = null;
   private readonly endpoint = 'http://34.199.128.33:7861/';
+  private lastRequestTime: number = 0;
+  private readonly minRequestInterval = 200;
+  private processing: boolean = false;
+  private activeRequests: number = 0;  // Counter for active requests
+
+  private async waitForNextRequest(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+    }
+    this.lastRequestTime = Date.now();
+  }
+
+  public isProcessing(): boolean {
+    return this.activeRequests > 0;  // Return true if there are any active requests
+  }
+
+  public getActiveRequestCount(): number {
+    return this.activeRequests;  // Method to get current number of active requests
+  }
 
   private parseElementsList(description: string): Element[] {
     const lines = description.split('\n');
     return lines
       .map(line => {
         // Match the pattern: type: text, content: X, interactivity: Y, center: (0.05, 0.02), box: (0.02, 0.01, 0.08, 0.03)
+        // console.log("line", line)
         const typeMatch = line.match(/type: ([^,]+),/);
         const contentMatch = line.match(/content: ([^,]+),/);
         const interactivityMatch = line.match(/interactivity: ([^,]+),/);
         const centerMatch = line.match(/center: \(([^,]+), ([^)]+)\)/);
+        const boundingBoxMatch = line.match(/bbox: \(([^,]+), ([^,)]+), ([^,]+), ([^)]+)\)/);
 
-        if (!typeMatch || !contentMatch || !interactivityMatch || !centerMatch) {
+        if (!typeMatch || !contentMatch || !interactivityMatch || !centerMatch || !boundingBoxMatch) {
           console.log('Failed to parse line:', line);
           return null;
         }
@@ -52,12 +75,12 @@ export class OmniParser {
             y: parseFloat(centerMatch[2]),
           },
           boundingBox: {
-            x1: parseFloat(centerMatch[1]) - 0.02,
-            y1: parseFloat(centerMatch[2]) - 0.02,
-            x2: parseFloat(centerMatch[1]) + 0.02,
-            y2: parseFloat(centerMatch[2]) + 0.02,
-          },
-        };
+            x1: parseFloat(boundingBoxMatch[1]),
+            y1: parseFloat(boundingBoxMatch[2]),
+            x2: parseFloat(boundingBoxMatch[3]),
+            y2: parseFloat(boundingBoxMatch[4]),
+          }
+        }
 
         return element;
       })
@@ -80,38 +103,59 @@ export class OmniParser {
   }
 
   async detectElements(imageBlob: Blob): Promise<ParsedDetectionResult> {
-    console.log('OmniParser: Starting element detection...');
-    console.log('OmniParser: Image blob size:', imageBlob.size, 'bytes');
-    console.log('OmniParser: Image blob type:', imageBlob.type);
-
-    if (!this.client) {
-      console.log('OmniParser: Client not initialized, initializing now...');
-      await this.initialize();
-    }
-
+    this.activeRequests++;  // Increment counter at start of request
     try {
-      console.log('OmniParser: Sending prediction request to endpoint...');
-      const result = (await this.client!.predict('/process', {
-        image_input: imageBlob,
-        box_threshold: 0.01,
-        iou_threshold: 0.01,
-        use_paddleocr: true,
-        imgsz: 3200,
-        icon_process_batch_size: 256,
-      })) as DetectionResult;
+      await this.waitForNextRequest();
+      console.log('OmniParser: Starting element detection... Active requests:', this.activeRequests);
+      console.log('OmniParser: Image blob size:', imageBlob.size, 'bytes');
+      console.log('OmniParser: Image blob type:', imageBlob.type);
 
-      console.log('OmniParser: Received response from endpoint');
+      if (!this.client) {
+        console.log('OmniParser: Client not initialized, initializing now...');
+        await this.initialize();
+      }
 
-      // Parse the elements list into structured data
-      const elements = this.parseElementsList(result.data[1]);
-      console.log('OmniParser: Parsed elements:', elements);
-      // console.log('OmniParser: Parsed elements:', elements);
-      return {
-        data: [result.data[0], elements],
-      };
-    } catch (error) {
-      console.error('OmniParser: Error during element detection:', error);
-      throw error;
+      try {
+        // Check server availability first
+        try {
+          const response = await fetch(this.endpoint);
+          if (!response.ok) {
+            throw new Error(`Server returned status ${response.status}`);
+          }
+        } catch (error) {
+          throw new Error(`Failed to connect to server at ${this.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+
+        console.log('OmniParser: Sending prediction request to endpoint...');
+        const result = (await this.client!.predict('/process', {
+          image_input: imageBlob,
+          box_threshold: 0.1,
+          iou_threshold: 1,
+          use_paddleocr: false,
+          imgsz: 3200,
+          icon_process_batch_size: 256,
+        })) as DetectionResult;
+
+        if (!result || !result.data) {
+          throw new Error('Invalid response format from server');
+        }
+
+        console.log('OmniParser: Received response from endpoint');
+        console.log('OmniParser: Raw response:', result);
+
+        // Parse the elements list into structured data
+        const elements = this.parseElementsList(result.data[1]);
+        console.log('OmniParser: Parsed elements:', elements);
+        return {
+          data: [result.data[0], elements],
+        };
+      } catch (error) {
+        console.error('OmniParser: Error during element detection:', error);
+        throw error;
+      }
+    } finally {
+      this.activeRequests--;  // Decrement counter when request completes (success or failure)
+      console.log('OmniParser: Request completed. Remaining active requests:', this.activeRequests);
     }
   }
 

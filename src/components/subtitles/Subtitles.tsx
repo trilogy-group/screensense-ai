@@ -6,6 +6,7 @@ import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
 import { trackEvent } from '../../shared/analytics';
 const { ipcRenderer } = window.require('electron');
+import { omniParser } from '../../services/omni-parser';
 
 interface SubtitlesProps {
   tools: Tool[];
@@ -24,7 +25,36 @@ function SubtitlesComponent({
 }: SubtitlesProps) {
   const [subtitles, setSubtitles] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
+  useEffect(() => {
+    const processClick = async (event: any, data: any) => {
+      try {
+        const { screenshot, cursorPos, accuratePath } = data;
 
+        // Convert screenshot to blob
+
+        const response = await fetch(screenshot);
+        const blob = await response.blob();
+        console.log("conversion to blob successful")
+        // Process with Gradio
+        const detectionResult = await omniParser.detectElements(blob);
+
+        ipcRenderer.send('gradio-result', { success: true, detectionResult: detectionResult.data[1] }, cursorPos, screenshot, accuratePath);
+
+      } catch (error) {
+        console.error('Error processing click in renderer:', error);
+        ipcRenderer.send('gradio-result', {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    };
+
+    ipcRenderer.on('process-click', processClick);
+
+    return () => {
+      ipcRenderer.removeListener('process-click', processClick);
+    };
+  }, []);
   useEffect(() => {
     setConfig({
       model: 'models/gemini-2.0-flash-exp',
@@ -42,12 +72,20 @@ function SubtitlesComponent({
   }, [setConfig, systemInstruction, tools, assistantMode]);
 
   useEffect(() => {
-    async function get_opencv_coordinates(path: string, screenshot: any) {
+    async function get_opencv_coordinates(path: string, screenshot: any, type: string) {
       if (screenshot) {
         try {
           // Use opencv service to find template directly with base64 image
           const templatePath = path;
-          const result = await opencvService.findTemplate(screenshot, templatePath);
+          let result;
+          if(type === "b&w") {
+            result = await opencvService.findTemplate(screenshot, templatePath);
+          } else if (type === "color") {
+            result = await opencvService.findTemplateColor(screenshot, templatePath);
+          } else if (type === "canny") {
+            result = await opencvService.findTemplateCanny(screenshot, templatePath);
+          }
+          // const result = await opencvORBService.findTemplate(screenshot, templatePath);
 
           if (result) {
             console.log('Template found at:', result.location);
@@ -55,8 +93,8 @@ function SubtitlesComponent({
             return {
               x: result.location.x - 100,
               y: result.location.y - 100,
-              confidence: result.confidence,
-            };
+              confidence: result.confidence
+            }
           } else {
             console.log('Template not found in the image');
           }
@@ -143,58 +181,105 @@ function SubtitlesComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          case 'run_action':
-            // const actionData_opencv = await ipcRenderer.invoke('perform-action', (fc.args as any).name)
-            const actionData_opencv = await ipcRenderer.invoke('perform-action', 'action');
-            if (actionData_opencv) {
-              ipcRenderer.send('show-action');
-              for (const action of actionData_opencv) {
-                ipcRenderer.send('update-action', {
-                  imagePath: action.filepath,
-                  text: action.function_call,
-                });
-                await new Promise(resolve =>
-                  setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 2000))
-                );
-                const templatePath = action.filepath.replace(/\\/g, '/');
-                console.log(templatePath);
-                if (onScreenshot) {
-                  ipcRenderer.send('hide-action');
-                  // Add delay to ensure window is hidden
-                  await new Promise(resolve => setTimeout(resolve, 200));
-                  const screenshot = await ipcRenderer.invoke('get-screenshot');
-                  ipcRenderer.send('show-action');
-                  ipcRenderer.send('update-action', {
-                    imagePath: action.filepath,
-                    text: action.function_call,
-                  });
-                  const cords = await get_opencv_coordinates(templatePath, screenshot);
+          case "opencv_perform_action":
+          case "run_action":
+            // Check if OmniParser is busy
+            if (omniParser.isProcessing()) {
+              const activeCount = omniParser.getActiveRequestCount();
+              client.send([{ text: `Say : "Action recording is in progress. Please wait for it to complete to perform the action."` }]);
+            }
 
-                  if (cords) {
-                    console.log(cords.confidence);
-                    if (cords.confidence < 0.5) {
-                      client.send([
-                        {
-                          text: "Say the following sentence : 'I am not able to find the element on your screen. Please perform the current action youself and when you are done, tell me to continue the action'. When user asks you to continue the action, call the continue_action function.",
-                        },
-                      ]);
-                      play_action = false;
-                    }
-                    if (play_action) {
-                      await interact(cords, action.function_call, false, action.payload);
-                    }
-                  }
-                  while (!play_action) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                  }
+
+            // Wait for any pending OmniParser requests to complete
+            while (omniParser.isProcessing()) {
+              console.log(omniParser.getActiveRequestCount())
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before checking again
+            }
+            client.send([{ text: `Say : "Performing the action"` }]);
+
+            // Perform the action
+            const actionData = await ipcRenderer.invoke('perform-action', 'action')
+            if (actionData) {
+              ipcRenderer.send('show-action');
+              for (const action of actionData) {
+                let templatePath;
+                templatePath = action.filepath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
+
+                ipcRenderer.send('hide-action');
+                // Add delay to ensure window is hidden
+                await new Promise(resolve => setTimeout(resolve, 200));
+                const screenshot = await ipcRenderer.invoke('get-screenshot');
+                ipcRenderer.send('show-action');
+                let cords;
+
+
+                templatePath = action.filepath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "canny");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
+                  await interact(cords, action.function_call, false, action.payload);
+                  hasResponded = true;
+                  continue;
+                } else {
+                  console.log('failed', cords?.confidence)
+                }
+
+
+                templatePath = action.filepath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "color");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
+                  await interact(cords, action.function_call, false, action.payload);
+                  continue;
+                } else {
+                  console.log('failed', cords?.confidence)
+                }
+
+
+                templatePath = action.accuratePath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "canny");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
+                  await interact(cords, action.function_call, false, action.payload);
+                  continue;
+                } else {
+                  console.log('failed', cords?.confidence)
+                }
+
+
+                templatePath = action.accuratePath.replace(/\\/g, '/');
+                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
+                cords = await get_opencv_coordinates(templatePath, screenshot, "color");
+                if (cords && cords.confidence > 0.5) {
+                  console.log('cords', cords?.confidence)
+                  await interact(cords, action.function_call, false, action.payload);
+                  continue;
+                } else {
+                  console.log('failed', cords?.confidence)
+                }
+
+
+                client.send([{ text: "Say the following sentence : 'Search for element failed. Please perform the action yourself. When you are done, tell me to continue the action.'" }]);
+
+                play_action = false;
+                while (!play_action) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
                 }
               }
               ipcRenderer.send('hide-action');
             }
+            client.send([{ text: `Say : "Action completed."` }]);
             hasResponded = true;
             break;
-          case 'continue_action':
+          case "continue_action":
+
             play_action = true;
+            hasResponded = true;
             break;
           case 'create_template': {
             const title = (fc.args as any).title;

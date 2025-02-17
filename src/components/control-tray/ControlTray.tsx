@@ -405,6 +405,7 @@ function ControlTray({
       console.log(`[ControlTray] Going to save recordings`);
       saveRecordings(false); // Save without resetting on disconnect
       disconnect();
+      ipcRenderer.send('stop-capture-screen');
     }
   }, [connected, connect, disconnect, selectedOption.value, saveRecordings]);
 
