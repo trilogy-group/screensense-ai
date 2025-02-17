@@ -296,10 +296,9 @@ function SubtitlesComponent({
             hasResponded = true;
             client.send([
               {
-                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
+                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'Let's begin understanding your invention. I will ask you questions to understand it better.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
               },
             ]);
-            await ipcRenderer.invoke('display_patent');
             console.log(`Created template at ${result.path}`);
 
             await invokePatentAgent(
@@ -414,7 +413,7 @@ function SubtitlesComponent({
           case 'send_user_response': {
             client.send([
               {
-                text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,
+                text: `Tell the user this out loud that you will convey their message to the laywer. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,
               },
             ]);
 

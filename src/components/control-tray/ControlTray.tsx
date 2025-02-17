@@ -387,7 +387,6 @@ function ControlTray({
   }, [isRecordingSession, saveRecordings]);
 
   const handleConnect = useCallback(() => {
-    console.log('[ControlTray] Going to handle connect');
     if (!connected) {
       console.log('[ControlTray] Initiating connection...');
       setIsRecordingSession(true);
