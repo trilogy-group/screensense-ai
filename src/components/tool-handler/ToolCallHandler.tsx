@@ -9,7 +9,7 @@ import { omniParser } from '../../services/omni-parser';
 
 const { ipcRenderer } = window.require('electron');
 
-interface SubtitlesProps {
+interface ToolCallHandlerProps {
   tools: Tool[];
   systemInstruction: string;
   assistantMode: string;
@@ -18,12 +18,12 @@ interface SubtitlesProps {
 
 let play_action = true;
 // Default tool configuration
-function SubtitlesComponent({
+function ToolCallHandlerComponent({
   tools,
   systemInstruction,
   assistantMode,
   onScreenshot,
-}: SubtitlesProps) {
+}: ToolCallHandlerProps) {
   const [subtitles, setSubtitles] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
   useEffect(() => {
@@ -578,4 +578,4 @@ function SubtitlesComponent({
   return <></>;
 }
 
-export const Subtitles = memo(SubtitlesComponent);
+export const ToolCallHandler = memo(ToolCallHandlerComponent);

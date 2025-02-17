@@ -139,6 +139,7 @@ const readPatent = tool(
 const reconComplete = tool(
   async ({ summary }) => {
     console.log('🎯 [reconComplete] Called with summary length:', summary.length);
+    console.log('🎯 [reconComplete] Summary:', summary);
     try {
       // First, notify the user that recon is complete
       await ipcRenderer.send('send-gemini-message', {
@@ -277,7 +278,9 @@ Patent Extraction Process:
    - The essence of the invention
    - What makes it unique
    - Key technical achievements
-   - Any visual demonstrations shared, by passing the image path and image description
+   - For any visual demonstrations shared with you, you need to pass
+      1. The description of the image that was shared
+      2. The path to the image file. You need to always pass this so the image can be correctly embedded in the patent document.
    - The core innovative elements for the patent
 
 Tools:

@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import './App.scss';
 import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
-import { Subtitles } from './components/subtitles/Subtitles';
+import { ToolCallHandler } from './components/tool-handler/ToolCallHandler';
 import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
 import cn from 'classnames';
@@ -221,7 +221,7 @@ function App() {
 
           <main>
             <div className="main-app-area">
-              <Subtitles
+              <ToolCallHandler
                 tools={[
                   ...assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].tools,
                 ]}
