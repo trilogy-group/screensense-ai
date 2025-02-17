@@ -295,7 +295,7 @@ function ToolCallHandlerComponent({
             hasResponded = true;
             client.send([
               {
-                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'Let's begin understanding your invention. I will ask you questions to understand it better.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
+                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'Let's begin understanding your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
               },
             ]);
             console.log(`Created template at ${result.path}`);
@@ -478,7 +478,7 @@ function ToolCallHandlerComponent({
                   });
                   client.send([
                     {
-                      text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.`,
+                      text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image.`,
                     },
                   ]);
                   await sendImageToPatentAgent(result.path, description, isCodeOrDiagram);
