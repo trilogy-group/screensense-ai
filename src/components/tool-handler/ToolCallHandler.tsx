@@ -9,7 +9,7 @@ import { omniParser } from '../../services/omni-parser';
 
 const { ipcRenderer } = window.require('electron');
 
-interface SubtitlesProps {
+interface ToolCallHandlerProps {
   tools: Tool[];
   systemInstruction: string;
   assistantMode: string;
@@ -18,12 +18,12 @@ interface SubtitlesProps {
 
 let play_action = true;
 // Default tool configuration
-function SubtitlesComponent({
+function ToolCallHandlerComponent({
   tools,
   systemInstruction,
   assistantMode,
   onScreenshot,
-}: SubtitlesProps) {
+}: ToolCallHandlerProps) {
   const [subtitles, setSubtitles] = useState<string>('');
   const { client, setConfig } = useLiveAPIContext();
   useEffect(() => {
@@ -186,7 +186,6 @@ function SubtitlesComponent({
           case "run_action":
             // Check if OmniParser is busy
             if (omniParser.isProcessing()) {
-              const activeCount = omniParser.getActiveRequestCount();
               client.send([{ text: `Say : "Action recording is in progress. Please wait for it to complete to perform the action."` }]);
             }
 
@@ -296,10 +295,9 @@ function SubtitlesComponent({
             hasResponded = true;
             client.send([
               {
-                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'I've created a new patent document for "${title}". I will now ask you questions to help document your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
+                text: `Template is created, and the lawyer has been notified. Tell the user out loud: 'Let's begin understanding your invention.'. Do NOT invoke any other tool until the lawyer asks you questions.`,
               },
             ]);
-            await ipcRenderer.invoke('display_patent');
             console.log(`Created template at ${result.path}`);
 
             await invokePatentAgent(
@@ -414,7 +412,7 @@ function SubtitlesComponent({
           case 'send_user_response': {
             client.send([
               {
-                text: `Tell the user this out loud: 'Give me a few seconds, I will add the content to the document.'. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,
+                text: `Tell the user this out loud that you will convey their message to the laywer. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,
               },
             ]);
 
@@ -480,7 +478,7 @@ function SubtitlesComponent({
                   });
                   client.send([
                     {
-                      text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image and will add it to the patent document.`,
+                      text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image.`,
                     },
                   ]);
                   await sendImageToPatentAgent(result.path, description, isCodeOrDiagram);
@@ -580,4 +578,4 @@ function SubtitlesComponent({
   return <></>;
 }
 
-export const Subtitles = memo(SubtitlesComponent);
+export const ToolCallHandler = memo(ToolCallHandlerComponent);

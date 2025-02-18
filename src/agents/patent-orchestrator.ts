@@ -36,12 +36,12 @@ const askNextQuestion = tool(
   },
   {
     name: 'ask_next_question',
-    description: 'Asks the user the next question to fill the patent document.',
+    description: 'Asks the user a single question to fill the patent document.',
     schema: z.object({
       reason: z
         .string()
         .describe('Explanation of why you think the question is required to be asked to the user'),
-      question: z.string().describe('The question to ask the user'),
+      question: z.string().describe('The single question to ask the user'),
     }),
     returnDirect: true,
   }
@@ -136,8 +136,52 @@ const readPatent = tool(
   }
 );
 
+const reconComplete = tool(
+  async ({ summary }) => {
+    console.log('🎯 [reconComplete] Called with summary length:', summary.length);
+    console.log('🎯 [reconComplete] Summary:', summary);
+    try {
+      // First, notify the user that recon is complete
+      await ipcRenderer.send('send-gemini-message', {
+        message:
+          'The initial discovery phase is complete. I will now start documenting what we have discussed.',
+      });
+
+      await ipcRenderer.invoke('display_patent');
+
+      // Then add the gathered information as background context
+      await ipcRenderer.invoke('add_content', {
+        content: summary,
+        section: 'Background',
+      });
+
+      return {
+        success: true,
+        message:
+          'Recon phase completed and initial documentation added. Proceeding to detailed documentation phase.',
+      };
+    } catch (error) {
+      console.error('❌ [reconComplete] Error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error completing recon phase',
+      };
+    }
+  },
+  {
+    name: 'recon_complete',
+    description:
+      'Marks the completion of the reconnaissance phase and adds gathered information as background context.',
+    schema: z.object({
+      summary: z
+        .string()
+        .describe('A comprehensive summary of the innovation discovered during the recon phase'),
+    }),
+  }
+);
+
 // Define all tools available to the agent
-const tools = [askNextQuestion, addContent, readPatent, replyToUser];
+const tools = [askNextQuestion, addContent, readPatent, replyToUser, reconComplete];
 
 // Initialize the model
 console.log('🤖 Initializing Claude model');
@@ -205,41 +249,44 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
     const isNewThread = !currentThreadId;
     if (!currentThreadId) {
       currentThreadId = `patent_${Date.now()}`;
-      //   console.log('🆕 [invokePatentAgent] Creating new thread:', currentThreadId);
+      console.log('🆕 [invokePatentAgent] Creating new thread:', currentThreadId);
     } else {
       //   console.log('🔄 [invokePatentAgent] Continuing thread:', currentThreadId);
     }
 
     const systemMessage = {
       role: 'system',
-      content: `You are an expert patent documentation assistant. Your role is to help users document their inventions through a structured conversation.
-Key Responsibilities:
-1. Guide users through documenting their invention step by step
-2. Ask relevant follow-up questions to gather complete information
-3. Ensure all critical aspects of the invention are documented
-4. Maintain a professional and thorough approach
-Process:
-1. You can make use of the read_patent tool to read the current patent document, and a checklist of what all information is required to be documented
-2. Use ask_next_question to ask the user the next question to fill the patent document, and then wait for the user's response. This will be sent as a new message to you.
-   - Make sure to add one question at a time, so as not to overwhelm the user.
-   - The question should have just one part, and must not be very long.
-3. Once the user responds to the question, use add_content to add the user's response to the patent document
-   - You must make sure to call the add_content tool every single time you receive information from the user.
-   - Make sure to use language that is appropriate for a patent document. Be thorough and detailed, but do not make up any information. You are allowed to rephrase the user's response to make it more patent-friendly, but do not add any new information.
-   - If the content includes an image with the path, pass on the image description and path to the add_content tool
-   - If you are making changes to an existing section, you can simply mention what is new or what needs to be added, not the entire section again
-   - If the user has requested a particular change in the formatting or structure, you can simply call add_content with the correct section, and in the content field pass in the user's instructions in the format 'The user has asked to ...'
-   - If the answer does not completely answer your question, first add whatever the user said to the document, and then ask further clarifying or folllow up questions.
-   - Based on the user's answers, you can ask other questions that are not necessarily included in the checklist.
-4. After adding the content, determine the next question to ask the user, or if you feel all the information has been gathered, use the reply_to_user tool to tell the user that the document is complete.
-5. If at any point the user asks you a question, you can reply with the reply_to_user tool.
-Remember:
-- Be thorough but efficient in gathering information
-- Never make up information - only use what the user provides, as making up information could create an invalid patent document
-- Ask clarifying questions when responses are unclear
-- Help users articulate technical details clearly
-- Ensure all critical patent sections are completed
-- Guide users to provide sufficient detail for each section`,
+      content: `You are an expert innovation discovery and patent documentation assistant. Your ultimate goal is to deeply understand the developer's invention so you can extract and document every unique, innovative aspect necessary for a robust patent application.
+
+1. ONE QUESTION RULE:
+   - Ask exactly ONE question at a time.
+   - NEVER combine multiple questions (e.g., ask “How does your system work?” rather than “How does your system work and what makes it unique?”).
+   - After receiving an answer, ask follow-up questions one at a time.
+
+2. SCREEN SHARING REQUESTS:
+   - When discussing user interfaces/UX, system architecture/diagrams, workflows, technical implementations, visual design, or performance metrics/dashboards, ask: “Would you be willing to share your screen to show me what you just described?”
+
+Conversation Guidelines:
+- Let the discussion flow naturally and follow the developer’s lead.
+- Listen for hints of innovation such as problems solved, technical challenges overcome, unique approaches, unexpected use cases, performance improvements, novel technology combinations, or UX innovations.
+- Break down complex topics into individual, sequential questions.
+
+Patent Extraction Process:
+- Your objective is to gather detailed information to fully understand the invention and pinpoint every aspect that can be patented.
+- Ask probing questions to uncover the technical achievements, novel ideas, and unique implementations in their work.
+- When you’ve gathered enough information, use recon_complete to summarize and document:
+   - The essence of the invention
+   - What makes it unique
+   - Key technical achievements
+   - For any visual demonstrations shared with you, you need to pass
+      1. The description of the image that was shared
+      2. The path to the image file. You need to always pass this so the image can be correctly embedded in the patent document.
+   - The core innovative elements for the patent
+
+Tools:
+- Use ask_next_question for each focused query.
+- Use recon_complete to summarize your findings when the conversation is complete.
+- Use reply_to_user to maintain conversational flow.`,
     };
 
     const userMsg = {
@@ -338,9 +385,9 @@ export async function sendImageToPatentAgent(
               : 'image/png';
 
     // Create message with both text and image
-    let prompt = ""
-    if(isCodeOrDiagram){
-      prompt =`The user has provided you with a screenshot containing a piece of code or a diagram.
+    let prompt = '';
+    if (isCodeOrDiagram) {
+      prompt = `The user has provided you with a screenshot containing a piece of code or a diagram.
 Follow these guidelines:
 - Clearly explain the purpose and function of the code or diagram.
 - Use formal patent language, avoiding unnecessary ambiguity.
@@ -348,13 +395,12 @@ Follow these guidelines:
 - If the image contains code, provide a high-level functional description, explaining the logic, interactions, and any novel aspects.
 - Identify and highlight any inventive steps or unique aspects that differentiate this from prior art.
 - Format the response as a well-written patent application section, including potential claims if applicable.
-The image is located at: ${imagePath} and you need to add it to the patent document along with the necessary textual content.` 
-    }
-    else{
+The image is located at: ${imagePath}`;
+    } else {
       prompt = `The user shared a screenshot of their invention.
 The description of the screenshot is: ${description}
 It is located at: ${imagePath}
-Analyze the image and the description, and then insert the image and any relevant information into the patent document.`
+Analyze the image and the description.`;
     }
 
     const userMsg = {
