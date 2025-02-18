@@ -597,23 +597,30 @@ function ToolCallHandlerComponent({
           }
 
           case 'end_kb_session': {
-            const result = await ipcRenderer.invoke('end_kb_session');
-            stopObservationTimer();
-            setIsKBSessionActive(false);
+            client.send([
+              {
+                text: `Session ended. Tell the user out loud that you will display the document for them to review, and ask for a few seconds to prepare it.`,
+              },
+            ]);
             client.sendToolResponse({
               functionResponses: [
                 {
-                  response: { output: result },
+                  response: { output: { success: true } },
                   id: fc.id,
                 },
               ],
             });
+            const result = await ipcRenderer.invoke('end_kb_session');
+            stopObservationTimer();
+            setIsKBSessionActive(false);
             if (result.success) {
               client.send([
                 {
-                  text: `Session ended. The knowledge base document has been saved at ${result.path} and a PDF version is available at ${result.pdfPath}`,
+                  text: `Session ended. The knowledge base document has been saved at ${result.path}. Tell the user out loud that they can find the pdf version of the document at ${result.pdfPath}.`,
                 },
               ]);
+            } else {
+              client.send([{ text: `Failed to save knowledge base document: ${result.error}` }]);
             }
             hasResponded = true;
             break;

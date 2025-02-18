@@ -5,6 +5,7 @@ import { mdToPdf } from 'md-to-pdf';
 import * as path from 'path';
 import { logToFile } from './logger';
 import { createMarkdownPreviewWindow } from '../windows/MarkdownPreviewWindow';
+import { OpenAI } from 'openai';
 
 interface KBEntry {
   timestamp: number;
@@ -34,7 +35,7 @@ function getSessionStorePath() {
   return path.join(app.getPath('userData'), 'kb-session-store.json');
 }
 
-export function loadSession() {
+function loadSession() {
   const storePath = getSessionStorePath();
   try {
     if (fs.existsSync(storePath)) {
@@ -54,7 +55,7 @@ export function loadSession() {
   return currentKBSession;
 }
 
-export function getCurrentSession(): KBSession {
+function getCurrentSession(): KBSession {
   if (!currentKBSession) {
     loadSession();
     if (!currentKBSession) {
@@ -81,7 +82,7 @@ function updateSessionModified() {
   }
 }
 
-export function createKBSession(goal: string): KBSession {
+function createKBSession(goal: string): KBSession {
   const sessionId = randomUUID();
   const kbDir = getKBDir(sessionId);
   const now = new Date();
@@ -107,7 +108,7 @@ export function createKBSession(goal: string): KBSession {
   return currentKBSession;
 }
 
-export async function addEntry(content: string) {
+async function addEntry(content: string) {
   try {
     const session = getCurrentSession();
     const entry: KBEntry = {
@@ -133,7 +134,7 @@ export async function addEntry(content: string) {
   }
 }
 
-export async function saveKBScreenshot(screenshot: string, description: string) {
+async function saveKBScreenshot(screenshot: string, description: string) {
   try {
     const session = getCurrentSession();
     if (!session) {
@@ -169,7 +170,100 @@ export async function saveKBScreenshot(screenshot: string, description: string) 
   }
 }
 
-export async function endKBSession() {
+async function structureKBSession() {
+  const session = getCurrentSession();
+  if (!session) {
+    return { success: false, error: 'No active KB session' };
+  }
+
+  const mdPath = path.join(session.path, 'notes.md');
+  const content = fs.readFileSync(mdPath, 'utf8');
+
+  // Create a structured runbook path
+  const runbookPath = path.join(session.path, 'runbook.md');
+
+  // Template for the runbook
+  const runbookTemplate = `# Troubleshooting Runbook
+
+## Condition
+[Describe the specific condition or scenario that triggers this issue]
+
+## Symptoms
+[List observable symptoms that indicate this issue]
+
+## Actions
+[Step-by-step troubleshooting actions]
+
+## Investigation Steps
+[Detailed steps taken during investigation]
+
+## Output/Resolution
+[Expected outputs and resolution paths]
+- If third-party issue:
+  - Document error details
+  - Redirect to appropriate business unit
+- If internal issue:
+  - Document failure specifics
+  - Steps for reproduction in QA
+
+## Related Logs/Screenshots
+[References to relevant logs and screenshots]
+
+## Notes
+[Additional context and important observations]
+`;
+
+  // Create a prompt for OpenAI
+  const prompt = `You are an expert at creating technical runbooks and troubleshooting guides.
+Your task is to create a structured runbook from a knowledge base session.
+
+<instructions>
+- Your language must be clear, concise, and suitable for a technical audience
+- You must structure the content according to the template provided
+- Include relevant screenshots and logs from the session in appropriate sections
+- Focus on creating actionable troubleshooting steps
+- Maintain all image references from the original content
+- Be specific about resolution paths for both third-party and internal issues
+</instructions>
+
+<template>
+${runbookTemplate}
+</template>
+
+<session_content>
+${content}
+</session_content>
+
+<session_goal>
+${session.goal}
+</session_goal>`;
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: 'o3-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 100000,
+    });
+
+    const structuredContent = response.choices[0].message.content!!;
+
+    // Write the structured content to the runbook file
+    fs.writeFileSync(runbookPath, structuredContent);
+
+    return {
+      success: true,
+      runbookPath,
+      content: structuredContent,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error structuring KB session: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+}
+
+async function endKBSession() {
   try {
     const session = getCurrentSession();
     if (!session) {
@@ -181,10 +275,18 @@ export async function endKBSession() {
     const endTime = new Date().toLocaleString();
     fs.appendFileSync(mdPath, `\n\n---\nSession ended at ${endTime}\n`);
 
-    // Generate PDF version
+    // First, create the structured runbook
+    const structuredResult = await structureKBSession();
+    if (!structuredResult.success || !structuredResult.runbookPath || !structuredResult.content) {
+      throw new Error(
+        `Failed to create structured runbook: ${structuredResult.error || 'Missing required data'}`
+      );
+    }
+
+    // Generate PDF version of the structured runbook
     const pdfPath = path.join(session.path, 'kb-session.pdf');
     await mdToPdf(
-      { path: mdPath },
+      { path: structuredResult.runbookPath },
       {
         dest: pdfPath,
         basedir: session.path,
@@ -203,8 +305,12 @@ export async function endKBSession() {
       }
     );
 
-    // Open markdown preview window
-    await createMarkdownPreviewWindow(mdPath);
+    // Open markdown preview window with the structured runbook
+    await createMarkdownPreviewWindow(structuredResult.runbookPath);
+    ipcMain.emit('send-markdown-content', {
+      content: structuredResult.content,
+      basePath: session.path,
+    });
 
     // Clear current session
     currentKBSession = null;
@@ -214,6 +320,7 @@ export async function endKBSession() {
       success: true,
       path: session.path,
       pdfPath,
+      runbookPath: structuredResult.runbookPath,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
