@@ -6,6 +6,7 @@ import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain } from 'electro
 import * as fs from 'fs';
 import * as path from 'path';
 import { initializeContext } from '../src/utils/context-utils';
+import { initializeKBHandlers } from '../src/utils/kb-utils';
 import { logToFile } from '../src/utils/logger';
 import { loadSession } from '../src/utils/patent-utils';
 import { initializeActionWindow } from '../src/windows/ActionWindow';
@@ -69,6 +70,7 @@ async function initializeApp() {
   initializeMarkdownPreviewWindow();
   initializeActionWindow();
   initializeContext();
+  initializeKBHandlers();
 
   // Create windows
   await createMainWindow();

@@ -106,7 +106,7 @@ export const patentGeneratorTools: Tool[] = [
         description: 'Opens the markdown file for the user to view',
       },
       {
-        name: 'capture_screenshot',
+        name: 'capture_patent_screenshot',
         description: 'Captures a screenshot and saves it to the patent assets folder',
         parameters: {
           type: SchemaType.OBJECT,
@@ -115,10 +115,10 @@ export const patentGeneratorTools: Tool[] = [
               type: SchemaType.STRING,
               description: 'A brief description of what the screenshot shows',
             },
-            isCodeOrDiagram : {
+            isCodeOrDiagram: {
               type: SchemaType.BOOLEAN,
               description: 'Whether the screenshot is a code or a diagram',
-            }
+            },
           },
           required: ['description'],
         },
@@ -136,6 +136,59 @@ export const patentGeneratorTools: Tool[] = [
             },
           },
           required: ['message'],
+        },
+      },
+    ],
+  },
+];
+
+export const knowledgeBaseTools: Tool[] = [
+  {
+    functionDeclarations: [
+      {
+        name: 'start_kb_session',
+        description: 'Creates a new knowledge base capture session',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            goal: {
+              type: SchemaType.STRING,
+              description: 'The goal or purpose of this knowledge capture session',
+            },
+          },
+          required: ['goal'],
+        },
+      },
+      {
+        name: 'end_kb_session',
+        description: 'Ends the knowledge base capture session and generates the final document',
+      },
+      {
+        name: 'add_entry',
+        description: 'Adds an entry to the knowledge base',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            content: {
+              type: SchemaType.STRING,
+              description: 'A summary of what happened since the last entry',
+            },
+          },
+          required: ['content'],
+        },
+      },
+      {
+        name: 'capture_kb_screenshot',
+        description: 'Captures a screenshot and saves it to the knowledge base',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            description: {
+              type: SchemaType.STRING,
+              description: 'A description of what the screenshot shows and why it is important',
+            },
+          },
+          required: ['description'],
         },
       },
     ],
@@ -238,9 +291,9 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
    - Help explain legal terms when needed
 
 3. Handling Visual Documentation:
-   - Use capture_screenshot for visual demonstrations
+   - Use capture_patent_screenshot for visual demonstrations
    - Send screenshot paths to lawyer via send_user_response
-   - If the user is sharing their screen and shows something important, you must capture a screenshot and send it to the lawyer using the capture_screenshot tool.
+   - If the user is sharing their screen and shows something important, you must capture a screenshot and send it to the lawyer using the capture_patent_screenshot tool.
 
 4. Document Review:
    - Show current draft with display_patent
@@ -248,7 +301,7 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
 
 Key Points:
 - If introducing yourself, state you're ScreenSense AI in Patent Generator Mode, and ask the user to provide the title of the invention to get started.
-- Always relay all user responses/visuals to lawyer using the send_user_response or capture_screenshot tools
+- Always relay all user responses/visuals to lawyer using the send_user_response or capture_patent_screenshot tools
 - Do not call any tool more than once with the same arguments. Wait for the tool to complete before calling it again.`,
   },
   insight_generator: {
@@ -346,6 +399,29 @@ When the user asks you to continue the action, you must call the continue_action
 
 Give a confirmation message to the user after every message.
     `,
+  },
+  knowledge_base: {
+    display_name: 'Knowledge Curator',
+    tools: [...knowledgeBaseTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI in Knowledge Curator Mode. Your sole role is to observe silently and document only when explicitly requested.
+
+- **Session Start:**  
+  Wait for the user's goal, then initialize with start_kb_session.
+
+- **Silence & Non-Interference:**  
+  Remain completely silent—do not comment, describe, or suggest—unless directly asked.
+
+- **Documentation:**  
+  When asked "what happened since last time?", provide a concise summary of verified events (e.g., user actions, significant UI changes, errors, spoken words, or explicitly shown screen content). If there's nothing noteworthy, simply respond "No significant events to report." Reset your observations after each report using the add_entry tool.
+
+- **Screenshots:**  
+  Capture screenshots for critical errors, or at key final states using the capture_kb_screenshot tool. Do not capture routine or ambiguous changes. Do so without the user explicitly asking for it.
+
+- **Session End:**  
+  If the user asks you to end the session, first call the add_entry tool to add anything new since the last entry. Then call the end_kb_session tool to end the session.
+
+Your mission: Be an invisible observer, reporting only when explicitly asked.    `,
   },
 } as const;
 

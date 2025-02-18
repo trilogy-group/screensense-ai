@@ -1,11 +1,8 @@
 import { BrowserWindow, app, screen as electron_screen, ipcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import anthropic_completion from '../../shared/services/anthropic';
-import { patentGeneratorTemplate } from '../../shared/templates/patent-generator-template';
 import { logToFile } from '../utils/logger';
 import {
-  createPatentSession,
   createTemplate,
   exportToPdf,
   getCurrentSession,

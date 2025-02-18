@@ -1,5 +1,5 @@
 import { type Tool } from '@google/generative-ai';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useRef, useCallback } from 'react';
 import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
@@ -25,7 +25,41 @@ function ToolCallHandlerComponent({
   onScreenshot,
 }: ToolCallHandlerProps) {
   const [subtitles, setSubtitles] = useState<string>('');
-  const { client, setConfig } = useLiveAPIContext();
+  const { client, setConfig, connected } = useLiveAPIContext();
+  const [isKBSessionActive, setIsKBSessionActive] = useState(false);
+  const observationTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Function to start the observation timer
+  const startObservationTimer = useCallback(() => {
+    if (observationTimerRef.current) {
+      clearInterval(observationTimerRef.current);
+    }
+    if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
+      observationTimerRef.current = setInterval(() => {
+        console.log('Asking for updates')
+        client?.send([{ text: 'Use the add_entry tool to document whatever happened since the previous call to add_entry. Do not say anything out loud.' }]);
+      }, 10000);
+    }
+  }, [client, isKBSessionActive, connected, assistantMode]);
+
+  // Function to stop the observation timer
+  const stopObservationTimer = useCallback(() => {
+    if (observationTimerRef.current) {
+      clearInterval(observationTimerRef.current);
+      observationTimerRef.current = null;
+    }
+  }, []);
+
+  // Clean up timer on unmount, disconnect, or mode change
+  useEffect(() => {
+    if (!connected || assistantMode !== 'knowledge_base' || !isKBSessionActive) {
+      stopObservationTimer();
+    } else if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
+      startObservationTimer();
+    }
+    return () => stopObservationTimer();
+  }, [connected, assistantMode, isKBSessionActive, startObservationTimer, stopObservationTimer]);
+
   useEffect(() => {
     const processClick = async (event: any, data: any) => {
       try {
@@ -454,7 +488,7 @@ function ToolCallHandlerComponent({
             }
             hasResponded = true;
             break;
-          case 'capture_screenshot':
+          case 'capture_patent_screenshot':
             if (onScreenshot) {
               const screenshot = onScreenshot();
               if (screenshot) {
@@ -493,6 +527,97 @@ function ToolCallHandlerComponent({
             }
             hasResponded = true;
             break;
+          case 'start_kb_session': {
+            const goal = (fc.args as any).goal;
+            const result = await ipcRenderer.invoke('start_kb_session', goal);
+            console.log('Created kb session', JSON.stringify(result));
+            if (result.success) {
+              setIsKBSessionActive(true);
+              startObservationTimer();
+            }
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            client.send([{ text: `Session started. You will now be observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see.` }]);
+            break;
+          }
+
+          case 'add_entry': {
+            const { content } = fc.args as { content: string };
+            const result = await ipcRenderer.invoke('add_kb_entry', { content });
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
+                  id: fc.id,
+                },
+              ],
+            });
+            client.send([{ text: `Entry added to knowledge base. Send the next event when explicitly requested. Do NOT say anything out loud. Capture screenshots whenever you think it is important.` }]);
+            hasResponded = true;
+            break;
+          }
+
+          case 'capture_kb_screenshot': {
+            if (onScreenshot) {
+              const screenshot = onScreenshot();
+              if (screenshot) {
+                const description = (fc.args as any).description;
+                const result = await ipcRenderer.invoke('save_kb_screenshot', {
+                  screenshot,
+                  description,
+                });
+
+                if (result.success) {
+                  client.sendToolResponse({
+                    functionResponses: [
+                      {
+                        response: { output: result },
+                        id: fc.id,
+                      },
+                    ],
+                  });
+                } else {
+                  client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
+                }
+              } else {
+                client.send([{ text: `Failed to capture screenshot` }]);
+              }
+            } else {
+              client.send([{ text: `Screenshot functionality not available` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+
+          case 'end_kb_session': {
+            const result = await ipcRenderer.invoke('end_kb_session');
+            stopObservationTimer();
+            setIsKBSessionActive(false);
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
+                  id: fc.id,
+                },
+              ],
+            });
+            if (result.success) {
+              client.send([
+                {
+                  text: `Session ended. The knowledge base document has been saved at ${result.path} and a PDF version is available at ${result.pdfPath}`,
+                },
+              ]);
+            }
+            hasResponded = true;
+            break;
+          }
         }
         if (!hasResponded) {
           client.sendToolResponse({
@@ -512,7 +637,7 @@ function ToolCallHandlerComponent({
     return () => {
       client.off('toolcall', onToolCall);
     };
-  }, [client, onScreenshot]);
+  }, [client, onScreenshot, startObservationTimer, stopObservationTimer]);
 
   // Separate useEffect to handle IPC communication when subtitles change
   useEffect(() => {
