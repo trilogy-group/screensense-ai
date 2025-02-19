@@ -670,7 +670,7 @@ function ToolCallHandlerComponent({
             if (result.success) {
               client.send([
                 {
-                  text: `Session ended. The knowledge base document has been saved at ${result.path}.`,
+                  text: `Tell the user out loud that the document is ready for review.`,
                 },
               ]);
             } else {
