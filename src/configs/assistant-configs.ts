@@ -210,6 +210,21 @@ export const knowledgeBaseTools: Tool[] = [
           required: ['description', 'context'],
         },
       },
+      {
+        name: 'update_kb_content',
+        description: "Sends a request to update the knowledge base according to the user's request",
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            request: { type: SchemaType.STRING },
+          },
+          required: ['request'],
+        },
+      },
+      {
+        name: 'export_kb_as_pdf',
+        description: 'Exports the knowledge base as a pdf',
+      },
     ],
   },
 ];
@@ -439,7 +454,13 @@ Give a confirmation message to the user after every message.
   Capture screenshots for critical errors, or at key final states using the capture_kb_screenshot tool. Do not capture routine or ambiguous changes. Do so without the user explicitly asking for it.
 
 - **Session End:**  
-  Only when the user explicitly asks you to end the session, call the end_kb_session tool to end the session. Do not add this as an entry, but use the end_kb_session tool instead.
+  Only when the user asks you to end the session, call the end_kb_session tool to end the session. Use the end_kb_session tool instead.
+
+- **Updating Knowledge Base:**  
+  If the user asks you to update the knowledge base, you must call the update_kb_content tool. Use the update_kb_content tool instead along with the user's request.
+
+- **Exporting Knowledge Base:**  
+  If the user asks you to export the knowledge base as a pdf, you must call the export_kb_as_pdf tool.
 
 - **Introduction:**
   If the user asks you to introduce yourself, you must say that you are ScreenSense AI in Knowledge Curator Mode, and ask them for their goal for the session.

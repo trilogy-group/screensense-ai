@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto';
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 import * as fs from 'fs';
 import { mdToPdf } from 'md-to-pdf';
 import * as path from 'path';
 import { logToFile } from './logger';
 import { createMarkdownPreviewWindow } from '../windows/MarkdownPreviewWindow';
+import { sendMarkdownContent } from '../windows/MarkdownPreviewWindow';
 import { OpenAI } from 'openai';
 
 interface KBEntry {
@@ -80,6 +81,11 @@ function updateSessionModified() {
     currentKBSession.lastModified = new Date();
     saveSession();
   }
+}
+
+function getRunbookPath() {
+  const session = getCurrentSession();
+  return path.join(session.path, 'runbook.md');
 }
 
 function createKBSession(goal: string): KBSession {
@@ -180,7 +186,7 @@ async function structureKBSession() {
   const content = fs.readFileSync(mdPath, 'utf8');
 
   // Create a structured runbook path
-  const runbookPath = path.join(session.path, 'runbook.md');
+  const runbookPath = getRunbookPath();
 
   // Template for the runbook
   const runbookTemplate = `# Troubleshooting Runbook
@@ -223,6 +229,7 @@ Your task is to create a structured runbook from a knowledge base session, which
 - Include relevant screenshots and logs from the session in appropriate sections
 - Focus on creating actionable troubleshooting steps
 - Maintain all image references from the original content
+- Do not include timestamps in the runbook
 - Be specific about resolution paths for both third-party and internal issues
 - If there are certain user actions that are not relevant to the goal of the session, you can ignore them.
 - If there are no screenshots, do not create a section for them.
@@ -285,10 +292,35 @@ async function endKBSession() {
       );
     }
 
-    // Generate PDF version of the structured runbook
+    // Open markdown preview window with the structured runbook
+    await createMarkdownPreviewWindow(structuredResult.runbookPath);
+    ipcMain.emit('send-markdown-content', {
+      content: structuredResult.content,
+      basePath: session.path,
+    });
+
+    return {
+      success: true,
+      path: session.path,
+      runbookPath: structuredResult.runbookPath,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error ending KB session: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+}
+
+async function exportKbAsPdf() {
+  try {
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active KB session' };
+    }
+
     const pdfPath = path.join(session.path, 'kb-session.pdf');
     await mdToPdf(
-      { path: structuredResult.runbookPath },
+      { path: getRunbookPath() },
       {
         dest: pdfPath,
         basedir: session.path,
@@ -307,26 +339,65 @@ async function endKBSession() {
       }
     );
 
-    // Open markdown preview window with the structured runbook
-    await createMarkdownPreviewWindow(structuredResult.runbookPath);
-    ipcMain.emit('send-markdown-content', {
-      content: structuredResult.content,
-      basePath: session.path,
-    });
+    // Open the PDF file with the system's default PDF viewer
+    await shell.openPath(pdfPath);
 
-    // Clear current session
-    currentKBSession = null;
-    fs.unlinkSync(getSessionStorePath());
-
-    return {
-      success: true,
-      path: session.path,
-      pdfPath,
-      runbookPath: structuredResult.runbookPath,
-    };
+    return { success: true, pdfPath };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logToFile(`Error ending KB session: ${errorMessage}`);
+    logToFile(`Error exporting KB as PDF: ${errorMessage}`);
+    return { success: false, error: errorMessage };
+  }
+}
+
+async function updateKbContent(request: string) {
+  try {
+    const session = getCurrentSession();
+    if (!session) {
+      return { success: false, error: 'No active KB session' };
+    }
+
+    const mdPath = getRunbookPath();
+    const content = fs.readFileSync(mdPath, 'utf8');
+
+    // Create a new content string with the updated request
+    const prompt = `You are an expert at updating technical runbooks and troubleshooting guides.
+
+<instructions>
+- You must update the content of the runbook according to the request
+- You must maintain all image references from the original content
+- You must maintain the structure of the runbook
+- Return the ENTIRE updated content in the response, not just the updated content.
+- If no changes are needed, return the original content.
+</instructions>
+
+<original_content>
+${content}
+</original_content>
+
+<request>
+${request}
+</request>`;
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: 'o3-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 100000,
+    });
+
+    const updatedContent = response.choices[0].message.content!!;
+
+    // Write the updated content to the markdown file
+    fs.writeFileSync(mdPath, updatedContent);
+
+    // Update the markdown window
+    sendMarkdownContent(updatedContent, session.path);
+
+    return { success: true, content: updatedContent };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logToFile(`Error updating KB content: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
 }
@@ -369,6 +440,26 @@ export async function initializeKBHandlers() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logToFile(`Error ending KB session: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('update_kb_content', async (event, { request }) => {
+    try {
+      return await updateKbContent(request);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error updating KB content: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('export_kb_as_pdf', async () => {
+    try {
+      return await exportKbAsPdf();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error exporting KB as PDF: ${errorMessage}`);
       return { success: false, error: errorMessage };
     }
   });

@@ -548,6 +548,15 @@ function ToolCallHandlerComponent({
             break;
           }
           case 'resume_kb_session': {
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
             client.send([{ text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Remind the user to share their screen with you. Do NOT say anything else out loud.` }]);
             setIsKBSessionActive(true);
             startObservationTimer();
@@ -601,6 +610,44 @@ function ToolCallHandlerComponent({
             hasResponded = true;
             break;
           }
+          case 'update_kb_content': {
+            const { request } = fc.args as { request: string };
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            client.send([{ text: `Tell the user that you are updating the content, and it will take a few seconds to complete.` }]);
+            const result = await ipcRenderer.invoke('update_kb_content', { request });
+            if (result.success) {
+              client.send([{ text: `Knowledge base updated. Tell the user that you have updated the content.` }]);
+            } else {
+              client.send([{ text: `Failed to update knowledge base: ${result.error}` }]);
+            }
+            break;
+          }
+          case 'export_kb_as_pdf': {
+            const result = await ipcRenderer.invoke('export_kb_as_pdf');
+            if (result.success) {
+              client.send([{ text: `Knowledge base exported to PDF. Tell the user out loud that you have exported the knowledge base to a PDF.` }]);
+            } else {
+              client.send([{ text: `Failed to export knowledge base: ${result.error}` }]);
+            }
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            break;
+          }
           case 'end_kb_session': {
             stopObservationTimer();
             setIsKBSessionActive(false);
@@ -623,7 +670,7 @@ function ToolCallHandlerComponent({
             if (result.success) {
               client.send([
                 {
-                  text: `Session ended. The knowledge base document has been saved at ${result.path}. Tell the user out loud that they can find the pdf version of the document at ${result.pdfPath}.`,
+                  text: `Session ended. The knowledge base document has been saved at ${result.path}.`,
                 },
               ]);
             } else {
