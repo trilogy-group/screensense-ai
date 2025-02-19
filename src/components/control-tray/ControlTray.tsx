@@ -259,7 +259,7 @@ function ControlTray({
           },
         ]);
       } else {
-        client.send([{ text: 'Introduce yourself.' }]);
+        // client.send([{ text: 'Introduce yourself.' }]);
       }
     }
   }, [connected, client, selectedOption.value]);

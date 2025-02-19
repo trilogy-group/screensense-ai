@@ -134,7 +134,7 @@ async function addEntry(content: string) {
   }
 }
 
-async function saveKBScreenshot(screenshot: string, description: string) {
+async function saveKBScreenshot(screenshot: string, description: string, context: string) {
   try {
     const session = getCurrentSession();
     if (!session) {
@@ -155,7 +155,7 @@ async function saveKBScreenshot(screenshot: string, description: string) {
     const time = new Date(timestamp).toLocaleTimeString();
     fs.appendFileSync(
       mdPath,
-      `\n[${time}] 📸 Screenshot: ${description}\n\n![${description}](screenshots/${filename})\n`
+      `\n[${time}] 📸 Screenshot: ${description}\n\n![${description}](screenshots/${filename})\n\n${context}\n\n`
     );
 
     updateSessionModified();
@@ -207,15 +207,15 @@ async function structureKBSession() {
   - Steps for reproduction in QA
 
 ## Related Logs/Screenshots
-[References to relevant logs and screenshots]
+[References to system logs, error logs, and relevant screenshots, if any]
 
 ## Notes
-[Additional context and important observations]
+[Additional context and important observations, if any]
 `;
 
   // Create a prompt for OpenAI
   const prompt = `You are an expert at creating technical runbooks and troubleshooting guides.
-Your task is to create a structured runbook from a knowledge base session.
+Your task is to create a structured runbook from a knowledge base session, which includes a dump of user activity and observations, including screenshots.
 
 <instructions>
 - Your language must be clear, concise, and suitable for a technical audience
@@ -224,6 +224,8 @@ Your task is to create a structured runbook from a knowledge base session.
 - Focus on creating actionable troubleshooting steps
 - Maintain all image references from the original content
 - Be specific about resolution paths for both third-party and internal issues
+- If there are certain user actions that are not relevant to the goal of the session, you can ignore them.
+- If there are no screenshots, do not create a section for them.
 </instructions>
 
 <template>
@@ -351,9 +353,9 @@ export async function initializeKBHandlers() {
     }
   });
 
-  ipcMain.handle('save_kb_screenshot', async (event, { screenshot, description }) => {
+  ipcMain.handle('save_kb_screenshot', async (event, { screenshot, description, context }) => {
     try {
-      return await saveKBScreenshot(screenshot, description);
+      return await saveKBScreenshot(screenshot, description, context);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logToFile(`Error saving KB screenshot: ${errorMessage}`);

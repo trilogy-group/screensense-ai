@@ -260,9 +260,11 @@ function App() {
                 onVideoStreamChange={setVideoStream}
                 modes={modes}
                 selectedOption={selectedOption}
-                setSelectedOption={(option: { value: string }) =>
-                  setSelectedOption(option as ModeOption)
-                }
+                setSelectedOption={(option: { value: string }) => {
+                  setSelectedOption(option as ModeOption);
+                  // Notify main process of mode change
+                  ipcRenderer.send('update-current-mode', option.value);
+                }}
               >
               </ControlTray>
             </div>

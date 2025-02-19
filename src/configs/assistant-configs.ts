@@ -162,6 +162,20 @@ export const knowledgeBaseTools: Tool[] = [
       {
         name: 'end_kb_session',
         description: 'Ends the knowledge base capture session and generates the final document',
+        parameters: {
+          type: SchemaType.OBJECT,
+          properties: {
+            content: {
+              type: SchemaType.STRING,
+              description: 'A summary of what happened since the last entry',
+            },
+          },
+          required: ['content'],
+        },
+      },
+      {
+        name: 'resume_kb_session',
+        description: 'Resumes the knowledge base capture session',
       },
       {
         name: 'add_entry',
@@ -185,10 +199,15 @@ export const knowledgeBaseTools: Tool[] = [
           properties: {
             description: {
               type: SchemaType.STRING,
-              description: 'A description of what the screenshot shows and why it is important',
+              description: 'A description of what the screenshot shows',
+            },
+            context: {
+              type: SchemaType.STRING,
+              description:
+                'A description of the context in which the screenshot is taken, explaining what is happening and why.',
             },
           },
-          required: ['description'],
+          required: ['description', 'context'],
         },
       },
     ],
@@ -420,9 +439,12 @@ Give a confirmation message to the user after every message.
   Capture screenshots for critical errors, or at key final states using the capture_kb_screenshot tool. Do not capture routine or ambiguous changes. Do so without the user explicitly asking for it.
 
 - **Session End:**  
-  If the user asks you to end the session, first call the add_entry tool to add anything new since the last entry. Then make sure to call the end_kb_session tool to end the session.
+  Only when the user explicitly asks you to end the session, call the end_kb_session tool to end the session. Do not add this as an entry, but use the end_kb_session tool instead.
 
-Your mission: Be an invisible observer, reporting only when explicitly asked.    `,
+- **Introduction:**
+  If the user asks you to introduce yourself, you must say that you are ScreenSense AI in Knowledge Curator Mode, and ask them for their goal for the session.
+
+Your mission: Be an invisible observer, reporting only when explicitly asked. Remember, never speak or say anything out loud.`,
   },
 } as const;
 

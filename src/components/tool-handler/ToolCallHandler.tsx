@@ -37,7 +37,7 @@ function ToolCallHandlerComponent({
     if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
       observationTimerRef.current = setInterval(() => {
         console.log('Asking for updates')
-        client?.send([{ text: 'Use the add_entry tool to document whatever happened since the previous call to add_entry. Do not say anything out loud.' }]);
+        client?.send([{ text: 'Use the add_entry tool to document whatever happened since the previous call to add_entry. Capture screenshots whenever you think it is important. Do not say anything out loud.' }]);
       }, 10000);
     }
   }, [client, isKBSessionActive, connected, assistantMode]);
@@ -544,10 +544,15 @@ function ToolCallHandlerComponent({
               ],
             });
             hasResponded = true;
-            client.send([{ text: `Session started. You will now be observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see.` }]);
+            client.send([{ text: `Session started. You will now be observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Do NOT say anything out loud.` }]);
             break;
           }
-
+          case 'resume_kb_session': {
+            client.send([{ text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Remind the user to share their screen with you. Do NOT say anything else out loud.` }]);
+            setIsKBSessionActive(true);
+            startObservationTimer();
+            break;
+          }
           case 'add_entry': {
             const { content } = fc.args as { content: string };
             const result = await ipcRenderer.invoke('add_kb_entry', { content });
@@ -559,19 +564,20 @@ function ToolCallHandlerComponent({
                 },
               ],
             });
-            client.send([{ text: `Entry added to knowledge base. Send the next event when explicitly requested. Do NOT say anything out loud. Capture screenshots whenever you think it is important.` }]);
+            client.send([{ text: `Entry added to knowledge base (${content}). Send the next event when explicitly requested. Capture screenshots whenever you think it is important. Do NOT say ANYTHING out loud.` }]);
             hasResponded = true;
             break;
           }
-
           case 'capture_kb_screenshot': {
             if (onScreenshot) {
               const screenshot = onScreenshot();
               if (screenshot) {
                 const description = (fc.args as any).description;
+                const context = (fc.args as any).context;
                 const result = await ipcRenderer.invoke('save_kb_screenshot', {
                   screenshot,
                   description,
+                  context
                 });
 
                 if (result.success) {
@@ -595,8 +601,11 @@ function ToolCallHandlerComponent({
             hasResponded = true;
             break;
           }
-
           case 'end_kb_session': {
+            stopObservationTimer();
+            setIsKBSessionActive(false);
+            const { content } = fc.args as { content: string };
+            await ipcRenderer.invoke('add_kb_entry', { content });
             client.send([
               {
                 text: `Session ended. Tell the user out loud that you will display the document for them to review, and ask for a few seconds to prepare it.`,
@@ -611,8 +620,6 @@ function ToolCallHandlerComponent({
               ],
             });
             const result = await ipcRenderer.invoke('end_kb_session');
-            stopObservationTimer();
-            setIsKBSessionActive(false);
             if (result.success) {
               client.send([
                 {

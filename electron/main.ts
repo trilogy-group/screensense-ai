@@ -29,6 +29,9 @@ if (!app.isPackaged) {
   require('dotenv').config({ path: path.join(process.resourcesPath, '.env') });
 }
 
+// Add this near the top with other state variables
+let currentAssistantMode = 'daily_helper'; // Default mode
+
 function getFirstLaunchPath(machineId: string) {
   return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
 }
@@ -228,4 +231,14 @@ ipcMain.handle('get-env', async (event, key) => {
     return process.env[key];
   }
   return null;
+});
+
+// Add this with other IPC handlers
+ipcMain.handle('get-current-mode', () => {
+  return currentAssistantMode;
+});
+
+// Add this with other IPC listeners
+ipcMain.on('update-current-mode', (event, mode) => {
+  currentAssistantMode = mode;
 });
