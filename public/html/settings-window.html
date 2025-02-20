@@ -370,7 +370,7 @@
       ipcRenderer.on('init-settings', (event, { geminiApiKey, anthropicApiKey, appVersion }) => {
         geminiApiKeyInput.value = geminiApiKey || '';
         anthropicApiKeyInput.value = anthropicApiKey || '';
-        saveButton.disabled = !geminiApiKey || !anthropicApiKey;
+        saveButton.disabled = !geminiApiKey;
         versionText.textContent = `Version ${appVersion}`;
       });
 
