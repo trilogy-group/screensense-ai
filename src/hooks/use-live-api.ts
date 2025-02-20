@@ -25,6 +25,27 @@ import { audioContext } from '../lib/utils';
 import VolMeterWorket from '../lib/worklets/vol-meter';
 const { ipcRenderer } = window.require('electron');
 
+const getModeSpecificReconnectionMessage = (
+  mode: string,
+  context: string,
+  isSessionActive: boolean
+) => {
+  console.log(`Getting mode specific reconnection message for mode: ${mode}`);
+  switch (mode) {
+    case 'knowledge_base':
+      console.log(`isSessionActive: ${isSessionActive}`);
+      return isSessionActive
+        ? `The session was interrupted. Here is the conversation history: ${context}.\n\nCall the resume_kb_session function. Do NOT start a new kb session. Do NOT say ANYTHING out loud.`
+        : `The session was interrupted. Here is the conversation history: ${context}. The user has ended the session. Only help them with the documentations now.`;
+    case 'translator':
+      return 'The translation session was interrupted. I will resume translating.';
+    case 'patent_generator':
+      return `The patent documentation session was interrupted. ${context ? `Here is our previous context: ${context}. ` : ''}Let's continue documenting your invention.`;
+    default:
+      return `Here is the conversation history: ${context}. Aplogise to the user for the interruption, let them know what the last thing you were discussing, and ask if they would like to continue.`;
+  }
+};
+
 export type UseLiveAPIResults = {
   client: MultimodalLiveClient;
   setConfig: (config: LiveConfig) => void;
@@ -89,24 +110,23 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
       setConnected(false);
 
       // Handle deadline exceeded error (1011) with one retry
-      if (ev.code === 1011) {
-        console.log('Deadline exceeded error detected, attempting to reconnect once...');
+      if (ev.code === 1011 || ev.code === 1007) {
+        console.log(`Disconnected due to ${ev.code}: ${ev.reason}`);
         // Attempt reconnection after a short delay
         setTimeout(async () => {
           try {
             await connect();
             const context = await ipcRenderer.invoke('get-context');
-            if (context && context.length > 0) {
-              client.send(
-                [
-                  {
-                    text: `Here is the conversation history: ${context}. Aplogise to the user for the interruption, let them know what the last thing you were discussing, and ask if they would like to continue.`,
-                  },
-                ],
-                true,
-                false
-              );
-            }
+            const { currentAssistantMode, isSessionActive } = await ipcRenderer.invoke(
+              'get-current-mode-and-is-session-active'
+            );
+            const reconnectionMessage = getModeSpecificReconnectionMessage(
+              currentAssistantMode,
+              context,
+              isSessionActive
+            );
+
+            client.send([{ text: reconnectionMessage }], true, false);
             console.log('Reconnection attempt successful');
           } catch (err) {
             console.error('Reconnection attempt failed:', err);

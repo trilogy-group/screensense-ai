@@ -259,7 +259,7 @@ function ControlTray({
           },
         ]);
       } else {
-        client.send([{ text: 'Introduce yourself.' }]);
+        // client.send([{ text: 'Introduce yourself.' }]);
       }
     }
   }, [connected, client, selectedOption.value]);
@@ -432,20 +432,20 @@ function ControlTray({
             // Start screen sharing
             changeStreams(screenCapture)().then(() => {
               // Send message to Gemini that screen sharing is enabled
-              client.send([
-                {
-                  text: "Screen sharing has been enabled. You can now use screen data for evaluation. If you have understood, reply with 'Screen sharing enabled'",
-                },
-              ]);
+              // client.send([
+              //   {
+              //     text: "Screen sharing has been enabled. You can now use screen data for evaluation. If you have understood, reply with 'Screen sharing enabled'",
+              //   },
+              // ]);
             });
           } else {
             // Stop screen sharing and notify Gemini
             changeStreams()();
-            client.send([
-              {
-                text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Screen sharing disabled'",
-              },
-            ]);
+            // client.send([
+            //   {
+            //     text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Screen sharing disabled'",
+            //   },
+            // ]);
           }
           break;
         case 'webcam':

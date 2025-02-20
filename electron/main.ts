@@ -6,6 +6,7 @@ import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain } from 'electro
 import * as fs from 'fs';
 import * as path from 'path';
 import { initializeContext } from '../src/utils/context-utils';
+import { initializeKBHandlers } from '../src/utils/kb-utils';
 import { logToFile } from '../src/utils/logger';
 import { loadSession } from '../src/utils/patent-utils';
 import { initializeActionWindow } from '../src/windows/ActionWindow';
@@ -27,6 +28,10 @@ if (!app.isPackaged) {
 } else {
   require('dotenv').config({ path: path.join(process.resourcesPath, '.env') });
 }
+
+// Add this near the top with other state variables
+let currentAssistantMode = 'daily_helper'; // Default mode
+let isSessionActive = false;
 
 function getFirstLaunchPath(machineId: string) {
   return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
@@ -69,6 +74,7 @@ async function initializeApp() {
   initializeMarkdownPreviewWindow();
   initializeActionWindow();
   initializeContext();
+  initializeKBHandlers();
 
   // Create windows
   await createMainWindow();
@@ -226,4 +232,18 @@ ipcMain.handle('get-env', async (event, key) => {
     return process.env[key];
   }
   return null;
+});
+
+// Add this with other IPC handlers
+ipcMain.handle('get-current-mode-and-is-session-active', () => {
+  return { currentAssistantMode, isSessionActive };
+});
+
+// Add this with other IPC listeners
+ipcMain.on('update-current-mode', (event, mode) => {
+  currentAssistantMode = mode;
+});
+
+ipcMain.on('update-is-session-active', (event, active) => {
+  isSessionActive = active;
 });

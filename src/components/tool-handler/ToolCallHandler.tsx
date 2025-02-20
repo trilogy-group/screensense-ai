@@ -1,5 +1,5 @@
 import { type Tool } from '@google/generative-ai';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useRef, useCallback } from 'react';
 import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
@@ -25,7 +25,41 @@ function ToolCallHandlerComponent({
   onScreenshot,
 }: ToolCallHandlerProps) {
   const [subtitles, setSubtitles] = useState<string>('');
-  const { client, setConfig } = useLiveAPIContext();
+  const { client, setConfig, connected } = useLiveAPIContext();
+  const [isKBSessionActive, setIsKBSessionActive] = useState(false);
+  const observationTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Function to start the observation timer
+  const startObservationTimer = useCallback(() => {
+    if (observationTimerRef.current) {
+      clearInterval(observationTimerRef.current);
+    }
+    if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
+      observationTimerRef.current = setInterval(() => {
+        console.log('Asking for updates')
+        client?.send([{ text: 'Use the add_entry tool to document whatever happened since the previous call to add_entry. Capture screenshots whenever you think it is important. Do not say anything out loud.' }]);
+      }, 10000);
+    }
+  }, [client, isKBSessionActive, connected, assistantMode]);
+
+  // Function to stop the observation timer
+  const stopObservationTimer = useCallback(() => {
+    if (observationTimerRef.current) {
+      clearInterval(observationTimerRef.current);
+      observationTimerRef.current = null;
+    }
+  }, []);
+
+  // Clean up timer on unmount, disconnect, or mode change
+  useEffect(() => {
+    if (!connected || assistantMode !== 'knowledge_base' || !isKBSessionActive) {
+      stopObservationTimer();
+    } else if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
+      startObservationTimer();
+    }
+    return () => stopObservationTimer();
+  }, [connected, assistantMode, isKBSessionActive, startObservationTimer, stopObservationTimer]);
+
   useEffect(() => {
     const processClick = async (event: any, data: any) => {
       try {
@@ -454,7 +488,7 @@ function ToolCallHandlerComponent({
             }
             hasResponded = true;
             break;
-          case 'capture_screenshot':
+          case 'capture_patent_screenshot':
             if (onScreenshot) {
               const screenshot = onScreenshot();
               if (screenshot) {
@@ -493,6 +527,161 @@ function ToolCallHandlerComponent({
             }
             hasResponded = true;
             break;
+          case 'start_kb_session': {
+            const goal = (fc.args as any).goal;
+            const result = await ipcRenderer.invoke('start_kb_session', goal);
+            console.log('Created kb session', JSON.stringify(result));
+            if (result.success) {
+              setIsKBSessionActive(true);
+              startObservationTimer();
+              ipcRenderer.send('update-is-session-active', true);
+            }
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            client.send([{ text: `Session started. You will now be observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Do NOT say anything out loud.` }]);
+            break;
+          }
+          case 'resume_kb_session': {
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            client.send([{ text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when explicitly asked. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important, or when the user explicitly asks for it. Remind the user out loud to share their screen with you, and then continue observing and documenting silently.` }]);
+            setIsKBSessionActive(true);
+            startObservationTimer();
+            ipcRenderer.send('update-is-session-active', true);
+            break;
+          }
+          case 'add_entry': {
+            const { content } = fc.args as { content: string };
+            const result = await ipcRenderer.invoke('add_kb_entry', { content });
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result },
+                  id: fc.id,
+                },
+              ],
+            });
+            client.send([{ text: `Entry added to knowledge base (${content}). Send the next event when explicitly requested. Capture screenshots whenever you think it is important. Do NOT say ANYTHING out loud.` }]);
+            hasResponded = true;
+            break;
+          }
+          case 'capture_kb_screenshot': {
+            if (onScreenshot) {
+              const screenshot = onScreenshot();
+              if (screenshot) {
+                const description = (fc.args as any).description;
+                const context = (fc.args as any).context;
+                const result = await ipcRenderer.invoke('save_kb_screenshot', {
+                  screenshot,
+                  description,
+                  context
+                });
+
+                if (result.success) {
+                  client.sendToolResponse({
+                    functionResponses: [
+                      {
+                        response: { output: result },
+                        id: fc.id,
+                      },
+                    ],
+                  });
+                } else {
+                  client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
+                }
+              } else {
+                client.send([{ text: `Failed to capture screenshot` }]);
+              }
+            } else {
+              client.send([{ text: `Screenshot functionality not available` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'update_kb_content': {
+            const { request } = fc.args as { request: string };
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            client.send([{ text: `Tell the user that you are updating the content, and it will take a few seconds to complete.` }]);
+            const result = await ipcRenderer.invoke('update_kb_content', { request });
+            if (result.success) {
+              client.send([{ text: `Knowledge base updated. Tell the user that you have updated the content.` }]);
+            } else {
+              client.send([{ text: `Failed to update knowledge base: ${result.error}` }]);
+            }
+            break;
+          }
+          case 'export_kb_as_pdf': {
+            const result = await ipcRenderer.invoke('export_kb_as_pdf');
+            if (result.success) {
+              client.send([{ text: `Knowledge base exported to PDF. Tell the user out loud that you have exported the knowledge base to a PDF.` }]);
+            } else {
+              client.send([{ text: `Failed to export knowledge base: ${result.error}` }]);
+            }
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            break;
+          }
+          case 'end_kb_session': {
+            stopObservationTimer();
+            setIsKBSessionActive(false);
+            ipcRenderer.send('update-is-session-active', false);
+            const { content } = fc.args as { content: string };
+            await ipcRenderer.invoke('add_kb_entry', { content });
+            client.send([
+              {
+                text: `Session ended. Tell the user out loud that you will display the document for them to review, and ask for a few seconds to prepare it.`,
+              },
+            ]);
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: { success: true } },
+                  id: fc.id,
+                },
+              ],
+            });
+            const result = await ipcRenderer.invoke('end_kb_session');
+            if (result.success) {
+              client.send([
+                {
+                  text: `Tell the user out loud that the document is ready for review.`,
+                },
+              ]);
+            } else {
+              client.send([{ text: `Failed to save knowledge base document: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
         }
         if (!hasResponded) {
           client.sendToolResponse({
@@ -512,7 +701,7 @@ function ToolCallHandlerComponent({
     return () => {
       client.off('toolcall', onToolCall);
     };
-  }, [client, onScreenshot]);
+  }, [client, onScreenshot, startObservationTimer, stopObservationTimer]);
 
   // Separate useEffect to handle IPC communication when subtitles change
   useEffect(() => {

@@ -25,16 +25,6 @@ export async function createSettingsWindow() {
     },
   });
 
-  // Prevent window from being closed directly
-  settingsWindow.on('close', event => {
-    event.preventDefault();
-    settingsWindow?.hide();
-  });
-
-  await loadHtmlFile(settingsWindow, 'settings-window.html', {
-    logPrefix: 'settings window',
-  });
-
   settingsWindow.once('ready-to-show', () => {
     if (settingsWindow) {
       settingsWindow.show();
@@ -45,6 +35,16 @@ export async function createSettingsWindow() {
         appVersion: app.getVersion(),
       });
     }
+  });
+
+  // Prevent window from being closed directly
+  settingsWindow.on('close', event => {
+    event.preventDefault();
+    settingsWindow?.hide();
+  });
+
+  await loadHtmlFile(settingsWindow, 'settings-window.html', {
+    logPrefix: 'settings window',
   });
 
   settingsWindow.on('closed', () => {

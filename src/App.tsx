@@ -27,8 +27,12 @@ export interface VideoCanvasHandle {
 
 const VideoCanvas = forwardRef<
   VideoCanvasHandle,
-  { videoRef: React.RefObject<HTMLVideoElement>; videoStream: MediaStream | null }
->(({ videoRef, videoStream }, ref) => {
+  { 
+    videoRef: React.RefObject<HTMLVideoElement>; 
+    videoStream: MediaStream | null;
+    selectedOption: { value: string };
+  }
+>(({ videoRef, videoStream, selectedOption }, ref) => {
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const { client, connected } = useLiveAPIContext();
 
@@ -78,7 +82,9 @@ const VideoCanvas = forwardRef<
         client.sendRealtimeInput([{ mimeType: 'image/jpeg', data }]);
       }
       if (connected) {
-        timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
+        // Adjust capture rate based on assistant mode
+        const captureRate = selectedOption.value === 'knowledge_base' ? 1 : 0.5; // KB mode: 1 second between frames, others: 2 seconds
+        timeoutId = window.setTimeout(sendVideoFrame, 1000 / captureRate);
       }
     }
     if (videoStream !== null && connected) {
@@ -87,7 +93,7 @@ const VideoCanvas = forwardRef<
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [videoStream, connected, client, videoRef]);
+  }, [videoStream, connected, client, videoRef, selectedOption]);
 
   return <canvas style={{ display: 'none' }} ref={renderCanvasRef} />;
 });
@@ -208,7 +214,12 @@ function App() {
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={geminiApiKey}>
         <div className="streaming-console">
-          <VideoCanvas ref={videoCanvasRef} videoRef={videoRef} videoStream={videoStream} />
+          <VideoCanvas 
+            ref={videoCanvasRef} 
+            videoRef={videoRef} 
+            videoStream={videoStream} 
+            selectedOption={selectedOption}
+          />
           <button
             className="action-button settings-button"
             onClick={() => {
@@ -249,11 +260,12 @@ function App() {
                 onVideoStreamChange={setVideoStream}
                 modes={modes}
                 selectedOption={selectedOption}
-                setSelectedOption={(option: { value: string }) =>
-                  setSelectedOption(option as ModeOption)
-                }
+                setSelectedOption={(option: { value: string }) => {
+                  setSelectedOption(option as ModeOption);
+                  // Notify main process of mode change
+                  ipcRenderer.send('update-current-mode', option.value);
+                }}
               >
-                {/* put your own buttons here */}
               </ControlTray>
             </div>
           </main>
