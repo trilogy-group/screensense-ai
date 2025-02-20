@@ -30,23 +30,25 @@ export class OmniParser {
   private lastRequestTime: number = 0;
   private readonly minRequestInterval = 200;
   private processing: boolean = false;
-  private activeRequests: number = 0;  // Counter for active requests
+  private activeRequests: number = 0; // Counter for active requests
 
   private async waitForNextRequest(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
     if (timeSinceLastRequest < this.minRequestInterval) {
-      await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+      await new Promise(resolve =>
+        setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest)
+      );
     }
     this.lastRequestTime = Date.now();
   }
 
   public isProcessing(): boolean {
-    return this.activeRequests > 0;  // Return true if there are any active requests
+    return this.activeRequests > 0; // Return true if there are any active requests
   }
 
   public getActiveRequestCount(): number {
-    return this.activeRequests;  // Method to get current number of active requests
+    return this.activeRequests; // Method to get current number of active requests
   }
 
   private parseElementsList(description: string): Element[] {
@@ -61,7 +63,13 @@ export class OmniParser {
         const centerMatch = line.match(/center: \(([^,]+), ([^)]+)\)/);
         const boundingBoxMatch = line.match(/bbox: \(([^,]+), ([^,)]+), ([^,]+), ([^)]+)\)/);
 
-        if (!typeMatch || !contentMatch || !interactivityMatch || !centerMatch || !boundingBoxMatch) {
+        if (
+          !typeMatch ||
+          !contentMatch ||
+          !interactivityMatch ||
+          !centerMatch ||
+          !boundingBoxMatch
+        ) {
           console.log('Failed to parse line:', line);
           return null;
         }
@@ -79,8 +87,8 @@ export class OmniParser {
             y1: parseFloat(boundingBoxMatch[2]),
             x2: parseFloat(boundingBoxMatch[3]),
             y2: parseFloat(boundingBoxMatch[4]),
-          }
-        }
+          },
+        };
 
         return element;
       })
@@ -103,10 +111,13 @@ export class OmniParser {
   }
 
   async detectElements(imageBlob: Blob): Promise<ParsedDetectionResult> {
-    this.activeRequests++;  // Increment counter at start of request
+    this.activeRequests++; // Increment counter at start of request
     try {
       await this.waitForNextRequest();
-      console.log('OmniParser: Starting element detection... Active requests:', this.activeRequests);
+      console.log(
+        'OmniParser: Starting element detection... Active requests:',
+        this.activeRequests
+      );
       console.log('OmniParser: Image blob size:', imageBlob.size, 'bytes');
       console.log('OmniParser: Image blob type:', imageBlob.type);
 
@@ -123,7 +134,9 @@ export class OmniParser {
             throw new Error(`Server returned status ${response.status}`);
           }
         } catch (error) {
-          throw new Error(`Failed to connect to server at ${this.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          throw new Error(
+            `Failed to connect to server at ${this.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
         }
 
         console.log('OmniParser: Sending prediction request to endpoint...');
@@ -154,7 +167,7 @@ export class OmniParser {
         throw error;
       }
     } finally {
-      this.activeRequests--;  // Decrement counter when request completes (success or failure)
+      this.activeRequests--; // Decrement counter when request completes (success or failure)
       console.log('OmniParser: Request completed. Remaining active requests:', this.activeRequests);
     }
   }

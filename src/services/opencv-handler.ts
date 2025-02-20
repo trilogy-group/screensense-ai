@@ -17,7 +17,7 @@ export async function handleOpenCVTools(toolName: string, args: any) {
       return {
         success: !!result,
         location: result?.location,
-        confidence: result?.confidence
+        confidence: result?.confidence,
       };
     }
 
@@ -43,4 +43,4 @@ export async function handleOpenCVTools(toolName: string, args: any) {
     default:
       return { success: false, error: 'Unknown tool' };
   }
-} 
+}

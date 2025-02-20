@@ -27,8 +27,8 @@ export interface VideoCanvasHandle {
 
 const VideoCanvas = forwardRef<
   VideoCanvasHandle,
-  { 
-    videoRef: React.RefObject<HTMLVideoElement>; 
+  {
+    videoRef: React.RefObject<HTMLVideoElement>;
     videoStream: MediaStream | null;
     selectedOption: { value: string };
   }
@@ -214,10 +214,10 @@ function App() {
     <div className="App">
       <LiveAPIProvider url={uri} apiKey={geminiApiKey}>
         <div className="streaming-console">
-          <VideoCanvas 
-            ref={videoCanvasRef} 
-            videoRef={videoRef} 
-            videoStream={videoStream} 
+          <VideoCanvas
+            ref={videoCanvasRef}
+            videoRef={videoRef}
+            videoStream={videoStream}
             selectedOption={selectedOption}
           />
           <button
@@ -265,8 +265,7 @@ function App() {
                   // Notify main process of mode change
                   ipcRenderer.send('update-current-mode', option.value);
                 }}
-              >
-              </ControlTray>
+              ></ControlTray>
             </div>
           </main>
         </div>

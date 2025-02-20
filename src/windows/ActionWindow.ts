@@ -7,9 +7,9 @@ import { uIOhook, UiohookMouseEvent } from 'uiohook-napi';
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile } from '../utils/window-utils';
 import { getMainWindow } from './MainWindow';
-import { zodResponseFormat } from "openai/helpers/zod";
-import { z } from "zod";
-import OpenAI from "openai";
+import { zodResponseFormat } from 'openai/helpers/zod';
+import { z } from 'zod';
+import OpenAI from 'openai';
 
 let actionWindow: BrowserWindow | null = null;
 let screenshotInterval: NodeJS.Timeout | null = null;
@@ -389,24 +389,23 @@ export function initializeActionWindow() {
   });
 
   ipcMain.on('gradio-result', async (event, result, cursorPos, screenshot, accuratePath) => {
-    console.log("Gradio-Result Running")
+    console.log('Gradio-Result Running');
     if (!result.success) {
-      console.log("Omniparser Error", result.error);
+      console.log('Omniparser Error', result.error);
       return;
     }
     try {
       const primaryDisplay = electron_screen.getPrimaryDisplay();
       const { bounds } = primaryDisplay;
-  
-  
+
       // Get the actual screen dimensions
       const actualWidth = bounds.width;
       const actualHeight = bounds.height;
-  
+
       // Calculate scaling factors
       const scaleX = 1920 / actualWidth;
       const scaleY = 1080 / actualHeight;
-  
+
       // Scale cursor position to 1920x1080 space
       const scaledX = Math.round(cursorPos.x * scaleX);
       const scaledY = Math.round(cursorPos.y * scaleY);
@@ -420,55 +419,55 @@ export function initializeActionWindow() {
         element.boundingBox.y2 *= 1080;
         newDetectionResult.push(element);
       }
-  
+
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
-  
+
       const Coordinates = z.object({
         x1: z.number(),
         y1: z.number(),
         x2: z.number(),
         y2: z.number(),
       });
-  
-  
-  
-      console.log("trying to detect the element");
+
+      console.log('trying to detect the element');
       const completion = await openai.beta.chat.completions.parse({
-        model: "gpt-4o-2024-08-06",
+        model: 'gpt-4o-2024-08-06',
         messages: [
           {
-            role: "system", content: `
+            role: 'system',
+            content: `
   The user will provide you a list of elements along with their center and bounding box. 
   Finally, He will give you the cursor position.
   Your job is to return the bounding box of the element that is under the cursor.
-          ` },
+          `,
+          },
           {
-            role: "user", content: `
+            role: 'user',
+            content: `
           Here is the list of elements:
           ${JSON.stringify(newDetectionResult)}
   
           Here is the cursor position:
           ${JSON.stringify({ x: scaledX, y: scaledY })}
-          ` },
+          `,
+          },
         ],
-        response_format: zodResponseFormat(Coordinates, "coordinates"),
+        response_format: zodResponseFormat(Coordinates, 'coordinates'),
       });
       const box = completion.choices[0].message.parsed;
-      console.log("box : ", box);;
-  
-  
+      console.log('box : ', box);
+
       // Calculate crop area based on the bounding box returned by OpenAI
       if (box) {
         const cropWidth = Math.round(box.x2 - box.x1);
         const cropHeight = Math.round(box.y2 - box.y1);
-  
-  
+
         // Ensure crop bounds are within image boundaries
         const cropX = Math.round(Math.max(0, Math.min(1920, box.x1)));
         const cropY = Math.round(Math.max(0, Math.min(1080, box.y1)));
-  
+
         // Crop the element from the original screenshot
         await sharp(screenshot)
           .extract({
@@ -478,11 +477,11 @@ export function initializeActionWindow() {
             height: cropHeight,
           })
           .toFile(accuratePath);
-  
+
         console.log(`Element under cursor saved to: ${accuratePath}`);
       }
     } catch (error) {
-      console.log("Error in gradio-result: ", error);
+      console.log('Error in gradio-result: ', error);
     }
   });
 
@@ -565,14 +564,14 @@ export function initializeActionWindow() {
             })
             .toFile(cropPath);
         });
-      
+
       const mainWindow = getMainWindow();
       if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
         mainWindow.webContents.send('process-click', {
           screenshot: originalPath,
           cursorPos,
           bounds,
-          accuratePath
+          accuratePath,
         });
       }
       console.log(`Click area saved to: ${cropPath}`);
