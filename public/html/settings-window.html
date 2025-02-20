@@ -283,6 +283,53 @@
                   </a>
                 </div>
               </div>
+              <div class="form-group">
+                <label class="form-label" for="anthropic-api-key-input">Anthropic API Key</label>
+                <div class="input-group">
+                  <input
+                    type="password"
+                    id="anthropic-api-key-input"
+                    placeholder="Enter your API key"
+                    class="form-input"
+                  />
+                  <a
+                    href="https://console.anthropic.com/account/keys"
+                    target="_blank"
+                    class="help-link"
+                  >
+                    Get API key
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M12 8.66667V12.6667C12 13.0203 11.8595 13.3594 11.6095 13.6095C11.3594 13.8595 11.0203 14 10.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V5.33333C2 4.97971 2.14048 4.64057 2.39052 4.39052C2.64057 4.14048 2.97971 4 3.33333 4H7.33333"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M10 2H14V6"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M6.66666 9.33333L14 2"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </a>
+                </div>
+              </div>
             </div>
 
             <div class="settings-group">
@@ -314,14 +361,16 @@
 
       const form = document.getElementById('settings-form');
       const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+      const anthropicApiKeyInput = document.getElementById('anthropic-api-key-input');
       const saveButton = document.getElementById('save-button');
       const cancelButton = document.getElementById('cancel-button');
       const versionText = document.getElementById('version-text');
 
       // Initialize with current API keys and version
-      ipcRenderer.on('init-settings', (event, { geminiApiKey, appVersion }) => {
+      ipcRenderer.on('init-settings', (event, { geminiApiKey, anthropicApiKey, appVersion }) => {
         geminiApiKeyInput.value = geminiApiKey || '';
-        saveButton.disabled = !geminiApiKey;
+        anthropicApiKeyInput.value = anthropicApiKey || '';
+        saveButton.disabled = !geminiApiKey || !anthropicApiKey;
         versionText.textContent = `Version ${appVersion}`;
       });
 
@@ -332,13 +381,15 @@
       };
 
       geminiApiKeyInput.addEventListener('input', checkInputs);
+      anthropicApiKeyInput.addEventListener('input', checkInputs);
 
       // Handle form submission
       form.addEventListener('submit', e => {
         e.preventDefault();
         const geminiApiKey = geminiApiKeyInput.value.trim();
+        const anthropicApiKey = anthropicApiKeyInput.value.trim();
         if (geminiApiKey) {
-          ipcRenderer.send('save-settings', { geminiApiKey });
+          ipcRenderer.send('save-settings', { geminiApiKey, anthropicApiKey });
         }
       });
 

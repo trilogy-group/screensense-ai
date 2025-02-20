@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto';
-import { app, ipcRenderer, shell } from 'electron';
+import { app, shell } from 'electron';
 import * as fs from 'fs';
 import { mdToPdf } from 'md-to-pdf';
 import OpenAI from 'openai';
 import * as path from 'path';
-import { logToFile } from './logger';
-import anthropic_completion from '../../shared/services/anthropic';
 import { patentGeneratorTemplate } from '../../shared/templates/patent-generator-template';
+import { logToFile } from './logger';
 
 interface PatentSession {
   id: string;
@@ -224,69 +223,6 @@ ${section}
 
   const updatedContent = response.choices[0].message.content!!;
   return updatedContent;
-}
-
-export async function getNextQuestion() {
-  try {
-    const session = getCurrentSession();
-    const mdPath = path.join(session.path, 'main.md');
-
-    if (!fs.existsSync(mdPath)) {
-      return { success: false, error: 'Template file not found' };
-    }
-    const mdContent = fs.readFileSync(mdPath, 'utf8');
-    const prompt = `
-You are a an expert at creating patents.
-Your task is to find the correct question to ask the user to help them document their invention.
-
-<instructions>
-- You are provided with a partial markdown document that contains the information provided by the user so far.
-- You are also provided with a base checklist of what all information needs to be documented for a patent. Note that this is not exhaustive, this is just a starting point. You are free to ask whatever questions you think are required.
-- You must return the question that you think is the most important to ask the user next.
-- Your response must be a json format explaining why you think another question is required, and what that question is. If you think no more questions are required, return an empty string.
-- Only ask one question at a time. Do not ask multiple questions in one go.
-- If you feel the content in the checklist is more or less covered by the existing document, do not ask any more questions. Only ask questions that are absolutely necessary.
-</instructions>
-
-<existing_markdown>
-${mdContent}
-</existing_markdown>
-
-<base_checklist>
-${patentGeneratorTemplate.sections.map(section => section.name + '\n' + section.details).join('\n\n')}
-</base_checklist>
-
-Your output must be a JSON object with the following format:
-{
-    "question_required_reasoning": "<explanation of why you think more questions are required to be asked or why you think all questions have been answered>",
-    "question_required": true if you think a question is required, false otherwise,
-    "question": "<the question that you think is the most important to ask the user next, or an empty string if no more questions are required>"
-}
-`;
-    console.log(`Going to ask anthropic for the next question`);
-    const response = await anthropic_completion(
-      prompt,
-      await ipcRenderer.invoke('get-env', 'REACT_APP_ANTHROPIC_API_KEY')!!,
-      true
-    );
-    console.log(`Received response from anthropic: ${response}`);
-    const jsonResponse = JSON.parse(response);
-    if (!jsonResponse.question_required) {
-      return {
-        success: true,
-        question: `No further questions are required.\n\n${jsonResponse.question_required_reasoning}`,
-      };
-    } else {
-      return {
-        success: true,
-        question: jsonResponse.question,
-      };
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logToFile(`Error getting next question: ${errorMessage}`);
-    return { success: false, error: errorMessage };
-  }
 }
 
 export async function createTemplate(title: string) {

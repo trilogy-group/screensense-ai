@@ -2,7 +2,7 @@ import { BrowserWindow, app, ipcMain } from 'electron';
 import { loadSettings, saveSettings } from '../utils/settings-utils';
 import { loadHtmlFile } from '../utils/window-utils';
 import { sendSettingsUpdate } from './ControlWindow';
-import { updateSettings } from './MainWindow';
+import { updateSettings, reinitializePatentAgent } from './MainWindow';
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -72,13 +72,13 @@ export function initializeSettingsWindow() {
 
   ipcMain.handle('check-api-key', async () => {
     const settings = loadSettings();
-    const hasApiKey = !!settings.geminiApiKey;
+    const hasGeminiKey = !!settings.geminiApiKey;
 
-    if (!hasApiKey) {
+    if (!hasGeminiKey) {
       await createSettingsWindow();
     }
 
-    return hasApiKey;
+    return hasGeminiKey;
   });
 
   ipcMain.on('settings-data', (event, settings) => {
@@ -99,6 +99,9 @@ export function initializeSettingsWindow() {
 
     // Just notify control window about API key availability without starting session
     sendSettingsUpdate(settings.apiKey);
+
+    // Reinitialize patent agent
+    reinitializePatentAgent();
 
     // Close settings window
     if (settingsWindowExists()) {

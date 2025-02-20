@@ -35,7 +35,6 @@ import AudioPulse from '../audio-pulse/AudioPulse';
 import './control-tray.scss';
 import { assistantConfigs } from '../../configs/assistant-configs';
 import { trackEvent } from '../../shared/analytics';
-import Toast from '../toast/Toast';
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
@@ -94,14 +93,13 @@ function ControlTray({
   const [muted, setMuted] = useState(false);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRecordingSession, setIsRecordingSession] = useState(false);
   const userAudioChunks = useRef<Array<{ blob: Blob; timestamp: number; duration: number }>>([]);
   const assistantAudioChunks = useRef<Array<{ blob: Blob; timestamp: number; duration: number }>>(
     []
   );
   const sessionStartTime = useRef<number>(0);
-  const lastAssistantTimestamp = useRef<number>(0); // Track last assistant chunk end time
+  const lastAssistantTimestamp = useRef<number>(0);
   const autoSaveInterval = useRef<number | null>(null);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
@@ -382,8 +380,20 @@ function ControlTray({
     };
   }, [isRecordingSession, saveRecordings]);
 
-  const handleConnect = useCallback(() => {
+  const handleConnect = useCallback(async () => {
     if (!connected) {
+      // Check for Anthropic API key if in patent generator mode
+      if (selectedOption.value === 'patent_generator') {
+        const settings = await ipcRenderer.invoke('get-saved-settings');
+        if (!settings.anthropicApiKey) {
+          // Revert the control button state
+          ipcRenderer.send('revert-control-button');
+          ipcRenderer.send('show-settings');
+          ipcRenderer.send('session-error', 'You need to set up your Anthropic API for patent generation.');
+          return;
+        }
+      }
+
       console.log('[ControlTray] Initiating connection...');
       setIsRecordingSession(true);
       userAudioChunks.current = [];
@@ -544,17 +554,6 @@ function ControlTray({
     }
   }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams]);
 
-  useEffect(() => {
-    // Listen for error messages from main process
-    ipcRenderer.on('show-error-toast', (_, message) => {
-      setErrorMessage(message);
-    });
-
-    return () => {
-      ipcRenderer.removeAllListeners('show-error-toast');
-    };
-  }, []);
-
   // Add effect to capture assistant audio
   useEffect(() => {
     const handleAssistantAudio = (event: any, audioData: ArrayBuffer) => {
@@ -684,9 +683,6 @@ function ControlTray({
           <span className="text-indicator">Streaming</span>
         </div>
       </section>
-      {errorMessage && (
-        <Toast message={errorMessage} type="error" onClose={() => setErrorMessage(null)} />
-      )}
     </>
   );
 }

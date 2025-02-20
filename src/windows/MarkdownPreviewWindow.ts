@@ -6,7 +6,6 @@ import {
   createTemplate,
   exportToPdf,
   getCurrentSession,
-  getNextQuestion,
   loadSession,
   readPatent,
   readPatentImage,
@@ -16,6 +15,7 @@ import {
 } from '../utils/patent-utils';
 import { loadHtmlFile, loadUrl } from '../utils/window-utils';
 import { sendPatentQuestion } from './MainWindow';
+
 let markdownPreviewWindow: BrowserWindow | null = null;
 let currentMarkdownFile: string | null = null;
 
@@ -164,8 +164,6 @@ export function initializeMarkdownPreviewWindow() {
   ipcMain.handle('read_patent', async event => readPatent());
 
   ipcMain.handle('create_template', async (event, title) => createTemplate(title));
-
-  ipcMain.handle('get_next_question', async event => getNextQuestion());
 
   ipcMain.handle('read_patent_image', async (event, relativePath) => readPatentImage(relativePath));
 
