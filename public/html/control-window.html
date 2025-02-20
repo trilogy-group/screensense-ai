@@ -544,6 +544,14 @@
         }
       });
 
+      // Handle connection state revert
+      ipcRenderer.on('revert-connection-state', () => {
+        isConnected = false;
+        connectButton.querySelector('span').textContent = 'play_arrow';
+        connectButton.querySelector('span').classList.remove('filled');
+        actionsNav.classList.add('disabled');
+      });
+
       // Handle connection state changes
       ipcRenderer.on('connection-state-change', (event, state) => {
         console.log('[ControlWindow Renderer] Received connection state:', state);

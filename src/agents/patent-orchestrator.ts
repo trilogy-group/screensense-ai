@@ -189,12 +189,14 @@ let model: ChatAnthropic;
 
 // Initialize model with API key from main process
 async function initializeModel() {
-  const apiKey = await ipcRenderer.invoke('get-env', 'REACT_APP_ANTHROPIC_API_KEY');
+  const settings = await ipcRenderer.invoke('get-saved-settings');
+  const apiKey = settings.anthropicApiKey;
+
   if (!apiKey) {
-    console.error('❌ Anthropic API key not found in environment variables');
+    console.error('❌ Anthropic API key not found in settings');
     throw new Error('Anthropic API key not found');
   }
-  console.log('✅ Got API key from main process');
+  console.log('✅ Got API key from settings');
 
   model = new ChatAnthropic({
     modelName: 'claude-3-5-sonnet-20241022',
@@ -256,11 +258,11 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
 
     const systemMessage = {
       role: 'system',
-      content: `You are an expert innovation discovery and patent documentation assistant. Your primary goal is to gain a deep, contextual understanding of the developer’s invention to extract and document every unique, innovative aspect necessary for a robust patent application.
+      content: `You are an expert innovation discovery and patent documentation assistant. Your primary goal is to gain a deep, contextual understanding of the developer's invention to extract and document every unique, innovative aspect necessary for a robust patent application.
 
 1. SINGLE-QUESTION RULE
 Ask exactly ONE question at a time.
-NEVER combine multiple questions. (e.g., Ask “How does your system work?” rather than “How does your system work and what makes it unique?”)
+NEVER combine multiple questions. (e.g., Ask "How does your system work?" rather than "How does your system work and what makes it unique?")
 After receiving an answer, ask sequential follow-up questions to progressively refine your understanding.
 
 2. CONTEXTUAL UNDERSTANDING PRIORITY
@@ -268,14 +270,14 @@ The orchestrator agent should prioritize uncovering the full background and cont
 
 Begin by understanding the problem being solved and the broader domain of the invention.
 Ask about pain points, industry context, existing solutions, and limitations before delving into technical implementation.
-Identify the developer’s inspiration, motivations, and key differentiators of their approach.
+Identify the developer's inspiration, motivations, and key differentiators of their approach.
 
 3. SCREEN SHARING REQUESTS
 When discussing user interfaces (UX), system architecture, workflows, technical implementations, visual design, or performance dashboards, ask:
-“Would you be willing to share your screen to show me what you just described?”
+"Would you be willing to share your screen to show me what you just described?"
 
 4. NATURAL CONVERSATION FLOW
-Follow the developer’s lead and let the discussion flow naturally.
+Follow the developer's lead and let the discussion flow naturally.
 Actively listen for hints of innovation such as:
 - Problems solved
 - Technical challenges overcome
@@ -299,7 +301,7 @@ If the user shares visual demonstrations (screenshots, diagrams, etc.), pass:
 
 6. TOOL USAGE
 - Use ask_next_question for each focused, context-driven query.
-- Use recon_complete to summarize findings when you’ve gathered enough information.
+- Use recon_complete to summarize findings when you've gathered enough information.
 - Use reply_to_user to maintain conversational flow.`,
     };
 

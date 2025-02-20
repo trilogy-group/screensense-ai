@@ -2,7 +2,8 @@ import { BrowserWindow, app, ipcMain } from 'electron';
 import { loadSettings, saveSettings } from '../utils/settings-utils';
 import { loadHtmlFile } from '../utils/window-utils';
 import { sendSettingsUpdate } from './ControlWindow';
-import { updateSettings } from './MainWindow';
+import { updateSettings, reinitializePatentAgent } from './MainWindow';
+import { showErrorOverlay } from './ErrorOverlay';
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -72,13 +73,16 @@ export function initializeSettingsWindow() {
 
   ipcMain.handle('check-api-key', async () => {
     const settings = loadSettings();
-    const hasApiKey = !!settings.geminiApiKey;
+    const hasGeminiKey = !!settings.geminiApiKey;
+    const hasOpenAIKey = !!settings.openaiApiKey;
 
-    if (!hasApiKey) {
+    if (!hasGeminiKey || !hasOpenAIKey) {
       await createSettingsWindow();
+      // Show the error
+      showErrorOverlay('You need to set up your Gemini and OpenAI API keys to start a session.');
     }
 
-    return hasApiKey;
+    return hasGeminiKey && hasOpenAIKey;
   });
 
   ipcMain.on('settings-data', (event, settings) => {
@@ -99,6 +103,9 @@ export function initializeSettingsWindow() {
 
     // Just notify control window about API key availability without starting session
     sendSettingsUpdate(settings.apiKey);
+
+    // Reinitialize patent agent
+    reinitializePatentAgent();
 
     // Close settings window
     if (settingsWindowExists()) {

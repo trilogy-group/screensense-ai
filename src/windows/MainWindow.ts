@@ -250,6 +250,12 @@ export function sendPatentQuestion(data: { question: string; reason: string }) {
   }
 }
 
+export function reinitializePatentAgent() {
+  if (mainWindowExists()) {
+    mainWindow?.webContents.send('reinitialize-patent-agent');
+  }
+}
+
 // Initialize module
 export function initializeMainWindow() {
   // Register IPC Handlers

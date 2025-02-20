@@ -224,16 +224,6 @@ app.on('ready', () => {
   loadSession();
 });
 
-// Add near the top with other IPC handlers
-ipcMain.handle('get-env', async (event, key) => {
-  // Only allow specific env vars to be accessed
-  const allowedKeys = ['REACT_APP_ANTHROPIC_API_KEY'];
-  if (allowedKeys.includes(key)) {
-    return process.env[key];
-  }
-  return null;
-});
-
 // Add this with other IPC handlers
 ipcMain.handle('get-current-mode-and-is-session-active', () => {
   return { currentAssistantMode, isSessionActive };

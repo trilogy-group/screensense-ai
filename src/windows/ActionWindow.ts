@@ -10,7 +10,7 @@ import { getMainWindow } from './MainWindow';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import OpenAI from 'openai';
-
+import { loadSettings } from '../utils/settings-utils';
 let actionWindow: BrowserWindow | null = null;
 let screenshotInterval: NodeJS.Timeout | null = null;
 let latestScreenshot: { path: string; timestamp: number } | null = null;
@@ -420,8 +420,13 @@ export function initializeActionWindow() {
         newDetectionResult.push(element);
       }
 
+      const settings = loadSettings();
+      if (!settings.openaiApiKey) {
+        throw new Error('OpenAI API key not found in settings');
+      }
+
       const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: settings.openaiApiKey,
       });
 
       const Coordinates = z.object({

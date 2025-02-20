@@ -1,6 +1,6 @@
 import { type Tool } from '@google/generative-ai';
 import { memo, useEffect, useState, useRef, useCallback } from 'react';
-import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
+import { initializePatentAgent, invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
@@ -814,6 +814,23 @@ function ToolCallHandlerComponent({
       // console.log('🔍 [handlePatentQuestion] Removed listener');
     };
   }, [client]);
+
+  // Add effect to listen for patent agent reinitialization
+  useEffect(() => {
+    const handlePatentAgentReinitialization = async () => {
+      try {
+        await initializePatentAgent();
+        console.log('✅ Patent agent reinitialized with new settings');
+      } catch (error) {
+        console.error('❌ Failed to reinitialize patent agent:', error);
+      }
+    };
+
+    ipcRenderer.on('reinitialize-patent-agent', handlePatentAgentReinitialization);
+    return () => {
+      ipcRenderer.removeListener('reinitialize-patent-agent', handlePatentAgentReinitialization);
+    };
+  }, []);
 
   return <></>;
 }
