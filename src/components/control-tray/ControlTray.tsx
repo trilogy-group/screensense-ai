@@ -382,16 +382,23 @@ function ControlTray({
 
   const handleConnect = useCallback(async () => {
     if (!connected) {
-      // Check for Anthropic API key if in patent generator mode
-      if (selectedOption.value === 'patent_generator') {
-        const settings = await ipcRenderer.invoke('get-saved-settings');
-        if (!settings.anthropicApiKey) {
-          // Revert the control button state
-          ipcRenderer.send('revert-control-button');
-          ipcRenderer.send('show-settings');
-          ipcRenderer.send('session-error', 'You need to set up your Anthropic API for patent generation.');
-          return;
-        }
+      // Check for required API keys for all modes
+      const settings = await ipcRenderer.invoke('get-saved-settings');
+      if (!settings.geminiApiKey || !settings.openaiApiKey) {
+        // Revert the control button state
+        ipcRenderer.send('revert-control-button');
+        ipcRenderer.send('show-settings');
+        ipcRenderer.send('session-error', 'You need to set up your Gemini and OpenAI API keys to start a session.');
+        return;
+      }
+
+      // Additional check for Anthropic API key in patent generator mode
+      if (selectedOption.value === 'patent_generator' && !settings.anthropicApiKey) {
+        // Revert the control button state
+        ipcRenderer.send('revert-control-button');
+        ipcRenderer.send('show-settings');
+        ipcRenderer.send('session-error', 'You need to set up your Anthropic API key for patent generation.');
+        return;
       }
 
       console.log('[ControlTray] Initiating connection...');

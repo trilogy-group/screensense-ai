@@ -7,6 +7,7 @@ import { logToFile } from './logger';
 import { createMarkdownPreviewWindow } from '../windows/MarkdownPreviewWindow';
 import { sendMarkdownContent } from '../windows/MarkdownPreviewWindow';
 import { OpenAI } from 'openai';
+import { loadSettings } from './settings-utils';
 
 interface KBEntry {
   timestamp: number;
@@ -238,7 +239,13 @@ ${session.goal}
 </session_goal>`;
 
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Get API key from saved settings
+    const settings = loadSettings();
+    if (!settings.openaiApiKey) {
+      throw new Error('OpenAI API key not found in settings');
+    }
+
+    const openai = new OpenAI({ apiKey: settings.openaiApiKey });
     const response = await openai.chat.completions.create({
       model: 'o3-mini',
       messages: [{ role: 'user', content: prompt }],
@@ -369,7 +376,13 @@ ${content}
 ${request}
 </request>`;
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Get API key from saved settings
+    const settings = loadSettings();
+    if (!settings.openaiApiKey) {
+      throw new Error('OpenAI API key not found in settings');
+    }
+
+    const openai = new OpenAI({ apiKey: settings.openaiApiKey });
     const response = await openai.chat.completions.create({
       model: 'o3-mini',
       messages: [{ role: 'user', content: prompt }],

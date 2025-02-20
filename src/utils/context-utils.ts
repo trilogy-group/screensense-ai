@@ -3,6 +3,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import OpenAI from 'openai';
 import path from 'path';
+import { loadSettings } from './settings-utils';
 
 export function initializeContext() {
   ipcMain.on('session-start', () => {
@@ -143,14 +144,18 @@ export function initializeContext() {
     const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
 
     try {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      // Get API key from saved settings
+      const settings = loadSettings();
+      if (!settings.openaiApiKey) {
+        throw new Error('OpenAI API key not found in settings');
+      }
+
+      const openai = new OpenAI({ apiKey: settings.openaiApiKey });
 
       const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(audioFilePath), // Use the file path
+        file: fs.createReadStream(audioFilePath),
         model: 'whisper-1',
       });
-
-      // console.log('Transcription:', transcription.text);
 
       const textFilePath = path.join(contextDir, 'transcriptions.txt');
       let olderConversation = '';
@@ -195,14 +200,10 @@ export function initializeContext() {
         max_tokens: 8192,
       });
 
-      // console.log('Paraphrased conversation:', completion.choices[0].message.content);
-
-      // Append transcription to a single text file
+      // Write the paraphrased conversation to file
       fs.writeFile(textFilePath, completion.choices[0].message.content + '\n', err => {
         if (err) {
           console.error('Failed to write transcription to file:', err);
-        } else {
-          // console.log('Transcription written to file:', textFilePath);
         }
       });
     } catch (error: any) {

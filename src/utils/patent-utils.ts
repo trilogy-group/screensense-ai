@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 import * as path from 'path';
 import { patentGeneratorTemplate } from '../../shared/templates/patent-generator-template';
 import { logToFile } from './logger';
-
+import { loadSettings } from './settings-utils';
 interface PatentSession {
   id: string;
   title: string;
@@ -214,7 +214,11 @@ ${section}
 </section>
   `;
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const settings = loadSettings();
+  if (!settings.openaiApiKey) {
+    throw new Error('OpenAI API key not found in settings');
+  }
+  const openai = new OpenAI({ apiKey: settings.openaiApiKey });
   const response = await openai.chat.completions.create({
     model: 'o3-mini',
     messages: [{ role: 'user', content: prompt }],
