@@ -36,8 +36,12 @@ function ToolCallHandlerComponent({
     }
     if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
       observationTimerRef.current = setInterval(() => {
-        console.log('Asking for updates')
-        client?.send([{ text: 'Use the add_entry tool to document whatever happened since the previous call to add_entry. Capture screenshots whenever you think it is important. Do not say anything out loud.' }]);
+        console.log('Asking for updates');
+        client?.send([
+          {
+            text: 'Use the add_entry tool to document whatever happened since the previous call to add_entry. Capture screenshots whenever you think it is important. Do not say anything out loud.',
+          },
+        ]);
       }, 10000);
     }
   }, [client, isKBSessionActive, connected, assistantMode]);
@@ -69,17 +73,22 @@ function ToolCallHandlerComponent({
 
         const response = await fetch(screenshot);
         const blob = await response.blob();
-        console.log("conversion to blob successful")
+        console.log('conversion to blob successful');
         // Process with Gradio
         const detectionResult = await omniParser.detectElements(blob);
 
-        ipcRenderer.send('gradio-result', { success: true, detectionResult: detectionResult.data[1] }, cursorPos, screenshot, accuratePath);
-
+        ipcRenderer.send(
+          'gradio-result',
+          { success: true, detectionResult: detectionResult.data[1] },
+          cursorPos,
+          screenshot,
+          accuratePath
+        );
       } catch (error) {
         console.error('Error processing click in renderer:', error);
         ipcRenderer.send('gradio-result', {
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     };
@@ -113,11 +122,11 @@ function ToolCallHandlerComponent({
           // Use opencv service to find template directly with base64 image
           const templatePath = path;
           let result;
-          if(type === "b&w") {
+          if (type === 'b&w') {
             result = await opencvService.findTemplate(screenshot, templatePath);
-          } else if (type === "color") {
+          } else if (type === 'color') {
             result = await opencvService.findTemplateColor(screenshot, templatePath);
-          } else if (type === "canny") {
+          } else if (type === 'canny') {
             result = await opencvService.findTemplateCanny(screenshot, templatePath);
           }
           // const result = await opencvORBService.findTemplate(screenshot, templatePath);
@@ -128,8 +137,8 @@ function ToolCallHandlerComponent({
             return {
               x: result.location.x - 100,
               y: result.location.y - 100,
-              confidence: result.confidence
-            }
+              confidence: result.confidence,
+            };
           } else {
             console.log('Template not found in the image');
           }
@@ -216,30 +225,38 @@ function ToolCallHandlerComponent({
             ipcRenderer.send('log-to-file', `Read text: ${selectedText}`);
             hasResponded = true;
             break;
-          case "opencv_perform_action":
-          case "run_action":
+          case 'opencv_perform_action':
+          case 'run_action':
             // Check if OmniParser is busy
             if (omniParser.isProcessing()) {
-              client.send([{ text: `Say : "Action recording is in progress. Please wait for it to complete to perform the action."` }]);
+              client.send([
+                {
+                  text: `Say : "Action recording is in progress. Please wait for it to complete to perform the action."`,
+                },
+              ]);
             }
-
 
             // Wait for any pending OmniParser requests to complete
             while (omniParser.isProcessing()) {
-              console.log(omniParser.getActiveRequestCount())
+              console.log(omniParser.getActiveRequestCount());
               await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before checking again
             }
             client.send([{ text: `Say : "Performing the action"` }]);
 
             // Perform the action
-            const actionData = await ipcRenderer.invoke('perform-action', 'action')
+            const actionData = await ipcRenderer.invoke('perform-action', 'action');
             if (actionData) {
               ipcRenderer.send('show-action');
               for (const action of actionData) {
                 let templatePath;
                 templatePath = action.filepath.replace(/\\/g, '/');
-                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-                await new Promise(resolve => setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000)));
+                ipcRenderer.send('update-action', {
+                  imagePath: templatePath,
+                  text: action.function_call,
+                });
+                await new Promise(resolve =>
+                  setTimeout(resolve, Math.max(0, action.timeSinceLastAction + 1000))
+                );
 
                 ipcRenderer.send('hide-action');
                 // Add delay to ensure window is hidden
@@ -248,57 +265,68 @@ function ToolCallHandlerComponent({
                 ipcRenderer.send('show-action');
                 let cords;
 
-
                 templatePath = action.filepath.replace(/\\/g, '/');
-                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-                cords = await get_opencv_coordinates(templatePath, screenshot, "canny");
+                ipcRenderer.send('update-action', {
+                  imagePath: templatePath,
+                  text: action.function_call,
+                });
+                cords = await get_opencv_coordinates(templatePath, screenshot, 'canny');
                 if (cords && cords.confidence > 0.5) {
-                  console.log('cords', cords?.confidence)
+                  console.log('cords', cords?.confidence);
                   await interact(cords, action.function_call, false, action.payload);
                   hasResponded = true;
                   continue;
                 } else {
-                  console.log('failed', cords?.confidence)
+                  console.log('failed', cords?.confidence);
                 }
-
 
                 templatePath = action.filepath.replace(/\\/g, '/');
-                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-                cords = await get_opencv_coordinates(templatePath, screenshot, "color");
+                ipcRenderer.send('update-action', {
+                  imagePath: templatePath,
+                  text: action.function_call,
+                });
+                cords = await get_opencv_coordinates(templatePath, screenshot, 'color');
                 if (cords && cords.confidence > 0.5) {
-                  console.log('cords', cords?.confidence)
+                  console.log('cords', cords?.confidence);
                   await interact(cords, action.function_call, false, action.payload);
                   continue;
                 } else {
-                  console.log('failed', cords?.confidence)
+                  console.log('failed', cords?.confidence);
                 }
-
 
                 templatePath = action.accuratePath.replace(/\\/g, '/');
-                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-                cords = await get_opencv_coordinates(templatePath, screenshot, "canny");
+                ipcRenderer.send('update-action', {
+                  imagePath: templatePath,
+                  text: action.function_call,
+                });
+                cords = await get_opencv_coordinates(templatePath, screenshot, 'canny');
                 if (cords && cords.confidence > 0.5) {
-                  console.log('cords', cords?.confidence)
+                  console.log('cords', cords?.confidence);
                   await interact(cords, action.function_call, false, action.payload);
                   continue;
                 } else {
-                  console.log('failed', cords?.confidence)
+                  console.log('failed', cords?.confidence);
                 }
-
 
                 templatePath = action.accuratePath.replace(/\\/g, '/');
-                ipcRenderer.send('update-action', { imagePath: templatePath, text: action.function_call });
-                cords = await get_opencv_coordinates(templatePath, screenshot, "color");
+                ipcRenderer.send('update-action', {
+                  imagePath: templatePath,
+                  text: action.function_call,
+                });
+                cords = await get_opencv_coordinates(templatePath, screenshot, 'color');
                 if (cords && cords.confidence > 0.5) {
-                  console.log('cords', cords?.confidence)
+                  console.log('cords', cords?.confidence);
                   await interact(cords, action.function_call, false, action.payload);
                   continue;
                 } else {
-                  console.log('failed', cords?.confidence)
+                  console.log('failed', cords?.confidence);
                 }
 
-
-                client.send([{ text: "Say the following sentence : 'Search for element failed. Please perform the action yourself. When you are done, tell me to continue the action.'" }]);
+                client.send([
+                  {
+                    text: "Say the following sentence : 'Search for element failed. Please perform the action yourself. When you are done, tell me to continue the action.'",
+                  },
+                ]);
 
                 play_action = false;
                 while (!play_action) {
@@ -310,8 +338,7 @@ function ToolCallHandlerComponent({
             client.send([{ text: `Say : "Action completed."` }]);
             hasResponded = true;
             break;
-          case "continue_action":
-
+          case 'continue_action':
             play_action = true;
             hasResponded = true;
             break;
@@ -545,7 +572,11 @@ function ToolCallHandlerComponent({
               ],
             });
             hasResponded = true;
-            client.send([{ text: `Session started. You will now be observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Do NOT say anything out loud.` }]);
+            client.send([
+              {
+                text: `Session started. You will now be observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Do NOT say anything out loud.`,
+              },
+            ]);
             break;
           }
           case 'resume_kb_session': {
@@ -558,7 +589,11 @@ function ToolCallHandlerComponent({
               ],
             });
             hasResponded = true;
-            client.send([{ text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when explicitly asked. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important, or when the user explicitly asks for it. Remind the user out loud to share their screen with you, and then continue observing and documenting silently.` }]);
+            client.send([
+              {
+                text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when explicitly asked. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important, or when the user explicitly asks for it. Continue observing and documenting silently, and say nothing out loud.`,
+              },
+            ]);
             setIsKBSessionActive(true);
             startObservationTimer();
             ipcRenderer.send('update-is-session-active', true);
@@ -575,7 +610,11 @@ function ToolCallHandlerComponent({
                 },
               ],
             });
-            client.send([{ text: `Entry added to knowledge base (${content}). Send the next event when explicitly requested. Capture screenshots whenever you think it is important. Do NOT say ANYTHING out loud.` }]);
+            client.send([
+              {
+                text: `Entry added to knowledge base (${content}). Send the next event when explicitly requested. Capture screenshots whenever you think it is important. Do NOT say ANYTHING out loud.`,
+              },
+            ]);
             hasResponded = true;
             break;
           }
@@ -588,7 +627,7 @@ function ToolCallHandlerComponent({
                 const result = await ipcRenderer.invoke('save_kb_screenshot', {
                   screenshot,
                   description,
-                  context
+                  context,
                 });
 
                 if (result.success) {
@@ -623,10 +662,18 @@ function ToolCallHandlerComponent({
               ],
             });
             hasResponded = true;
-            client.send([{ text: `Tell the user that you are updating the content, and it will take a few seconds to complete.` }]);
+            client.send([
+              {
+                text: `Tell the user that you are updating the content, and it will take a few seconds to complete.`,
+              },
+            ]);
             const result = await ipcRenderer.invoke('update_kb_content', { request });
             if (result.success) {
-              client.send([{ text: `Knowledge base updated. Tell the user that you have updated the content.` }]);
+              client.send([
+                {
+                  text: `Knowledge base updated. Tell the user that you have updated the content.`,
+                },
+              ]);
             } else {
               client.send([{ text: `Failed to update knowledge base: ${result.error}` }]);
             }
@@ -635,7 +682,11 @@ function ToolCallHandlerComponent({
           case 'export_kb_as_pdf': {
             const result = await ipcRenderer.invoke('export_kb_as_pdf');
             if (result.success) {
-              client.send([{ text: `Knowledge base exported to PDF. Tell the user out loud that you have exported the knowledge base to a PDF.` }]);
+              client.send([
+                {
+                  text: `Knowledge base exported to PDF. Tell the user out loud that you have exported the knowledge base to a PDF.`,
+                },
+              ]);
             } else {
               client.send([{ text: `Failed to export knowledge base: ${result.error}` }]);
             }

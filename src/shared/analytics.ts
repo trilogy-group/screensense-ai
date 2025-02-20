@@ -42,7 +42,7 @@ export const initAnalytics = (machineId: string) => {
     // Track app launch and set up session tracking
     trackAppLaunch();
   } else {
-    console.log('Analytics disabled in development environment');
+    // console.log('Analytics disabled in development environment');
   }
 };
 
