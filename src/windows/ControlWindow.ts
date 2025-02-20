@@ -1,10 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import * as path from 'path';
-import { closeMainWindow, hideMainWindow, mainWindowExists, requestModeUpdate } from './MainWindow';
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile } from '../utils/window-utils';
-import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
+import { closeMainWindow, hideMainWindow, mainWindowExists, requestModeUpdate } from './MainWindow';
 import { closeSettingsWindow } from './SettingsWindow';
+import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
 
 let controlWindow: BrowserWindow | null = null;
 
@@ -49,6 +48,17 @@ export function sendCarouselUpdate(data: { modeName: string; requiresDisplay: bo
 export function sendRevertConnectionState() {
   if (controlWindowExists()) {
     controlWindow?.webContents.send('revert-connection-state');
+  }
+}
+
+export function sendConnectionUpdate(state: { type: string; reason?: string }) {
+  if (controlWindowExists()) {
+    console.log('[ControlWindow] 📤 Forwarding connection state to control tray:', state);
+    controlWindow?.webContents.send('connection-state-change', state);
+  } else {
+    console.log(
+      '[ControlWindow] ⚠️ Cannot forward connection state - control window not available'
+    );
   }
 }
 
@@ -110,6 +120,16 @@ export function initializeControlWindow() {
   // Register IPC Handlers
   ipcMain.on('close-control-window', () => {
     closeControlWindow();
+  });
+
+  ipcMain.on('connection-update', (event, state) => {
+    try {
+      console.log('[ControlWindow] 📥 Received connection update from LiveAPI:', state);
+      sendConnectionUpdate(state);
+    } catch (error) {
+      console.error('[ControlWindow] ❌ Error handling connection update:', error);
+      logToFile(`Error handling connection update: ${error}`);
+    }
   });
 
   ipcMain.on('screen-share-result', (event, success) => {

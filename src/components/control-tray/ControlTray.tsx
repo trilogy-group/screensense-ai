@@ -175,42 +175,38 @@ function ControlTray({
           const mediaStream = await next.start();
           setActiveVideoStream(mediaStream);
           onVideoStreamChange(mediaStream);
-          // Send success result for screen sharing
+          // Track screen sharing state through IPC
           if (next === screenCapture) {
+            console.log('🎥 Screen sharing started');
             ipcRenderer.send('screen-share-result', true);
           }
         } catch (error) {
           // Handle cancellation by hiding the main window
           if (error instanceof Error && error.message === 'Selection cancelled') {
-            console.log('Screen selection was cancelled, hiding main window');
+            console.log('🎥 Screen selection was cancelled');
             ipcRenderer.send('hide-main-window');
           } else {
-            console.error('Error changing streams:', error);
+            console.error('🎥 Error changing streams:', error);
           }
           setActiveVideoStream(null);
           onVideoStreamChange(null);
-          // Send failure result for screen sharing
           if (next === screenCapture) {
+            console.log('🎥 Screen sharing failed');
             ipcRenderer.send('screen-share-result', false);
           }
         }
       } else {
+        console.log('🎥 Stopping screen sharing');
         setActiveVideoStream(null);
         onVideoStreamChange(null);
+        // Clear screen sharing state through IPC
+        ipcRenderer.send('screen-share-result', false);
       }
 
       videoStreams.filter(msr => msr !== next).forEach(msr => msr.stop());
     },
     [onVideoStreamChange, screenCapture, videoStreams]
   );
-
-  // Stop all streams and hide subtitles when connection is closed
-  useEffect(() => {
-    if (!connected) {
-      changeStreams()();
-      ipcRenderer.send('remove-subtitles');
-    }
-  }, [connected, changeStreams]);
 
   useEffect(() => {
     setSelectedOption(modes[carouselIndex]);
@@ -393,16 +389,17 @@ function ControlTray({
       userAudioChunks.current = [];
       assistantAudioChunks.current = [];
       sessionStartTime.current = performance.now();
-      lastAssistantTimestamp.current = 0; // Reset the last timestamp
+      lastAssistantTimestamp.current = 0;
       trackEvent('chat_started', {
         assistant_mode: selectedOption.value,
       });
       connect();
     } else {
-      console.log('[ControlTray] Initiating disconnection...');
+      console.log('[ControlTray] Initiating explicit disconnection...');
       setIsRecordingSession(false);
       console.log(`[ControlTray] Going to save recordings`);
-      saveRecordings(false); // Save without resetting on disconnect
+      saveRecordings(false);
+      // Let the permanent disconnect effect handle stream cleanup
       disconnect();
       ipcRenderer.send('stop-capture-screen');
     }
@@ -420,32 +417,61 @@ function ControlTray({
     };
   }, [handleCarouselChange]);
 
+  const handleConnectionStateChange = useCallback((event: any, state: { type: string; reason?: string }) => {
+    console.log('🔌 Connection state change:', state);
+    
+    switch (state.type) {
+      case 'temporary-disconnect':
+        // Only hide subtitles for temporary disconnects
+        console.log('🔌 Temporary disconnection:', state.reason);
+        ipcRenderer.send('remove-subtitles');
+        break;
+        
+      case 'permanent-disconnect':
+        // For permanent disconnects, stop all streams and hide UI
+        console.log('🔌 Permanent disconnection:', state.reason);
+        changeStreams()();
+        ipcRenderer.send('remove-subtitles');
+        ipcRenderer.send('hide-main-window');
+        // Update UI state
+        setMuted(false);
+        setIsRecordingSession(false);
+        // Send state update to control window
+        ipcRenderer.send('update-control-state', {
+          isMuted: false,
+          isScreenSharing: false,
+          isWebcamOn: false,
+          isConnected: false,
+        });
+        break;
+        
+      case 'reconnected':
+        // Handle successful reconnection if needed
+        console.log('🔌 Successfully reconnected');
+        break;
+    }
+  }, [changeStreams]);
+
   // Handle control actions from video window
   useEffect(() => {
-    const handleControlAction = (event: any, action: { type: string; value: boolean }) => {
+    const handleControlAction = (
+      event: any,
+      action: { type: string; value: boolean; state?: any }
+    ) => {
+      console.log('🎮 Received control action:', action);
       switch (action.type) {
         case 'mic':
           setMuted(!action.value);
           break;
         case 'screen':
           if (action.value) {
-            // Start screen sharing
-            changeStreams(screenCapture)().then(() => {
-              // Send message to Gemini that screen sharing is enabled
-              // client.send([
-              //   {
-              //     text: "Screen sharing has been enabled. You can now use screen data for evaluation. If you have understood, reply with 'Screen sharing enabled'",
-              //   },
-              // ]);
-            });
+            // Normal screen selection flow
+            console.log('🎥 Starting normal screen selection flow');
+            changeStreams(screenCapture)();
           } else {
-            // Stop screen sharing and notify Gemini
+            // Stop screen sharing
+            console.log('🎥 Stopping screen sharing');
             changeStreams()();
-            // client.send([
-            //   {
-            //     text: "Screen sharing has been disabled. Any screen content you might see is from an older session and should be completely ignored. Do not use any screen data for your responses. If you have understood, reply with 'Screen sharing disabled'",
-            //   },
-            // ]);
           }
           break;
         case 'webcam':
@@ -458,6 +484,11 @@ function ControlTray({
         case 'connect':
           handleConnect();
           break;
+        case 'connection-state-change':
+          // Handle connection state changes from control window
+          console.log('🔌 Received connection state change from control window:', action.state);
+          handleConnectionStateChange(event, action.state);
+          break;
       }
     };
 
@@ -465,10 +496,27 @@ function ControlTray({
     return () => {
       ipcRenderer.removeListener('control-action', handleControlAction);
     };
-  }, [connect, disconnect, webcam, screenCapture, changeStreams, client, handleConnect]);
+  }, [
+    connect,
+    disconnect,
+    webcam,
+    screenCapture,
+    changeStreams,
+    client,
+    handleConnect,
+    onVideoStreamChange,
+    handleConnectionStateChange,
+  ]);
 
   // Send state updates to video window
   useEffect(() => {
+    // console.log('📡 Sending control state update:', {
+    //   isMuted: muted,
+    //   isScreenSharing: screenCapture.isStreaming,
+    //   isWebcamOn: webcam.isStreaming,
+    //   isConnected: connected,
+    // });
+
     ipcRenderer.send('update-control-state', {
       isMuted: muted,
       isScreenSharing: screenCapture.isStreaming,
@@ -478,8 +526,10 @@ function ControlTray({
 
     // Show/hide main window based on active streams
     if (screenCapture.isStreaming || webcam.isStreaming) {
+      // console.log('🎥 Showing main window due to active streams');
       ipcRenderer.send('show-main-window');
     } else {
+      // console.log('🎥 Hiding main window due to no active streams');
       ipcRenderer.send('hide-main-window');
     }
   }, [muted, screenCapture.isStreaming, webcam.isStreaming, connected]);

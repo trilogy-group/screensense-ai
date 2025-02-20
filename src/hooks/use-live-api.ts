@@ -109,12 +109,19 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
       });
       setConnected(false);
 
-      // Handle deadline exceeded error (1011) with one retry
+      // Handle deadline exceeded error (1011) or protocol error (1007) with one retry
       if (ev.code === 1011 || ev.code === 1007) {
-        console.log(`Disconnected due to ${ev.code}: ${ev.reason}`);
+        console.log(
+          `[LiveAPI] 🔌 Temporary disconnect detected: code=${ev.code}, reason=${ev.reason}`
+        );
+        // Signal temporary disconnect to main process
+        console.log('[LiveAPI] 📤 Sending temporary-disconnect to main process');
+        ipcRenderer.send('connection-update', { type: 'temporary-disconnect' });
+
         // Attempt reconnection after a short delay
         setTimeout(async () => {
           try {
+            console.log('[LiveAPI] 🔄 Attempting reconnection...');
             await connect();
             const context = await ipcRenderer.invoke('get-context');
             const { currentAssistantMode, isSessionActive } = await ipcRenderer.invoke(
@@ -127,28 +134,46 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
             );
 
             client.send([{ text: reconnectionMessage }], true, false);
-            console.log('Reconnection attempt successful');
+            console.log('[LiveAPI] ✅ Reconnection successful, sending reconnected state');
+            // Signal successful reconnection
+            ipcRenderer.send('connection-update', { type: 'reconnected' });
           } catch (err) {
-            console.error('Reconnection attempt failed:', err);
+            console.error('[LiveAPI] ❌ Reconnection failed:', err);
+            // Signal permanent disconnect after failed reconnection
+            console.log('[LiveAPI] 📤 Sending permanent-disconnect due to reconnection failure');
+            ipcRenderer.send('connection-update', {
+              type: 'permanent-disconnect',
+              reason: 'Reconnection failed after timeout',
+            });
             ipcRenderer.send('session-error', 'Reconnection failed after timeout');
           }
-        }, 1000);
+        }, 100);
         return;
       }
 
-      // Always send session end notification if not a normal disconnect
-      if (ev.code !== 1000) {
-        let errorMessage = 'Session ended unexpectedly';
-
-        // Try to extract error message from reason
-        if (ev.reason) {
-          const errorMatch = ev.reason.match(/ERROR\](.*)/i);
-          errorMessage = errorMatch ? errorMatch[1].trim() : ev.reason;
-        }
-
-        // Send error to main process
-        ipcRenderer.send('session-error', errorMessage);
+      // For explicit disconnects (code 1000), just signal permanent disconnect
+      if (ev.code === 1000) {
+        console.log('[LiveAPI] 🔌 Normal disconnect detected (code 1000)');
+        console.log('[LiveAPI] 📤 Sending permanent-disconnect for normal closure');
+        ipcRenderer.send('connection-update', {
+          type: 'permanent-disconnect',
+          reason: 'User disconnected',
+        });
+        return;
       }
+
+      // For any other unexpected closes
+      let errorMessage = 'Session ended unexpectedly';
+      if (ev.reason) {
+        const errorMatch = ev.reason.match(/ERROR\](.*)/i);
+        errorMessage = errorMatch ? errorMatch[1].trim() : ev.reason;
+      }
+      console.log(`[LiveAPI] ⚠️ Unexpected disconnect: ${errorMessage}`);
+      console.log('[LiveAPI] 📤 Sending permanent-disconnect for unexpected closure');
+      ipcRenderer.send('connection-update', {
+        type: 'permanent-disconnect',
+        reason: errorMessage,
+      });
     };
 
     const stopAudioStreamer = () => audioStreamerRef.current?.stop();

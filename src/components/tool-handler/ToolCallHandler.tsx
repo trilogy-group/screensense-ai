@@ -591,7 +591,7 @@ function ToolCallHandlerComponent({
             hasResponded = true;
             client.send([
               {
-                text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when explicitly asked. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important, or when the user explicitly asks for it. Remind the user out loud to share their screen with you, and then continue observing and documenting silently.`,
+                text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when explicitly asked. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important, or when the user explicitly asks for it. Continue observing and documenting silently, and say nothing out loud.`,
               },
             ]);
             setIsKBSessionActive(true);
