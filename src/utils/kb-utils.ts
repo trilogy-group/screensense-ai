@@ -205,19 +205,9 @@ async function structureKBSession() {
 
 ## Output/Resolution
 [Expected outputs and resolution paths]
-- If third-party issue:
-  - Document error details
-  - Redirect to appropriate business unit
-- If internal issue:
-  - Document failure specifics
-  - Steps for reproduction in QA
-
-## Related Logs/Screenshots
-[References to system logs, error logs, and relevant screenshots, if any]
-
-## Notes
-[Additional context and important observations, if any]
-`;
+- Document error details and failure specifics
+- Steps for reproduction in QA
+- Redirect to appropriate business unit, if applicable`;
 
   // Create a prompt for OpenAI
   const prompt = `You are an expert at creating technical runbooks and troubleshooting guides.

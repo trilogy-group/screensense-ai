@@ -25,11 +25,18 @@ import { audioContext } from '../lib/utils';
 import VolMeterWorket from '../lib/worklets/vol-meter';
 const { ipcRenderer } = window.require('electron');
 
-const getModeSpecificReconnectionMessage = (mode: string, context: string) => {
+const getModeSpecificReconnectionMessage = (
+  mode: string,
+  context: string,
+  isSessionActive: boolean
+) => {
   console.log(`Getting mode specific reconnection message for mode: ${mode}`);
   switch (mode) {
     case 'knowledge_base':
-      return `The session was interrupted. Here is the conversation history: ${context}.\n\nCall the resume_kb_session function. Do NOT start a new kb session. Do NOT say ANYTHING out loud.`;
+      console.log(`isSessionActive: ${isSessionActive}`);
+      return isSessionActive
+        ? `The session was interrupted. Here is the conversation history: ${context}.\n\nCall the resume_kb_session function. Do NOT start a new kb session. Do NOT say ANYTHING out loud.`
+        : `The session was interrupted. Here is the conversation history: ${context}. The user has ended the session. Only help them with the documentations now.`;
     case 'translator':
       return 'The translation session was interrupted. I will resume translating.';
     case 'patent_generator':
@@ -110,8 +117,14 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
           try {
             await connect();
             const context = await ipcRenderer.invoke('get-context');
-            const currentMode = await ipcRenderer.invoke('get-current-mode');
-            const reconnectionMessage = getModeSpecificReconnectionMessage(currentMode, context);
+            const { currentAssistantMode, isSessionActive } = await ipcRenderer.invoke(
+              'get-current-mode-and-is-session-active'
+            );
+            const reconnectionMessage = getModeSpecificReconnectionMessage(
+              currentAssistantMode,
+              context,
+              isSessionActive
+            );
 
             client.send([{ text: reconnectionMessage }], true, false);
             console.log('Reconnection attempt successful');

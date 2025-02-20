@@ -534,6 +534,7 @@ function ToolCallHandlerComponent({
             if (result.success) {
               setIsKBSessionActive(true);
               startObservationTimer();
+              ipcRenderer.send('update-is-session-active', true);
             }
             client.sendToolResponse({
               functionResponses: [
@@ -557,9 +558,10 @@ function ToolCallHandlerComponent({
               ],
             });
             hasResponded = true;
-            client.send([{ text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when there is something new to document. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important. Remind the user to share their screen with you. Do NOT say anything else out loud.` }]);
+            client.send([{ text: `Session resumed. Continue observing and documenting the user's actions. Use the add_entry tool only when explicitly asked. Do not make assumptions about what's on screen - only capture what you can actually see. Capture screenshots whenever you think it is important, or when the user explicitly asks for it. Remind the user out loud to share their screen with you, and then continue observing and documenting silently.` }]);
             setIsKBSessionActive(true);
             startObservationTimer();
+            ipcRenderer.send('update-is-session-active', true);
             break;
           }
           case 'add_entry': {
@@ -651,6 +653,7 @@ function ToolCallHandlerComponent({
           case 'end_kb_session': {
             stopObservationTimer();
             setIsKBSessionActive(false);
+            ipcRenderer.send('update-is-session-active', false);
             const { content } = fc.args as { content: string };
             await ipcRenderer.invoke('add_kb_entry', { content });
             client.send([

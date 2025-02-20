@@ -31,6 +31,7 @@ if (!app.isPackaged) {
 
 // Add this near the top with other state variables
 let currentAssistantMode = 'daily_helper'; // Default mode
+let isSessionActive = false;
 
 function getFirstLaunchPath(machineId: string) {
   return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
@@ -234,11 +235,15 @@ ipcMain.handle('get-env', async (event, key) => {
 });
 
 // Add this with other IPC handlers
-ipcMain.handle('get-current-mode', () => {
-  return currentAssistantMode;
+ipcMain.handle('get-current-mode-and-is-session-active', () => {
+  return { currentAssistantMode, isSessionActive };
 });
 
 // Add this with other IPC listeners
 ipcMain.on('update-current-mode', (event, mode) => {
   currentAssistantMode = mode;
+});
+
+ipcMain.on('update-is-session-active', (event, active) => {
+  isSessionActive = active;
 });
