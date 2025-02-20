@@ -124,7 +124,7 @@ function App() {
     const loadSavedSettings = async () => {
       try {
         const savedSettings = await ipcRenderer.invoke('get-saved-settings');
-        console.log('Loaded saved settings:', savedSettings);
+        // console.log('Loaded saved settings:', savedSettings);
         if (savedSettings?.geminiApiKey) {
           setGeminiApiKey(savedSettings.geminiApiKey);
         }
@@ -138,7 +138,7 @@ function App() {
   // Handle settings-related IPC messages
   useEffect(() => {
     const handleGetSettings = () => {
-      console.log('Sending current settings:', { geminiApiKey });
+      // console.log('Sending current settings:', { geminiApiKey });
       ipcRenderer.send('settings-data', { geminiApiKey });
     };
 

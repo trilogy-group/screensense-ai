@@ -9,19 +9,19 @@ let updateWindow: BrowserWindow | null = null;
 async function showUpdateWindow() {
   try {
     if (!updateWindow) {
-      console.log('Creating new update window');
-      log.info('Creating new update window');
+      // console.log('Creating new update window');
+      // log.info('Creating new update window');
       updateWindow = await createUpdateWindow();
       if (!updateWindow) {
         console.error('Failed to create update window');
         log.error('Failed to create update window');
         return null;
       }
-      console.log('Update window created successfully');
-      log.info('Update window created successfully');
+      // console.log('Update window created successfully');
+      // log.info('Update window created successfully');
     } else {
-      console.log('Reusing existing update window');
-      log.info('Reusing existing update window');
+      // console.log('Reusing existing update window');
+      // log.info('Reusing existing update window');
     }
     return updateWindow;
   } catch (error) {
@@ -46,13 +46,13 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
     // Add logging for debugging
     autoUpdater.logger = log;
     log.transports.file.level = 'debug';
-    console.log('Auto updater initialized');
-    log.info('Auto updater initialized');
+    // console.log('Auto updater initialized');
+    // log.info('Auto updater initialized');
 
     // Handle window close
     ipcMain.on('close-update-window', () => {
-      console.log('Received close-update-window event');
-      log.info('Received close-update-window event');
+      // console.log('Received close-update-window event');
+      // log.info('Received close-update-window event');
       if (updateWindow) {
         updateWindow.close();
         updateWindow = null;
@@ -63,13 +63,13 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
 
     // Check for updates
     autoUpdater.on('checking-for-update', async () => {
-      console.log('Checking for updates...');
-      log.info('Checking for updates...');
+      // console.log('Checking for updates...');
+      // log.info('Checking for updates...');
       const window = await showUpdateWindow();
       if (window) {
         window.webContents.send('update-status', 'checking');
-        console.log('Sent checking status to window');
-        log.info('Sent checking status to window');
+        // console.log('Sent checking status to window');
+        // log.info('Sent checking status to window');
       } else {
         console.error('Failed to show update window for checking status');
         log.error('Failed to show update window for checking status');
@@ -78,8 +78,8 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
 
     // Update available
     autoUpdater.on('update-available', async info => {
-      console.log('Update available:', info);
-      log.info('Update available:', info);
+      // console.log('Update available:', info);
+      // log.info('Update available:', info);
       const window = await showUpdateWindow();
       if (window) {
         window.webContents.send('update-status', 'available', info);
@@ -93,37 +93,37 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
 
     // Update not available
     autoUpdater.on('update-not-available', async info => {
-      console.log('Update not available:', info);
-      log.info('Update not available:', info);
+      // console.log('Update not available:', info);
+      // log.info('Update not available:', info);
       if (updateWindow) {
         updateWindow.close();
         updateWindow = null;
-        console.log('Closed update window - no updates available');
-        log.info('Closed update window - no updates available');
+        // console.log('Closed update window - no updates available');
+        // log.info('Closed update window - no updates available');
       }
     });
 
     // Download progress
     autoUpdater.on('download-progress', async progressObj => {
-      console.log('Download progress:', progressObj);
-      log.info('Download progress:', progressObj);
+      // console.log('Download progress:', progressObj);
+      // log.info('Download progress:', progressObj);
       const window = await showUpdateWindow();
       if (window) {
         window.webContents.send('update-status', 'downloading', progressObj);
-        console.log('Sent download progress to window');
+        // console.log('Sent download progress to window');
         log.info('Sent download progress to window');
       }
     });
 
     // Update downloaded
     autoUpdater.on('update-downloaded', async info => {
-      console.log('Update downloaded:', info);
-      log.info('Update downloaded:', info);
+      // console.log('Update downloaded:', info);
+      // log.info('Update downloaded:', info);
       const window = await showUpdateWindow();
       if (window) {
         window.webContents.send('update-status', 'downloaded', info);
-        console.log('Sent downloaded status to window');
-        log.info('Sent downloaded status to window');
+        // console.log('Sent downloaded status to window');
+        // log.info('Sent downloaded status to window');
       }
     });
 
@@ -134,15 +134,15 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
       const window = await showUpdateWindow();
       if (window) {
         window.webContents.send('update-status', 'error', err);
-        console.log('Sent error status to window');
-        log.info('Sent error status to window');
+        // console.log('Sent error status to window');
+        // log.info('Sent error status to window');
       }
     });
 
     // Handle IPC events from renderer
     ipcMain.on('check-for-update', () => {
-      console.log('Manual check for updates requested');
-      log.info('Manual check for updates requested');
+      // console.log('Manual check for updates requested');
+      // log.info('Manual check for updates requested');
       autoUpdater.checkForUpdates().catch(err => {
         console.error('Error checking for updates:', err);
         log.error('Error checking for updates:', err);
@@ -150,8 +150,8 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
     });
 
     ipcMain.on('download-update', () => {
-      console.log('Download update requested');
-      log.info('Download update requested');
+      // console.log('Download update requested');
+      // log.info('Download update requested');
       autoUpdater.downloadUpdate().catch(err => {
         console.error('Error downloading update:', err);
         log.error('Error downloading update:', err);
@@ -159,16 +159,16 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
     });
 
     ipcMain.on('install-update', () => {
-      console.log('Install update requested');
-      log.info('Install update requested');
+      // console.log('Install update requested');
+      // log.info('Install update requested');
       autoUpdater.quitAndInstall();
     });
 
     // Check for updates every hour
     setInterval(
       () => {
-        console.log('Scheduled update check');
-        log.info('Scheduled update check');
+        // console.log('Scheduled update check');
+        // log.info('Scheduled update check');
         autoUpdater.checkForUpdates().catch(err => {
           console.error('Error in scheduled update check:', err);
           log.error('Error in scheduled update check:', err);
@@ -178,8 +178,8 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
     );
 
     // Initial check
-    console.log('Performing initial update check');
-    log.info('Performing initial update check');
+    // console.log('Performing initial update check');
+    // log.info('Performing initial update check');
     autoUpdater.checkForUpdates().catch(err => {
       console.error('Error in initial update check:', err);
       log.error('Error in initial update check:', err);

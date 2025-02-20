@@ -53,7 +53,7 @@ export function sendRevertConnectionState() {
 
 export function sendConnectionUpdate(state: { type: string; reason?: string }) {
   if (controlWindowExists()) {
-    console.log('[ControlWindow] 📤 Forwarding connection state to control tray:', state);
+    // console.log('[ControlWindow] 📤 Forwarding connection state to control tray:', state);
     controlWindow?.webContents.send('connection-state-change', state);
   } else {
     console.log(
@@ -124,7 +124,7 @@ export function initializeControlWindow() {
 
   ipcMain.on('connection-update', (event, state) => {
     try {
-      console.log('[ControlWindow] 📥 Received connection update from LiveAPI:', state);
+      // console.log('[ControlWindow] 📥 Received connection update from LiveAPI:', state);
       sendConnectionUpdate(state);
     } catch (error) {
       console.error('[ControlWindow] ❌ Error handling connection update:', error);

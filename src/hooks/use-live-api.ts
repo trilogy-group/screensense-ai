@@ -115,7 +115,7 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
           `[LiveAPI] 🔌 Temporary disconnect detected: code=${ev.code}, reason=${ev.reason}`
         );
         // Signal temporary disconnect to main process
-        console.log('[LiveAPI] 📤 Sending temporary-disconnect to main process');
+        // console.log('[LiveAPI] 📤 Sending temporary-disconnect to main process');
         ipcRenderer.send('connection-update', { type: 'temporary-disconnect' });
 
         // Attempt reconnection after a short delay
@@ -134,13 +134,13 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
             );
 
             client.send([{ text: reconnectionMessage }], true, false);
-            console.log('[LiveAPI] ✅ Reconnection successful, sending reconnected state');
+            // console.log('[LiveAPI] ✅ Reconnection successful, sending reconnected state');
             // Signal successful reconnection
             ipcRenderer.send('connection-update', { type: 'reconnected' });
           } catch (err) {
             console.error('[LiveAPI] ❌ Reconnection failed:', err);
             // Signal permanent disconnect after failed reconnection
-            console.log('[LiveAPI] 📤 Sending permanent-disconnect due to reconnection failure');
+            // console.log('[LiveAPI] 📤 Sending permanent-disconnect due to reconnection failure');
             ipcRenderer.send('connection-update', {
               type: 'permanent-disconnect',
               reason: 'Reconnection failed after timeout',
@@ -168,8 +168,8 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
         const errorMatch = ev.reason.match(/ERROR\](.*)/i);
         errorMessage = errorMatch ? errorMatch[1].trim() : ev.reason;
       }
-      console.log(`[LiveAPI] ⚠️ Unexpected disconnect: ${errorMessage}`);
-      console.log('[LiveAPI] 📤 Sending permanent-disconnect for unexpected closure');
+      // console.log(`[LiveAPI] ⚠️ Unexpected disconnect: ${errorMessage}`);
+      // console.log('[LiveAPI] 📤 Sending permanent-disconnect for unexpected closure');
       ipcRenderer.send('connection-update', {
         type: 'permanent-disconnect',
         reason: errorMessage,

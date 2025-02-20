@@ -418,18 +418,18 @@ function ControlTray({
   }, [handleCarouselChange]);
 
   const handleConnectionStateChange = useCallback((event: any, state: { type: string; reason?: string }) => {
-    console.log('🔌 Connection state change:', state);
+    // console.log('🔌 Connection state change:', state);
     
     switch (state.type) {
       case 'temporary-disconnect':
         // Only hide subtitles for temporary disconnects
-        console.log('🔌 Temporary disconnection:', state.reason);
+        // console.log('🔌 Temporary disconnection:', state.reason);
         ipcRenderer.send('remove-subtitles');
         break;
         
       case 'permanent-disconnect':
         // For permanent disconnects, stop all streams and hide UI
-        console.log('🔌 Permanent disconnection:', state.reason);
+        // console.log('🔌 Permanent disconnection:', state.reason);
         changeStreams()();
         ipcRenderer.send('remove-subtitles');
         ipcRenderer.send('hide-main-window');
@@ -486,7 +486,7 @@ function ControlTray({
           break;
         case 'connection-state-change':
           // Handle connection state changes from control window
-          console.log('🔌 Received connection state change from control window:', action.state);
+          // console.log('🔌 Received connection state change from control window:', action.state);
           handleConnectionStateChange(event, action.state);
           break;
       }
