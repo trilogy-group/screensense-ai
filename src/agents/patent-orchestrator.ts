@@ -323,11 +323,11 @@ If the user shares visual demonstrations (screenshots, diagrams, etc.), pass:
       { configurable: { thread_id: currentThreadId } }
     );
 
-    console.log(
-      `Received ${response.messages.length} messages from patent agent:\n${response.messages
-        .map((m: any) => `=====\n${m.content}\n=====`)
-        .join('\n')}`
-    );
+    // console.log(
+    //   `Received ${response.messages.length} messages from patent agent:\n${response.messages
+    //     .map((m: any) => `=====\n${m.content}\n=====`)
+    //     .join('\n')}`
+    // );
 
     // Access the structured response
     const structuredResponse = response.structuredResponse;
