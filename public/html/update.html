@@ -1,11 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <title>Update Available</title>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+          sans-serif;
         margin: 0;
         padding: 20px;
         background: #ffffff;
@@ -57,12 +58,52 @@
       button.secondary:hover {
         background: #d0d0d0;
       }
+      .error-message {
+        color: #666666;
+        font-size: 14px;
+        line-height: 1.4;
+        margin: 10px 0;
+      }
+      .error-hint {
+        font-size: 13px;
+        color: #888888;
+        margin-top: 8px;
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
     <script>
       const { ipcRenderer } = require('electron');
+
+      function getUserFriendlyErrorMessage(error) {
+        // Extract the error context and message
+        const errorText = error.message || error;
+
+        // Common error patterns and their user-friendly messages
+        const errorPatterns = {
+          ENOTFOUND:
+            'Unable to connect to the update server. Please check your internet connection.',
+          ETIMEDOUT: 'The connection to the update server timed out. Please try again.',
+          ECONNREFUSED: 'Cannot reach the update server. Please try again later.',
+          INTERNET_DISCONNECTED: 'Please check your internet connection and try again.',
+          ERR_INTERNET_DISCONNECTED: 'Please check your internet connection and try again.',
+          ERR_CONNECTION_REFUSED: 'Unable to connect to the update server. Please try again later.',
+          ERR_NAME_NOT_RESOLVED:
+            'Unable to locate the update server. Please check your internet connection.',
+          ERR_CONNECTION_TIMED_OUT: 'The connection timed out. Please try again.',
+        };
+
+        // Check if the error matches any known patterns
+        for (const [pattern, message] of Object.entries(errorPatterns)) {
+          if (errorText.includes(pattern)) {
+            return message;
+          }
+        }
+
+        // Default user-friendly message if no pattern matches
+        return 'Unable to check for updates at this time. Please try again later.';
+      }
 
       function createUpdateUI() {
         const root = document.getElementById('root');
@@ -107,9 +148,11 @@
               break;
 
             case 'error':
+              const userMessage = getUserFriendlyErrorMessage(info);
               container.innerHTML = `
-                <h3>Update Error</h3>
-                <p>${info.message || 'An error occurred while updating.'}</p>
+                <h3>Update Check Failed</h3>
+                <div class="error-message">${userMessage}</div>
+                <div class="error-hint">You can try again or check for updates later.</div>
                 <button onclick="checkForUpdates()">Try Again</button>
                 <button class="secondary" onclick="closeWindow()">Close</button>
               `;
@@ -137,4 +180,4 @@
       document.addEventListener('DOMContentLoaded', createUpdateUI);
     </script>
   </body>
-</html> 
+</html>
