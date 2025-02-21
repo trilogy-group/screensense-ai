@@ -56,8 +56,8 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
       if (updateWindow) {
         updateWindow.close();
         updateWindow = null;
-        console.log('Update window closed');
-        log.info('Update window closed');
+        // console.log('Update window closed');
+        // log.info('Update window closed');
       }
     });
 
