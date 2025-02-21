@@ -25,7 +25,7 @@ let currentThreadId_novelty: string | null = null;
 const askNextQuestion = tool(
     async ({ reason, question }) => {
         console.log('🔍 [NoveltyAgent:askNextQuestion] Called with:', { reason, question });
-        ipcRenderer.send('novelty-question', { question, reason });
+        ipcRenderer.send('patent-question', { question, reason });
         return {
             success: true,
             message:
@@ -191,6 +191,7 @@ let checkpointer_novelty: MemorySaver;
 
 // Initialize the agent
 export async function initializeNoveltyAgent(patentDocument?: string) {
+    // console.log(patentDocument);
     await initializeModel();
     console.log('💾 Initializing memory saver for NoveltyAgent');
     checkpointer_novelty = new MemorySaver();

@@ -409,7 +409,7 @@ function ToolCallHandlerComponent({
             hasResponded = true;
             break;
           }
-          case '.': {
+          case 'send_user_response': {
             client.send([
               {
                 text: `Tell the user this out loud that you will convey their message to the laywer. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,

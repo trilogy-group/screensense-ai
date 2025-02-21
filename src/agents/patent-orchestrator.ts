@@ -24,12 +24,6 @@ let currentAgent: ActiveAgent = 'background';
 export async function initializePatentAgent() {
   console.log('🚀 Initializing patent orchestrator');
   await initializeBackgroundAgent();
-  const patentDoc = await ipcRenderer.invoke('read_patent');
-  if (!patentDoc.success) {
-    console.error('❌ Failed to read patent document during transition');
-    throw new Error('Failed to read patent document during transition');
-  }
-  await initializeNoveltyAgent(patentDoc.contents);
 }
 
 // Initialize when module loads
@@ -58,11 +52,17 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
         
         // Read the current patent document
         currentAgent = 'novelty';
+        const patentDoc = await ipcRenderer.invoke('read_patent');
+        if (!patentDoc.success) {
+          console.error('❌ Failed to read patent document during transition');
+          throw new Error('Failed to read patent document during transition');
+        }
+        await initializeNoveltyAgent(patentDoc.contents);
         console.log('🔄 Novelty agent initialized with patent document');
         // Notify user about transition
-        ipcRenderer.send('send-gemini-message', {
-          message: 'Say the following : "I will now begin the novelty assessment phase. Please confirm when you are ready to begin." When the user confirms, you will convey to the lawyer that the user is ready using send_user_response tool.',
-        });
+        // ipcRenderer.send('send-gemini-message', {
+        //   message: 'Say the following : "I will now begin the novelty assessment phase. Please confirm when you are ready to begin." When the user confirms, you will convey to the lawyer that the user is ready using send_user_response tool.',
+        // });
       }
     } else {
       response = await invokeNoveltyAgent(userMessage);
