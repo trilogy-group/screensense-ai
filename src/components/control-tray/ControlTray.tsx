@@ -242,7 +242,7 @@ function ControlTray({
     if (connected && client) {
       // Only send introduction message on initial connection
       if (isInitialConnection.current) {
-        console.log('🔌 Sending initial message on initial connection');
+        // console.log('🔌 Sending initial message on initial connection');
         isInitialConnection.current = false;
         // Send initial system message about screen sharing state
         if (selectedOption.value === 'screen_capture_record') {
@@ -261,7 +261,7 @@ function ControlTray({
           client.send([{ text: 'Introduce yourself.' }]);
         }
       } else {
-        console.log('🔌 Not sending initial message on non-initial connection');
+        // console.log('🔌 Not sending initial message on non-initial connection');
       }
     }
   }, [connected, client, selectedOption.value]);
@@ -299,7 +299,7 @@ function ControlTray({
         return;
       }
 
-      console.log('Saving recordings...');
+      // console.log('Saving recordings...');
       // console.log('User chunks:', userAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
       // console.log('Assistant chunks:', assistantAudioChunks.current.map(c => ({ timestamp: c.timestamp, duration: c.duration })));
 
@@ -355,7 +355,7 @@ function ControlTray({
 
       // Reset audio chunks and timestamps if requested
       if (shouldReset) {
-        console.log('Resetting audio chunks and timestamps');
+        // console.log('Resetting audio chunks and timestamps');
         userAudioChunks.current = [];
         assistantAudioChunks.current = [];
         sessionStartTime.current = performance.now();
