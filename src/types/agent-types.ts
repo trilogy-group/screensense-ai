@@ -50,7 +50,7 @@ export async function initializeModel() {
   console.log('✅ Got API key from settings');
 
   model = new ChatAnthropic({
-    modelName: 'claude-3-5-sonnet-20241022',
+    modelName: 'claude-3-7-sonnet-latest',
     temperature: 0,
     anthropicApiKey: apiKey,
     maxTokens: 8192,
