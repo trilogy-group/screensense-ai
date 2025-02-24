@@ -336,7 +336,8 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
 Key Points:
 - If introducing yourself, state you're ScreenSense AI in Patent Generator Mode, and ask the user to provide the title of the invention to get started.
 - Always relay all user responses/visuals to lawyer using the send_user_response or capture_patent_screenshot tools
-- Do not call any tool more than once with the same arguments. Wait for the tool to complete before calling it again.`,
+- Do not call any tool more than once with the same arguments. Wait for the tool to complete before calling it again.
+- While giving a confirmation message to the user, do not read the function call response to user. Everything you say should be English. Do not read out Json structure to user.`,
   },
   insight_generator: {
     display_name: 'Insight Generator',
