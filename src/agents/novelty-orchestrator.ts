@@ -4,20 +4,9 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { tool } from '@langchain/core/tools';
 import { BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
+import { ToolResponse, NoveltyResponse } from '../types/agent-types';
+import { initializeModel } from '../types/agent-types';
 const { ipcRenderer } = window.require('electron');
-
-// Add types for tool responses
-interface ToolResponse {
-  name: string;
-  response: {
-    output: any;
-  };
-}
-
-interface NoveltyResponse {
-  messages: BaseMessage[];
-  toolCalls?: ToolResponse[];
-}
 
 // Track the current novelty assessment session
 let currentThreadId: string | null = null;
@@ -81,7 +70,7 @@ const addContent = tool(
     console.log('📝 [addContent] Called with:', { section, contentLength: content.length });
     try {
       ipcRenderer.send('send-gemini-message', {
-        message: `Tell the user this: 'Please give me a few seconds to add the content to the document.`,
+        message: `Say this out loud to the user: 'Please give me a few seconds to add the content to the document.'`,
       });
       const result = await ipcRenderer.invoke('add_content', { content, section });
       //   console.log('✅ [addContent] Content added successfully:', result);
@@ -107,35 +96,13 @@ const addContent = tool(
 
 // Define all tools available to the agent
 const tools = [askNextQuestion, replyToUser, addContent];
-
-// Initialize the model
-console.log('🤖 Initializing Claude model for NoveltyAgent');
-let model: ChatAnthropic;
-
-// Initialize model with API key from main process
-async function initializeModel() {
-  const settings = await ipcRenderer.invoke('get-saved-settings');
-  const apiKey = settings.anthropicApiKey;
-
-  if (!apiKey) {
-    console.error('❌ Anthropic API key not found in settings');
-    throw new Error('Anthropic API key not found');
-  }
-  console.log('✅ Got API key from settings');
-
-  model = new ChatAnthropic({
-    modelName: 'claude-3-5-sonnet-20241022',
-    temperature: 0,
-    anthropicApiKey: apiKey,
-    maxTokens: 8192,
-  });
-}
 let noveltyAgent: any = null;
 
 // Initialize the agent
+console.log('🤖 Initializing Claude model for NoveltyAgent');
 export async function initializeNoveltyAgent(patentDocument?: string) {
   // console.log(patentDocument);
-  await initializeModel();
+  let model = await initializeModel();
   console.log('💾 Initializing memory saver for NoveltyAgent');
 
   let systemPrompt = `You are an expert in novelty assessment for patent applications. Your role is to systematically identify, assess, and document the novel and patentable aspects of the invention.

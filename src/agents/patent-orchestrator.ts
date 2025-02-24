@@ -1,4 +1,5 @@
 import { BaseMessage } from '@langchain/core/messages';
+import { ActiveAgent, OrchestratorResponse } from '../types/agent-types';
 import {
   initializeReconAgent,
   invokeReconAgent,
@@ -13,20 +14,6 @@ import {
 const { ipcRenderer } = window.require('electron');
 
 // Add types for tool responses
-interface ToolResponse {
-  name: string;
-  response: {
-    output: any;
-  };
-}
-
-interface OrchestratorResponse {
-  messages: BaseMessage[];
-  toolCalls?: ToolResponse[];
-}
-
-// Track which agent is currently active
-type ActiveAgent = 'recon' | 'novelty';
 let currentAgent: ActiveAgent = 'recon';
 
 // Initialize the orchestrator
@@ -41,10 +28,15 @@ initializePatentAgent().catch(error => {
   console.error('❌ Failed to initialize patent agent:', error);
 });
 
-export async function invokePatentAgent(userMessage: string, isNewPatent: boolean = false): Promise<OrchestratorResponse> {
+export async function invokePatentAgent(
+  userMessage: string,
+  isNewPatent: boolean = false
+): Promise<OrchestratorResponse> {
   if (!userMessage || userMessage.trim() === '') {
     throw new Error('User message cannot be empty');
   }
+
+  if (isNewPatent) resetPatentThread();
 
   console.log('📨 [PatentOrchestrator] Message preview:', userMessage.slice(0, 100) + '...');
   console.log('🤖 Current agent:', currentAgent);
@@ -57,7 +49,7 @@ export async function invokePatentAgent(userMessage: string, isNewPatent: boolea
       // Debug tool calls
       console.log('🔍 [ReconOrchestrator] response', response);
 
-      if (response.switch_agent) {
+      if (response.switchAgent) {
         console.log('🔄 Transitioning from recon to novelty agent');
 
         // Read the current patent document

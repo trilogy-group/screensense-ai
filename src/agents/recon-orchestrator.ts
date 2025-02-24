@@ -4,46 +4,20 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { tool } from '@langchain/core/tools';
 import { BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
+import { ToolResponse, ReconResponse, AgentResponse, ActionStep } from '../types/agent-types';
+import { initializeModel } from '../types/agent-types';
 const { ipcRenderer } = window.require('electron');
-
-// Add types for tool responses
-interface ToolResponse {
-  name: string;
-  response: {
-    output: any;
-  };
-}
-
-interface ReconResponse {
-  messages: BaseMessage[];
-  toolCalls?: ToolResponse[];
-  switch_agent?: boolean;
-}
-
-// Add types for intermediate steps
-interface ActionStep {
-  action: {
-    tool: string;
-    toolInput: any;
-  };
-  observation: any;
-}
-
-interface AgentResponse {
-  messages: BaseMessage[];
-  intermediateSteps?: ActionStep[];
-}
 
 // Track the current recon session
 let currentThreadId: string | null = null;
-let switch_agent: boolean = false;
+let switchAgent: boolean = false;
 
 const askNextQuestion = tool(
   async ({ reason, question }) => {
     console.log('🔍 [ReconAgent:askNextQuestion] Called with:', { reason, question });
-    ipcRenderer.send('send-gemini-message', { 
-      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.` }
-    );
+    ipcRenderer.send('send-gemini-message', {
+      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`,
+    });
 
     return {
       success: true,
@@ -96,9 +70,10 @@ const reconComplete = tool(
   async ({ summary }) => {
     console.log('🎯 [ReconAgent:reconComplete] Called with summary length:', summary.length);
     try {
+      switchAgent = true;
       await ipcRenderer.send('send-gemini-message', {
         message:
-          'The initial discovery phase is complete. I will now start documenting what we have discussed.',
+          'Say this out loud to the user: "The initial discovery phase is complete. I will now start documenting what we have discussed."',
       });
 
       await ipcRenderer.invoke('display_patent');
@@ -111,10 +86,8 @@ const reconComplete = tool(
       // Return a properly structured response
       const response = {
         success: true,
-        message: '   phase completed. Ready to transition to novelty assessment.',
-        shouldTransition: true,
+        message: 'Recon phase completed. Ready to transition to novelty assessment.',
       };
-      switch_agent = true;
       console.log('🎯 [ReconAgent:reconComplete] Returning response:', response);
       return response;
     } catch (error) {
@@ -144,33 +117,13 @@ const reconComplete = tool(
 const tools = [askNextQuestion, replyToUser, reconComplete];
 
 // Initialize the model
-console.log('🤖 Initializing Claude model for ReconAgent');
-let model: ChatAnthropic;
-
-// Initialize model with API key from main process
-async function initializeModel() {
-  const settings = await ipcRenderer.invoke('get-saved-settings');
-  const apiKey = settings.anthropicApiKey;
-
-  if (!apiKey) {
-    console.error('❌ Anthropic API key not found in settings');
-    throw new Error('Anthropic API key not found');
-  }
-  console.log('✅ Got API key from settings');
-
-  model = new ChatAnthropic({
-    modelName: 'claude-3-5-sonnet-20241022',
-    temperature: 0,
-    anthropicApiKey: apiKey,
-    maxTokens: 8192,
-  });
-}
-let discoveryAgent: any = null;
+let reconAgent: any = null;
 
 // Initialize the agent
+console.log('🤖 Initializing Claude model for ReconAgent');
 export async function initializeReconAgent() {
-  await initializeModel();
-  discoveryAgent = createReactAgent({
+  let model = await initializeModel();
+  reconAgent = createReactAgent({
     llm: model,
     tools,
     checkpointSaver: new MemorySaver(),
@@ -178,8 +131,11 @@ export async function initializeReconAgent() {
   console.log('✅ Recon agent initialized');
 }
 
-export async function invokeReconAgent(userMessage: string, isNewPatent: boolean = false): Promise<ReconResponse> {
-  if (!discoveryAgent) {
+export async function invokeReconAgent(
+  userMessage: string,
+  isNewPatent: boolean = false
+): Promise<ReconResponse> {
+  if (!reconAgent) {
     throw new Error('Recon agent not initialized');
   }
   if (isNewPatent) resetReconThread();
@@ -260,7 +216,7 @@ Remember to focus on gathering comprehensive background information before trans
       messages = [userMsg];
     }
 
-    const response = (await discoveryAgent.invoke(
+    const response = (await reconAgent.invoke(
       { messages: messages },
       { configurable: { thread_id: currentThreadId } }
     )) as AgentResponse;
@@ -286,10 +242,13 @@ Remember to focus on gathering comprehensive background information before trans
       toolCallTypes: toolCalls.map(t => t.name),
     });
 
+    const switchAgentOrig = switchAgent;
+    switchAgent = false;
+
     return {
       messages: response.messages,
       toolCalls: toolCalls,
-      switch_agent: switch_agent,
+      switchAgent: switchAgentOrig,
     };
   } catch (error) {
     console.error('❌ [invokeReconAgent] Error:', error);
@@ -310,7 +269,7 @@ export async function sendImageToReconAgent(
   description: string,
   isCodeOrDiagram: boolean
 ): Promise<ReconResponse> {
-  if (!discoveryAgent) {
+  if (!reconAgent) {
     throw new Error('Recon agent not initialized');
   }
 
@@ -363,7 +322,7 @@ Analyze the image and description to better understand the invention.`;
       ],
     };
 
-    const response = await discoveryAgent.invoke(
+    const response = await reconAgent.invoke(
       { messages: [userMsg] },
       { configurable: { thread_id: currentThreadId } }
     );
