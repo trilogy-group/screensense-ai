@@ -67,8 +67,6 @@ export async function createControlWindow() {
     return controlWindow;
   }
 
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-
   controlWindow = new BrowserWindow({
     width: 250,
     height: 100,

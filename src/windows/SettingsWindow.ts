@@ -3,7 +3,6 @@ import { loadSettings, saveSettings } from '../utils/settings-utils';
 import { loadHtmlFile } from '../utils/window-utils';
 import { sendSettingsUpdate } from './ControlWindow';
 import { updateSettings, reinitializePatentAgent } from './MainWindow';
-import { showErrorOverlay } from './ErrorOverlay';
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -69,20 +68,6 @@ export function initializeSettingsWindow() {
   // Register IPC Handlers
   ipcMain.on('show-settings', async () => {
     await createSettingsWindow();
-  });
-
-  ipcMain.handle('check-api-key', async () => {
-    const settings = loadSettings();
-    const hasGeminiKey = !!settings.geminiApiKey;
-    const hasOpenAIKey = !!settings.openaiApiKey;
-
-    if (!hasGeminiKey || !hasOpenAIKey) {
-      await createSettingsWindow();
-      // Show the error
-      showErrorOverlay('You need to set up your Gemini and OpenAI API keys to start a session.');
-    }
-
-    return hasGeminiKey && hasOpenAIKey;
   });
 
   ipcMain.on('settings-data', (event, settings) => {

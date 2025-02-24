@@ -168,21 +168,6 @@ function App() {
     };
   }, [geminiApiKey]);
 
-  // Handle API key check
-  useEffect(() => {
-    const checkApiKey = async () => {
-      try {
-        const hasApiKey = await ipcRenderer.invoke('check-api-key');
-        if (!hasApiKey) {
-          console.log('No API key found');
-        }
-      } catch (error) {
-        console.error('Error checking API key:', error);
-      }
-    };
-
-    checkApiKey();
-  }, []); // Run once on mount
 
   // Handle mode update requests
   useEffect(() => {

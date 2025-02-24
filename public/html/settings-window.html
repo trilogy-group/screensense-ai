@@ -228,6 +228,24 @@
       .settings-section {
         animation: fadeIn 0.3s ease;
       }
+
+      .api-description {
+        margin-top: var(--spacing-xs);
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .api-description.required {
+        color: #2196f3;
+      }
+
+      .api-description.recommended {
+        color: #ff9800;
+      }
+
+      .api-description.optional {
+        color: var(--text-secondary);
+      }
     </style>
   </head>
   <body>
@@ -248,6 +266,7 @@
                     id="gemini-api-key-input"
                     placeholder="Enter your API key"
                     class="form-input"
+                    required
                   />
                   <a href="https://aistudio.google.com/apikey" target="_blank" class="help-link">
                     Get API key
@@ -282,6 +301,9 @@
                     </svg>
                   </a>
                 </div>
+                <p class="api-description required">
+                  Required - Powers the core functionality of the app
+                </p>
               </div>
               <div class="form-group">
                 <label class="form-label" for="openai-api-key-input">OpenAI API Key</label>
@@ -325,6 +347,10 @@
                     </svg>
                   </a>
                 </div>
+                <p class="api-description recommended">
+                  Strongly Recommended - Enables context persistence between sessions and is needed
+                  for patent generator and knowledge curator capabilities
+                </p>
               </div>
               <div class="form-group">
                 <label class="form-label" for="anthropic-api-key-input">Anthropic API Key</label>
@@ -372,6 +398,9 @@
                     </svg>
                   </a>
                 </div>
+                <p class="api-description optional">
+                  Optional - Powers the patent generator assistant
+                </p>
               </div>
             </div>
 
@@ -417,7 +446,7 @@
           geminiApiKeyInput.value = geminiApiKey || '';
           openaiApiKeyInput.value = openaiApiKey || '';
           anthropicApiKeyInput.value = anthropicApiKey || '';
-          saveButton.disabled = !geminiApiKey || !openaiApiKey;
+          saveButton.disabled = !geminiApiKey;
           versionText.textContent = `Version ${appVersion}`;
         }
       );
@@ -425,8 +454,7 @@
       // Enable/disable save button based on input
       const checkInputs = () => {
         const hasGeminiKey = geminiApiKeyInput.value.trim();
-        const hasOpenAIKey = openaiApiKeyInput.value.trim();
-        saveButton.disabled = !hasGeminiKey || !hasOpenAIKey;
+        saveButton.disabled = !hasGeminiKey;
       };
 
       geminiApiKeyInput.addEventListener('input', checkInputs);
@@ -439,7 +467,7 @@
         const geminiApiKey = geminiApiKeyInput.value.trim();
         const openaiApiKey = openaiApiKeyInput.value.trim();
         const anthropicApiKey = anthropicApiKeyInput.value.trim();
-        if (geminiApiKey && openaiApiKey) {
+        if (geminiApiKey) {
           ipcRenderer.send('save-settings', { geminiApiKey, openaiApiKey, anthropicApiKey });
         }
       });

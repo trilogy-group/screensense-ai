@@ -392,20 +392,26 @@ function ControlTray({
     if (!connected) {
       // Check for required API keys for all modes
       const settings = await ipcRenderer.invoke('get-saved-settings');
-      if (!settings.geminiApiKey || !settings.openaiApiKey) {
+      if (!settings.geminiApiKey) {
         // Revert the control button state
         ipcRenderer.send('revert-control-button');
         ipcRenderer.send('show-settings');
-        ipcRenderer.send('session-error', 'You need to set up your Gemini and OpenAI API keys to start a session.');
+        ipcRenderer.send('session-error', 'You need to set up your Gemini API key to start a session.');
         return;
       }
 
       // Additional check for Anthropic API key in patent generator mode
-      if (selectedOption.value === 'patent_generator' && !settings.anthropicApiKey) {
+      if (selectedOption.value === 'patent_generator' && (!settings.anthropicApiKey || !settings.openaiApiKey)) {
         // Revert the control button state
         ipcRenderer.send('revert-control-button');
         ipcRenderer.send('show-settings');
-        ipcRenderer.send('session-error', 'You need to set up your Anthropic API key for patent generation.');
+        ipcRenderer.send('session-error', 'You need to set up your Anthropic and OpenAI API keys for patent generation.');
+        return;
+      } else if (selectedOption.value === 'knowledge_base' && !settings.openaiApiKey) {
+        // Revert the control button state
+        ipcRenderer.send('revert-control-button');
+        ipcRenderer.send('show-settings');
+        ipcRenderer.send('session-error', 'You need to set up your OpenAI API key for knowledge base.');
         return;
       }
 
