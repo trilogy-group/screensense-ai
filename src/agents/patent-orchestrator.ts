@@ -22,6 +22,7 @@ let currentAgent: ActiveAgent = 'background';
 
 // Initialize the orchestrator
 export async function initializePatentAgent() {
+  resetPatentThread();
   console.log('🚀 Initializing patent orchestrator');
   await initializeBackgroundAgent();
 }
@@ -45,7 +46,7 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
       response = await invokeBackgroundAgent(userMessage);
       
       // Debug tool calls
-      console.log('🔍 [PatentOrchestrator] response', response);
+      console.log('🔍 [BackgroundOrchestrator] response', response);
 
       if (response.switch_agent) {
         console.log('🔄 Transitioning from background to novelty agent');
@@ -59,13 +60,10 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
         }
         await initializeNoveltyAgent(patentDoc.contents);
         console.log('🔄 Novelty agent initialized with patent document');
-        // Notify user about transition
-        // ipcRenderer.send('send-gemini-message', {
-        //   message: 'Say the following : "I will now begin the novelty assessment phase. Please confirm when you are ready to begin." When the user confirms, you will convey to the lawyer that the user is ready using send_user_response tool.',
-        // });
       }
     } else {
       response = await invokeNoveltyAgent(userMessage);
+      console.log('🔍 [NoveltyOrchestrator] response', response);
     }
 
     return response;
@@ -90,7 +88,6 @@ export async function sendImageToPatentAgent(
   isCodeOrDiagram: boolean
 ): Promise<OrchestratorResponse> {
   console.log('🖼️ [PatentOrchestrator] Sending image to', currentAgent, 'agent');
-  
   try {
     if (currentAgent === 'background') {
       return await sendImageToBackgroundAgent(imagePath, description, isCodeOrDiagram);

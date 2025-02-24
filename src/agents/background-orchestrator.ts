@@ -42,6 +42,10 @@ const askNextQuestion = tool(
   async ({ reason, question }) => {
     console.log('🔍 [BackgroundAgent:askNextQuestion] Called with:', { reason, question });
     ipcRenderer.send('patent-question', { question, reason });
+
+    // const message = `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`
+    // ipcRenderer.send('send-client-message', { message });
+    // console.log('🔍 [BackgroundAgent:askNextQuestion] Sent message to Gemini:', message);
     return {
       success: true,
       message:
@@ -89,56 +93,6 @@ const replyToUser = tool(
   }
 );
 
-const addContent = tool(
-  async ({ content, section }) => {
-    console.log('📝 [BackgroundAgent:addContent] Called with:', { section, contentLength: content.length });
-    try {
-      ipcRenderer.send('send-gemini-message', {
-        message: `Tell the user this: 'Please give me a few seconds to add the content to the document.'`,
-      });
-      const result = await ipcRenderer.invoke('add_content', { content, section });
-      return result;
-    } catch (error) {
-      console.error('❌ [BackgroundAgent:addContent] Error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error adding content',
-      };
-    }
-  },
-  {
-    name: 'add_content',
-    description: 'Updates the markdown file with new content or modifications.',
-    schema: z.object({
-      content: z.string().describe('The content to add to the document'),
-      section: z.string().describe('The name of the section to add the content to'),
-    }),
-  }
-);
-
-const readPatent = tool(
-  async () => {
-    console.log('📖 [BackgroundAgent:readPatent] Reading current patent document');
-    try {
-      const result = await ipcRenderer.invoke('read_patent');
-      return {
-        success: result.success,
-        message: `Contents:\n${result.contents}\n\nChecklist:\n${JSON.stringify(result.checklist)}\n\nNow ask the user the first question to understand their invention.`,
-      };
-    } catch (error) {
-      console.error('❌ [BackgroundAgent:readPatent] Error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error reading patent',
-      };
-    }
-  },
-  {
-    name: 'read_patent',
-    description: 'Reads the current patent document and returns both the document contents and a checklist of required sections',
-    schema: z.object({}),
-  }
-);
 
 const reconComplete = tool(
   async ({ summary }) => {
@@ -185,7 +139,7 @@ const reconComplete = tool(
 );
 
 // Define all tools available to the agent
-const tools = [askNextQuestion, addContent, readPatent, replyToUser, reconComplete];
+const tools = [askNextQuestion, replyToUser, reconComplete];
 
 // Initialize the model
 console.log('🤖 Initializing Claude model for BackgroundAgent');

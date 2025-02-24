@@ -20,12 +20,19 @@ interface NoveltyResponse {
 }
 
 // Track the current novelty assessment session
-let currentThreadId_novelty: string | null = null;
+let currentThreadIdNovelty: string | null = null;
 
 const askNextQuestion = tool(
     async ({ reason, question }) => {
         console.log('🔍 [NoveltyAgent:askNextQuestion] Called with:', { reason, question });
+
         ipcRenderer.send('patent-question', { question, reason });
+        // const message = `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`
+
+        // ipcRenderer.send('send-gemini-message', { 
+        //     message : message
+        // });
+
         return {
             success: true,
             message:
@@ -73,56 +80,6 @@ const replyToUser = tool(
     }
 );
 
-const readPatent = tool(
-    async () => {
-        console.log('📖 [NoveltyAgent:readPatent] Reading current patent document');
-        try {
-            const result = await ipcRenderer.invoke('read_patent');
-            return {
-                success: result.success,
-                message: `Contents:\n${result.contents}\n\nChecklist:\n${JSON.stringify(result.checklist)}\n\nNow begin the novelty assessment by asking relevant questions.`,
-            };
-        } catch (error) {
-            console.error('❌ [NoveltyAgent:readPatent] Error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error reading patent',
-            };
-        }
-    },
-    {
-        name: 'read_patent',
-        description: 'Reads the current patent document to assess its contents for novelty analysis',
-        schema: z.object({}),
-    }
-);
-
-const addContent = tool(
-    async ({ content, section }) => {
-        console.log('📝 [NoveltyAgent:addContent] Called with:', { section, contentLength: content.length });
-        try {
-            ipcRenderer.send('send-gemini-message', {
-                message: `Tell the user this: 'Please give me a few seconds to add the content to the document.'`,
-            });
-            const result = await ipcRenderer.invoke('add_content', { content, section });
-            return result;
-        } catch (error) {
-            console.error('❌ [NoveltyAgent:addContent] Error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error adding content',
-            };
-        }
-    },
-    {
-        name: 'add_content',
-        description: 'Updates the markdown file with new content or modifications.',
-        schema: z.object({
-            content: z.string().describe('The content to add to the document'),
-            section: z.string().describe('The name of the section to add the content to'),
-        }),
-    }
-);
 
 const reconComplete = tool(
     async ({ summary }) => {
@@ -163,7 +120,7 @@ const reconComplete = tool(
     }
 );
 // Define all tools available to the agent
-const tools = [askNextQuestion, addContent, readPatent, replyToUser, reconComplete];
+const tools = [askNextQuestion, replyToUser, reconComplete];
 
 // Initialize the model
 console.log('🤖 Initializing Claude model for NoveltyAgent');
@@ -187,14 +144,14 @@ async function initializeModel() {
 }
 
 let noveltyAgent: any = null;
-let checkpointer_novelty: MemorySaver;
+let checkpointerNovelty: MemorySaver;
 
 // Initialize the agent
 export async function initializeNoveltyAgent(patentDocument?: string) {
     // console.log(patentDocument);
     await initializeModel();
     console.log('💾 Initializing memory saver for NoveltyAgent');
-    checkpointer_novelty = new MemorySaver();
+    checkpointerNovelty = new MemorySaver();
     
     let systemPrompt = `You are an expert in novelty assessment for patent applications. Your role is to ask targeted questions to uncover the truly novel, non-obvious, and patentable aspects of the invention.
 
@@ -239,7 +196,7 @@ Maintain a constructive approach—even if the initial invention seems non-novel
     noveltyAgent = createReactAgent({
         llm: model,
         tools,
-        checkpointSaver: checkpointer_novelty,
+        checkpointSaver: checkpointerNovelty,
     });
 
     // Set the system message for the first message
@@ -258,7 +215,6 @@ Maintain a constructive approach—even if the initial invention seems non-novel
 
     console.log('✅ Novelty agent initialized');
 }
-
 export async function invokeNoveltyAgent(userMessage: string): Promise<NoveltyResponse> {
     if (!noveltyAgent) {
         throw new Error('Novelty agent not initialized');
@@ -271,10 +227,9 @@ export async function invokeNoveltyAgent(userMessage: string): Promise<NoveltyRe
     console.log('📨 [invokeNoveltyAgent] Message preview:', userMessage.slice(0, 100) + '...');
 
     try {
-        const isNewThread = !currentThreadId_novelty;
-        if (!currentThreadId_novelty) {
-            currentThreadId_novelty = `novelty_${Date.now()}`;
-            console.log('🆕 [invokeNoveltyAgent] Creating new thread:', currentThreadId_novelty);
+        if (!currentThreadIdNovelty) {
+            currentThreadIdNovelty = `novelty_${Date.now()}`;
+            console.log('🆕 [invokeNoveltyAgent] Creating new thread:', currentThreadIdNovelty);
         }
 
 
@@ -287,15 +242,14 @@ export async function invokeNoveltyAgent(userMessage: string): Promise<NoveltyRe
 
         const response = await noveltyAgent.invoke(
             { messages: messages },
-            { configurable: { thread_id: currentThreadId_novelty } }
+            { configurable: { thread_id: currentThreadIdNovelty } }
         );
 
         const structuredResponse = response.structuredResponse;
         const toolCalls = (typeof structuredResponse === 'function' ? structuredResponse() : {}) || {};
 
         console.log('✅ [invokeNoveltyAgent] Response received:', {
-            threadId: currentThreadId_novelty,
-            isNewThread,
+            threadId: currentThreadIdNovelty,
             numMessages: response.messages.length,
             lastMessageLength: response.messages.at(-1)?.content?.toString().length,
             numToolCalls: Object.keys(toolCalls).length,
@@ -311,8 +265,8 @@ export async function invokeNoveltyAgent(userMessage: string): Promise<NoveltyRe
         };
     } catch (error) {
         console.error('❌ [invokeNoveltyAgent] Error:', error);
-        if (!currentThreadId_novelty) {
-            currentThreadId_novelty = null;
+        if (!currentThreadIdNovelty) {
+            currentThreadIdNovelty = null;
         }
         throw error;
     }
@@ -320,7 +274,7 @@ export async function invokeNoveltyAgent(userMessage: string): Promise<NoveltyRe
 
 export function resetNoveltyThread() {
     console.log('🔄 [resetNoveltyThread] Resetting current thread');
-    currentThreadId_novelty = null;
+    currentThreadIdNovelty = null;
 }
 
 export async function sendImageToNoveltyAgent(
@@ -384,7 +338,7 @@ Analyze the image and description for novel aspects and patentability.`;
 
         const response = await noveltyAgent.invoke(
             { messages: [userMsg] },
-            { configurable: { thread_id: currentThreadId_novelty } }
+            { configurable: { thread_id: currentThreadIdNovelty } }
         );
 
         const structuredResponse = response.structuredResponse;
