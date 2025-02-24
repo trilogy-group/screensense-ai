@@ -1,11 +1,13 @@
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { MemorySaver } from '@langchain/langgraph';
-import { ChatAnthropic } from '@langchain/anthropic';
 import { tool } from '@langchain/core/tools';
-import { BaseMessage } from '@langchain/core/messages';
+import { MemorySaver } from '@langchain/langgraph';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { z } from 'zod';
-import { ToolResponse, ReconResponse, AgentResponse, ActionStep } from '../types/agent-types';
-import { initializeModel } from '../types/agent-types';
+import {
+  AgentResponse,
+  initializeModel,
+  OrchestratorResponse,
+  ReconResponse,
+} from '../types/agent-types';
 const { ipcRenderer } = window.require('electron');
 
 // Track the current recon session
@@ -135,16 +137,21 @@ export async function invokeReconAgent(
   userMessage: string,
   isNewPatent: boolean = false
 ): Promise<ReconResponse> {
+  if (isNewPatent) {
+    resetReconThread();
+    await initializeReconAgent();
+    switchAgent = false;
+  }
+
   if (!reconAgent) {
     throw new Error('Recon agent not initialized');
   }
-  if (isNewPatent) resetReconThread();
 
   if (!userMessage || userMessage.trim() === '') {
     throw new Error('User message cannot be empty');
   }
 
-  console.log('📨 [invokeReconAgent] Message preview:', userMessage.slice(0, 100) + '...');
+  // console.log('📨 [invokeReconAgent] Message preview:', userMessage.slice(0, 100) + '...');
 
   try {
     const isNewThread = !currentThreadId;
@@ -222,7 +229,7 @@ Remember to focus on gathering comprehensive background information before trans
     )) as AgentResponse;
 
     // Debug the raw response
-    console.log('🔍 [invokeReconAgent] Raw response:', response);
+    // console.log('🔍 [invokeReconAgent] Raw response:', response);
 
     // Extract tool calls from the response
     const toolCalls =
@@ -242,13 +249,10 @@ Remember to focus on gathering comprehensive background information before trans
       toolCallTypes: toolCalls.map(t => t.name),
     });
 
-    const switchAgentOrig = switchAgent;
-    switchAgent = false;
-
     return {
       messages: response.messages,
-      toolCalls: toolCalls,
-      switchAgent: switchAgentOrig,
+      toolCalls,
+      switchAgent,
     };
   } catch (error) {
     console.error('❌ [invokeReconAgent] Error:', error);
@@ -268,7 +272,7 @@ export async function sendImageToReconAgent(
   imagePath: string,
   description: string,
   isCodeOrDiagram: boolean
-): Promise<ReconResponse> {
+): Promise<OrchestratorResponse> {
   if (!reconAgent) {
     throw new Error('Recon agent not initialized');
   }

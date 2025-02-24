@@ -506,7 +506,7 @@ function ControlTray({
       event: any,
       action: { type: string; value: boolean; state?: any }
     ) => {
-      console.log('🎮 Received control action:', action);
+      // console.log('🎮 Received control action:', action);
       switch (action.type) {
         case 'mic':
           setMuted(!action.value);

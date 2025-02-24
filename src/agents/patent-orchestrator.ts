@@ -1,53 +1,51 @@
-import { BaseMessage } from '@langchain/core/messages';
 import { ActiveAgent, OrchestratorResponse } from '../types/agent-types';
-import {
-  initializeReconAgent,
-  invokeReconAgent,
-  resetReconThread,
-  sendImageToReconAgent,
-} from './recon-orchestrator';
 import {
   initializeNoveltyAgent,
   invokeNoveltyAgent,
   sendImageToNoveltyAgent,
 } from './novelty-orchestrator';
+import { invokeReconAgent, sendImageToReconAgent } from './recon-orchestrator';
 const { ipcRenderer } = window.require('electron');
 
 // Add types for tool responses
 let currentAgent: ActiveAgent = 'recon';
 
-// Initialize the orchestrator
-export async function initializePatentAgent() {
-  resetPatentThread();
-  console.log('🚀 Initializing patent orchestrator');
-  await initializeReconAgent();
-}
-
-// Initialize when module loads
-initializePatentAgent().catch(error => {
-  console.error('❌ Failed to initialize patent agent:', error);
-});
-
 export async function invokePatentAgent(
   userMessage: string,
-  isNewPatent: boolean = false
-): Promise<OrchestratorResponse> {
+  isNewPatent: boolean = false,
+  isResume: boolean = false
+): Promise<OrchestratorResponse | null> {
   if (!userMessage || userMessage.trim() === '') {
     throw new Error('User message cannot be empty');
   }
 
-  if (isNewPatent) resetPatentThread();
+  if (isNewPatent || isResume) resetPatentThread();
 
   console.log('📨 [PatentOrchestrator] Message preview:', userMessage.slice(0, 100) + '...');
   console.log('🤖 Current agent:', currentAgent);
 
   try {
     let response;
-    if (currentAgent === 'recon') {
+    if (isResume) {
+      // If the patent doc is non-empty, initialize the novelty agent
+      const patentDoc = await ipcRenderer.invoke('read_patent');
+      if (patentDoc.success && patentDoc.contents) {
+        currentAgent = 'novelty';
+        await initializeNoveltyAgent(patentDoc.contents);
+        response = await invokeNoveltyAgent(
+          `The user wants to continue documenting their invention.`
+        );
+      } else {
+        ipcRenderer.send('send-gemini-message', {
+          message: `Tell the user this out loud: 'I couldn't find any existing patent session. Would you like to start a new one?'`,
+        });
+        return null;
+      }
+    } else if (currentAgent === 'recon') {
       response = await invokeReconAgent(userMessage, isNewPatent);
 
       // Debug tool calls
-      console.log('🔍 [ReconOrchestrator] response', response);
+      // console.log('🔍 [ReconOrchestrator] response', response);
 
       if (response.switchAgent) {
         console.log('🔄 Transitioning from recon to novelty agent');
@@ -77,7 +75,6 @@ export async function invokePatentAgent(
 // Reset both agents and return to recon phase
 export function resetPatentThread() {
   console.log('🔄 [PatentOrchestrator] Resetting patent thread');
-  resetReconThread();
   currentAgent = 'recon';
 }
 

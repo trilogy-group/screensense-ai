@@ -80,7 +80,7 @@ async function initializeApp() {
   await createMainWindow();
   createSubtitleOverlayWindow();
   createControlWindow();
-  console.log('App is ready. Listening for global mouse events...');
+  // console.log('App is ready. Listening for global mouse events...');
 }
 
 // Call it after registering all handlers

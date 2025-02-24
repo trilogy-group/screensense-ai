@@ -25,21 +25,14 @@ export interface ActionStep {
 }
 
 // Recon agent specific types
-export interface ReconResponse {
-  messages: BaseMessage[];
-  toolCalls?: ToolResponse[];
-  switchAgent?: boolean;
-}
-
-// Novelty agent specific types
-export interface NoveltyResponse {
-  messages: BaseMessage[];
-  toolCalls?: ToolResponse[];
-}
-
 export interface OrchestratorResponse {
   messages: BaseMessage[];
   toolCalls?: ToolResponse[];
+}
+
+// Recon agent specific types
+export interface ReconResponse extends OrchestratorResponse {
+  switchAgent?: boolean;
 }
 
 // Track which agent is currently active

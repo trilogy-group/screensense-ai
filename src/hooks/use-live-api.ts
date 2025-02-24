@@ -153,8 +153,8 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
 
       // For explicit disconnects (code 1000), just signal permanent disconnect
       if (ev.code === 1000) {
-        console.log('[LiveAPI] 🔌 Normal disconnect detected (code 1000)');
-        console.log('[LiveAPI] 📤 Sending permanent-disconnect for normal closure');
+        // console.log('[LiveAPI] 🔌 Normal disconnect detected (code 1000)');
+        // console.log('[LiveAPI] 📤 Sending permanent-disconnect for normal closure');
         ipcRenderer.send('connection-update', {
           type: 'permanent-disconnect',
           reason: 'User disconnected',

@@ -1,10 +1,6 @@
 import { type Tool } from '@google/generative-ai';
 import { memo, useEffect, useState, useRef, useCallback } from 'react';
-import {
-  initializePatentAgent,
-  invokePatentAgent,
-  sendImageToPatentAgent,
-} from '../../agents/patent-orchestrator';
+import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
@@ -400,9 +396,7 @@ function ToolCallHandlerComponent({
             await ipcRenderer.invoke('display_patent');
 
             // Tell the patent agent to resume
-            await invokePatentAgent(
-              `I want to continue documenting my invention titled "${currentSession.title}". Please continue from where we left off.`
-            );
+            await invokePatentAgent(``, false, true);
 
             client.sendToolResponse({
               functionResponses: [
@@ -483,10 +477,11 @@ function ToolCallHandlerComponent({
             ]);
 
             // Send to orchestrator using the session from main.ts
-            const orchestratorResponse = await invokePatentAgent((fc.args as any).message);
+            // const orchestratorResponse = await invokePatentAgent((fc.args as any).message);
+            await invokePatentAgent((fc.args as any).message);
 
-            // Get the last message from the orchestrator
-            const lastMessage = orchestratorResponse.messages.at(-1)?.content?.toString() || '';
+            // // Get the last message from the orchestrator
+            // const lastMessage = orchestratorResponse.messages.at(-1)?.content?.toString() || '';
 
             client.sendToolResponse({
               functionResponses: [
@@ -494,7 +489,7 @@ function ToolCallHandlerComponent({
                   response: {
                     output: {
                       success: true,
-                      nextAction: lastMessage,
+                      // nextAction: lastMessage,
                     },
                   },
                   id: fc.id,
@@ -791,29 +786,29 @@ function ToolCallHandlerComponent({
     };
 
     ipcRenderer.on('send-gemini-message', sendGeminiMessage);
-    console.log('🔍 [handlePatentQuestion] Added listener');
+    // console.log('🔍 [handlePatentQuestion] Added listener');
     return () => {
       ipcRenderer.removeListener('send-gemini-message', sendGeminiMessage);
       // console.log('🔍 [handlePatentQuestion] Removed listener');
     };
   }, [client]);
 
-  // Add effect to listen for patent agent reinitialization
-  useEffect(() => {
-    const handlePatentAgentReinitialization = async () => {
-      try {
-        await initializePatentAgent();
-        console.log('✅ Patent agent reinitialized with new settings');
-      } catch (error) {
-        console.error('❌ Failed to reinitialize patent agent:', error);
-      }
-    };
+  // // Add effect to listen for patent agent reinitialization
+  // useEffect(() => {
+  //   const handlePatentAgentReinitialization = async () => {
+  //     try {
+  //       await initializePatentAgent();
+  //       console.log('✅ Patent agent reinitialized with new settings');
+  //     } catch (error) {
+  //       console.error('❌ Failed to reinitialize patent agent:', error);
+  //     }
+  //   };
 
-    ipcRenderer.on('reinitialize-patent-agent', handlePatentAgentReinitialization);
-    return () => {
-      ipcRenderer.removeListener('reinitialize-patent-agent', handlePatentAgentReinitialization);
-    };
-  }, []);
+  //   ipcRenderer.on('reinitialize-patent-agent', handlePatentAgentReinitialization);
+  //   return () => {
+  //     ipcRenderer.removeListener('reinitialize-patent-agent', handlePatentAgentReinitialization);
+  //   };
+  // }, []);
 
   return <></>;
 }

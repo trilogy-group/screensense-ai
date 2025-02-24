@@ -1,11 +1,8 @@
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { MemorySaver } from '@langchain/langgraph';
-import { ChatAnthropic } from '@langchain/anthropic';
 import { tool } from '@langchain/core/tools';
-import { BaseMessage } from '@langchain/core/messages';
+import { MemorySaver } from '@langchain/langgraph';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { z } from 'zod';
-import { ToolResponse, NoveltyResponse } from '../types/agent-types';
-import { initializeModel } from '../types/agent-types';
+import { initializeModel, OrchestratorResponse } from '../types/agent-types';
 const { ipcRenderer } = window.require('electron');
 
 // Track the current novelty assessment session
@@ -100,7 +97,7 @@ let noveltyAgent: any = null;
 
 // Initialize the agent
 console.log('🤖 Initializing Claude model for NoveltyAgent');
-export async function initializeNoveltyAgent(patentDocument?: string) {
+export async function initializeNoveltyAgent(patentDocument: string) {
   // console.log(patentDocument);
   let model = await initializeModel();
   console.log('💾 Initializing memory saver for NoveltyAgent');
@@ -168,12 +165,12 @@ Remember to:
 2. Document each area thoroughly before moving to the next
 3. Organize content into appropriate sections
 4. Confirm accuracy with the user before proceeding
-5. Maintain clear technical language throughout`;
+5. Maintain clear technical language throughout
 
-  // Add patent document to system prompt if provided
-  if (patentDocument) {
-    systemPrompt += `\n\nCurrent Patent Document:\n${patentDocument}\n\nAnalyze the above patent document and focus your questions on uncovering novel aspects not yet documented or areas that need more detail to establish patentability.`;
-  }
+Current Patent Document:
+${patentDocument}
+
+Analyze the above patent document and focus your questions on uncovering novel aspects not yet documented or areas that need more detail to establish patentability.`;
   // Create the agent with the system message
   noveltyAgent = createReactAgent({
     llm: model,
@@ -198,7 +195,7 @@ Remember to:
 
   console.log('✅ Novelty agent initialized');
 }
-export async function invokeNoveltyAgent(userMessage: string): Promise<NoveltyResponse> {
+export async function invokeNoveltyAgent(userMessage: string): Promise<OrchestratorResponse> {
   if (!noveltyAgent) {
     throw new Error('Novelty agent not initialized');
   }
@@ -253,7 +250,7 @@ export async function sendImageToNoveltyAgent(
   imagePath: string,
   description: string,
   isCodeOrDiagram: boolean
-): Promise<NoveltyResponse> {
+): Promise<OrchestratorResponse> {
   if (!noveltyAgent) {
     throw new Error('Novelty agent not initialized');
   }

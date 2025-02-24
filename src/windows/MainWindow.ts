@@ -250,11 +250,11 @@ export function sendGeminiMessage({ message }: { message: string }) {
   }
 }
 
-export function reinitializePatentAgent() {
-  if (mainWindowExists()) {
-    mainWindow?.webContents.send('reinitialize-patent-agent');
-  }
-}
+// export function reinitializePatentAgent() {
+//   if (mainWindowExists()) {
+//     mainWindow?.webContents.send('reinitialize-patent-agent');
+//   }
+// }
 
 // Initialize module
 export function initializeMainWindow() {
