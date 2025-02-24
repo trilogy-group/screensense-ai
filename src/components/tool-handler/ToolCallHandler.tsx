@@ -1,6 +1,10 @@
 import { type Tool } from '@google/generative-ai';
 import { memo, useEffect, useState, useRef, useCallback } from 'react';
-import { initializePatentAgent, invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
+import {
+  initializePatentAgent,
+  invokePatentAgent,
+  sendImageToPatentAgent,
+} from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
@@ -362,7 +366,8 @@ function ToolCallHandlerComponent({
             console.log(`Created template at ${result.path}`);
 
             await invokePatentAgent(
-              `I want to start documenting my invention. It's called "${title}".`
+              `I want to start documenting my invention. It's called "${title}".`,
+              true
             );
             break;
           }
@@ -776,28 +781,6 @@ function ToolCallHandlerComponent({
 
   // Add effect to listen for patent questions
   useEffect(() => {
-    const handlePatentQuestion = (
-      _: any,
-      { question, reason }: { question: string; reason: string }
-    ) => {
-      // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
-      client.send([
-        {
-          text: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`,
-        },
-      ]);
-    };
-
-    ipcRenderer.on('patent-question', handlePatentQuestion);
-    // console.log('🔍 [handlePatentQuestion] Added listener');
-    return () => {
-      ipcRenderer.removeListener('patent-question', handlePatentQuestion);
-      // console.log('🔍 [handlePatentQuestion] Removed listener');
-    };
-  }, [client]);
-
-  // Add effect to listen for patent questions
-  useEffect(() => {
     const sendGeminiMessage = (_: any, { message }: { message: string }) => {
       // console.log('🔍 [handlePatentQuestion] Received:', { question, reason });
       client.send([
@@ -808,7 +791,7 @@ function ToolCallHandlerComponent({
     };
 
     ipcRenderer.on('send-gemini-message', sendGeminiMessage);
-    // console.log('🔍 [handlePatentQuestion] Added listener');
+    console.log('🔍 [handlePatentQuestion] Added listener');
     return () => {
       ipcRenderer.removeListener('send-gemini-message', sendGeminiMessage);
       // console.log('🔍 [handlePatentQuestion] Removed listener');

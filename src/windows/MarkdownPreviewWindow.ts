@@ -14,7 +14,7 @@ import {
   updateSessionModified,
 } from '../utils/patent-utils';
 import { loadHtmlFile, loadUrl } from '../utils/window-utils';
-import { sendPatentQuestion } from './MainWindow';
+import { sendGeminiMessage } from './MainWindow';
 
 let markdownPreviewWindow: BrowserWindow | null = null;
 let currentMarkdownFile: string | null = null;
@@ -171,5 +171,5 @@ export function initializeMarkdownPreviewWindow() {
 
   ipcMain.handle('export_patent_pdf', async () => exportToPdf());
 
-  ipcMain.on('patent-question', (event, data) => sendPatentQuestion(data));
+  ipcMain.on('send-gemini-message', (event, data) => sendGeminiMessage(data));
 }

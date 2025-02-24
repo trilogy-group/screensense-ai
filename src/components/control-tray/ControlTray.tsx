@@ -396,22 +396,34 @@ function ControlTray({
         // Revert the control button state
         ipcRenderer.send('revert-control-button');
         ipcRenderer.send('show-settings');
-        ipcRenderer.send('session-error', 'You need to set up your Gemini API key to start a session.');
+        ipcRenderer.send(
+          'session-error',
+          'You need to set up your Gemini API key to start a session.'
+        );
         return;
       }
 
       // Additional check for Anthropic API key in patent generator mode
-      if (selectedOption.value === 'patent_generator' && (!settings.anthropicApiKey || !settings.openaiApiKey)) {
+      if (
+        selectedOption.value === 'patent_generator' &&
+        (!settings.anthropicApiKey || !settings.openaiApiKey)
+      ) {
         // Revert the control button state
         ipcRenderer.send('revert-control-button');
         ipcRenderer.send('show-settings');
-        ipcRenderer.send('session-error', 'You need to set up your Anthropic and OpenAI API keys for patent generation.');
+        ipcRenderer.send(
+          'session-error',
+          'You need to set up your Anthropic and OpenAI API keys for patent generation.'
+        );
         return;
       } else if (selectedOption.value === 'knowledge_base' && !settings.openaiApiKey) {
         // Revert the control button state
         ipcRenderer.send('revert-control-button');
         ipcRenderer.send('show-settings');
-        ipcRenderer.send('session-error', 'You need to set up your OpenAI API key for knowledge base.');
+        ipcRenderer.send(
+          'session-error',
+          'You need to set up your OpenAI API key for knowledge base.'
+        );
         return;
       }
 
@@ -448,42 +460,45 @@ function ControlTray({
     };
   }, [handleCarouselChange]);
 
-  const handleConnectionStateChange = useCallback((event: any, state: { type: string; reason?: string }) => {
-    // console.log('🔌 Connection state change:', state);
-    
-    switch (state.type) {
-      case 'temporary-disconnect':
-        // Only hide subtitles for temporary disconnects
-        // console.log('🔌 Temporary disconnection:', state.reason);
-        ipcRenderer.send('remove-subtitles');
-        break;
-        
-      case 'permanent-disconnect':
-        // For permanent disconnects, stop all streams and hide UI
-        // console.log('🔌 Permanent disconnection:', state.reason);
-        changeStreams()();
-        ipcRenderer.send('remove-subtitles');
-        ipcRenderer.send('hide-main-window');
-        // Update UI state
-        setMuted(false);
-        setIsRecordingSession(false);
-        // Reset initial connection state for next session
-        isInitialConnection.current = true;
-        // Send state update to control window
-        ipcRenderer.send('update-control-state', {
-          isMuted: false,
-          isScreenSharing: false,
-          isWebcamOn: false,
-          isConnected: false,
-        });
-        break;
-        
-      case 'reconnected':
-        // Handle successful reconnection if needed
-        console.log('🔌 Successfully reconnected');
-        break;
-    }
-  }, [changeStreams]);
+  const handleConnectionStateChange = useCallback(
+    (event: any, state: { type: string; reason?: string }) => {
+      // console.log('🔌 Connection state change:', state);
+
+      switch (state.type) {
+        case 'temporary-disconnect':
+          // Only hide subtitles for temporary disconnects
+          // console.log('🔌 Temporary disconnection:', state.reason);
+          ipcRenderer.send('remove-subtitles');
+          break;
+
+        case 'permanent-disconnect':
+          // For permanent disconnects, stop all streams and hide UI
+          // console.log('🔌 Permanent disconnection:', state.reason);
+          changeStreams()();
+          ipcRenderer.send('remove-subtitles');
+          ipcRenderer.send('hide-main-window');
+          // Update UI state
+          setMuted(false);
+          setIsRecordingSession(false);
+          // Reset initial connection state for next session
+          isInitialConnection.current = true;
+          // Send state update to control window
+          ipcRenderer.send('update-control-state', {
+            isMuted: false,
+            isScreenSharing: false,
+            isWebcamOn: false,
+            isConnected: false,
+          });
+          break;
+
+        case 'reconnected':
+          // Handle successful reconnection if needed
+          console.log('🔌 Successfully reconnected');
+          break;
+      }
+    },
+    [changeStreams]
+  );
 
   // Handle control actions from video window
   useEffect(() => {

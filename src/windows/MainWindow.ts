@@ -244,9 +244,9 @@ export function sendAssistantAudio(audioData: any) {
   }
 }
 
-export function sendPatentQuestion(data: { question: string; reason: string }) {
+export function sendGeminiMessage({ message }: { message: string }) {
   if (mainWindowExists()) {
-    mainWindow?.webContents.send('patent-question', data);
+    mainWindow?.webContents.send('send-gemini-message', { message });
   }
 }
 

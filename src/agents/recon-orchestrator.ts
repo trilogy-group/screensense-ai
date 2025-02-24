@@ -41,7 +41,9 @@ let switch_agent: boolean = false;
 const askNextQuestion = tool(
   async ({ reason, question }) => {
     console.log('🔍 [ReconAgent:askNextQuestion] Called with:', { reason, question });
-    ipcRenderer.send('patent-question', { question, reason });
+    ipcRenderer.send('send-gemini-message', { 
+      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.` }
+    );
 
     return {
       success: true,
@@ -176,10 +178,11 @@ export async function initializeReconAgent() {
   console.log('✅ Recon agent initialized');
 }
 
-export async function invokeReconAgent(userMessage: string): Promise<ReconResponse> {
+export async function invokeReconAgent(userMessage: string, isNewPatent: boolean = false): Promise<ReconResponse> {
   if (!discoveryAgent) {
     throw new Error('Recon agent not initialized');
   }
+  if (isNewPatent) resetReconThread();
 
   if (!userMessage || userMessage.trim() === '') {
     throw new Error('User message cannot be empty');

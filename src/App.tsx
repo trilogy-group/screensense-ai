@@ -168,7 +168,6 @@ function App() {
     };
   }, [geminiApiKey]);
 
-
   // Handle mode update requests
   useEffect(() => {
     const handleModeUpdateRequest = () => {

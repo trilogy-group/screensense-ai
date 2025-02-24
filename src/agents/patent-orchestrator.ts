@@ -8,7 +8,6 @@ import {
 import {
   initializeNoveltyAgent,
   invokeNoveltyAgent,
-  resetNoveltyThread,
   sendImageToNoveltyAgent,
 } from './novelty-orchestrator';
 const { ipcRenderer } = window.require('electron');
@@ -42,7 +41,7 @@ initializePatentAgent().catch(error => {
   console.error('❌ Failed to initialize patent agent:', error);
 });
 
-export async function invokePatentAgent(userMessage: string): Promise<OrchestratorResponse> {
+export async function invokePatentAgent(userMessage: string, isNewPatent: boolean = false): Promise<OrchestratorResponse> {
   if (!userMessage || userMessage.trim() === '') {
     throw new Error('User message cannot be empty');
   }
@@ -53,7 +52,7 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
   try {
     let response;
     if (currentAgent === 'recon') {
-      response = await invokeReconAgent(userMessage);
+      response = await invokeReconAgent(userMessage, isNewPatent);
 
       // Debug tool calls
       console.log('🔍 [ReconOrchestrator] response', response);
@@ -87,7 +86,6 @@ export async function invokePatentAgent(userMessage: string): Promise<Orchestrat
 export function resetPatentThread() {
   console.log('🔄 [PatentOrchestrator] Resetting patent thread');
   resetReconThread();
-  resetNoveltyThread();
   currentAgent = 'recon';
 }
 
