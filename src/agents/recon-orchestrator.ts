@@ -271,6 +271,7 @@ export function resetReconThread() {
 export async function sendImageToReconAgent(
   imagePath: string,
   description: string,
+  context: string,
   isCodeOrDiagram: boolean
 ): Promise<OrchestratorResponse> {
   if (!reconAgent) {
@@ -308,6 +309,7 @@ The image is located at: ${imagePath}`;
     } else {
       prompt = `The user shared a screenshot related to their invention.
 The description of the screenshot is: ${description}
+The context of the screenshot is: ${context}
 It is located at: ${imagePath}
 Analyze the image and description to better understand the invention.`;
     }

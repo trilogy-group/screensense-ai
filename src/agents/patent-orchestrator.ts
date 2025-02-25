@@ -82,14 +82,15 @@ export function resetPatentThread() {
 export async function sendImageToPatentAgent(
   imagePath: string,
   description: string,
+  context: string,
   isCodeOrDiagram: boolean
 ): Promise<OrchestratorResponse> {
   console.log('🖼️ [PatentOrchestrator] Sending image to', currentAgent, 'agent');
   try {
     if (currentAgent === 'recon') {
-      return await sendImageToReconAgent(imagePath, description, isCodeOrDiagram);
+      return await sendImageToReconAgent(imagePath, description, context, isCodeOrDiagram);
     } else {
-      return await sendImageToNoveltyAgent(imagePath, description, isCodeOrDiagram);
+      return await sendImageToNoveltyAgent(imagePath, description, context, isCodeOrDiagram);
     }
   } catch (error) {
     console.error('❌ [PatentOrchestrator] Error sending image:', error);

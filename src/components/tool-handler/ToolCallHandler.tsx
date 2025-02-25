@@ -520,12 +520,12 @@ function ToolCallHandlerComponent({
               const screenshot = onScreenshot();
               if (screenshot) {
                 const description = (fc.args as any).description;
+                const context = (fc.args as any).context;
                 const isCodeOrDiagram = (fc.args as any).isCodeOrDiagram;
                 // Send the screenshot to be saved in the patent's assets folder
                 const result = await ipcRenderer.invoke('save_patent_screenshot', {
                   screenshot,
                   description,
-                  isCodeOrDiagram,
                 });
 
                 if (result.success) {
@@ -542,7 +542,7 @@ function ToolCallHandlerComponent({
                       text: `Saved the screenshot at ${result.path}. Tell the user out loud that you are analyzing the image.`,
                     },
                   ]);
-                  await sendImageToPatentAgent(result.path, description, isCodeOrDiagram);
+                  await sendImageToPatentAgent(result.path, description, context, isCodeOrDiagram);
                 } else {
                   client.send([{ text: `Failed to save screenshot: ${result.error}` }]);
                 }

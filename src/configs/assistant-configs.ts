@@ -115,12 +115,17 @@ export const patentGeneratorTools: Tool[] = [
               type: SchemaType.STRING,
               description: 'A brief description of what the screenshot shows',
             },
+            context: {
+              type: SchemaType.STRING,
+              description:
+                'A description of the context in which the screenshot is taken, explaining what is happening and why.',
+            },
             isCodeOrDiagram: {
               type: SchemaType.BOOLEAN,
               description: 'Whether the screenshot is a code or a diagram',
             },
           },
-          required: ['description'],
+          required: ['description', 'context'],
         },
       },
       {
