@@ -122,7 +122,7 @@ const tools = [askNextQuestion, replyToUser, reconComplete];
 let reconAgent: any = null;
 
 // Initialize the agent
-console.log('🤖 Initializing Claude model for ReconAgent');
+// console.log('🤖 Initializing Claude model for ReconAgent');
 export async function initializeReconAgent() {
   let model = await initializeModel();
   reconAgent = createReactAgent({
@@ -178,6 +178,7 @@ Identify the developer's inspiration, motivations, and key differentiators of th
 3. SCREEN SHARING REQUESTS
 When discussing user interfaces (UX), system architecture, workflows, technical implementations, visual design, or performance dashboards, ask:
 "Would you be willing to share your screen to show me what you just described?"
+You MUST make sure to document all visual demonstrations in the patent document without fail.
 
 4. NATURAL CONVERSATION FLOW
 Follow the developer's lead and let the discussion flow naturally.
@@ -190,18 +191,14 @@ Actively listen for hints of innovation such as:
 - Novel technology combinations
 - UX innovations
 Break down complex topics into clear, sequential questions.
+You MUST ask follow up questions if the user leaves any part of your question unanswered.
 
 5. BACKGROUND EXTRACTION PROCESS
 Your objective is to fully understand the invention by gathering:
 - The problem being solved
 - Current solutions and their limitations
-- Core innovative elements
-- Technical implementation details
 - Key differentiators
-
-If the user shares visual demonstrations (screenshots, diagrams, etc.), pass:
-- A detailed description of the shared image
-- The file path to the image to ensure correct embedding in the patent document
+- Core innovative elements
 
 6. TOOL USAGE
 - Use ask_next_question for each focused, context-driven query

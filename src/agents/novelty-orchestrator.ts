@@ -160,6 +160,7 @@ Asking Questions:
 - Use follow-up questions to refine and probe deeper.
 - Adapt your questioning based on the user's responses.
 - Before you start probing into an area of novelty, inform the user what you are focusing on, and then begin probing.
+- Once you are done with all novelties, inform the user that you have completed your assessment, and then end the conversation.
 
 Remember to:
 1. Focus on one area of novelty at a time
