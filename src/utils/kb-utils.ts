@@ -8,7 +8,7 @@ import { createMarkdownPreviewWindow } from '../windows/MarkdownPreviewWindow';
 import { sendMarkdownContent } from '../windows/MarkdownPreviewWindow';
 import { OpenAI } from 'openai';
 import { loadSettings } from './settings-utils';
-
+import anthropicCompletion from '../../shared/services/anthropic';
 interface KBEntry {
   timestamp: number;
   content: string;
@@ -241,21 +241,73 @@ ${session.goal}
   try {
     // Get API key from saved settings
     const settings = loadSettings();
-    if (!settings.openaiApiKey) {
-      throw new Error('OpenAI API key not found in settings');
+    if (!settings.anthropicApiKey) {
+      throw new Error('Anthropic API key not found in settings');
     }
 
-    const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-    const response = await openai.chat.completions.create({
-      model: 'o3-mini',
-      messages: [{ role: 'user', content: prompt }],
-      max_completion_tokens: 100000,
-    });
+    // Initialize variables to track state
+    let currentContent =
+      '# Generating Runbook...\n\nPlease wait while the AI creates your runbook.';
+    let currentThinking = '';
+    let isFirstTextChunk = true;
 
-    const structuredContent = response.choices[0].message.content!!;
+    // Define callbacks for streaming updates
+    const callbacks = {
+      onText: (text: string) => {
+        // For the first chunk, replace the waiting text instead of appending
+        if (isFirstTextChunk) {
+          currentContent = text;
+          isFirstTextChunk = false;
+        } else {
+          currentContent += text;
+        }
 
-    // Write the structured content to the runbook file
+        // Once we have text content, we don't show thinking anymore
+        // Just send the current content for display
+        sendMarkdownContent(currentContent, session.path);
+        console.log('Updating content with text: ', text);
+      },
+      onThinking: (thinkingText: string) => {
+        // Accumulate thinking content (for logging purposes)
+        currentThinking += thinkingText;
+
+        // Only display thinking if we haven't received any text content yet
+        if (isFirstTextChunk) {
+          // Combine the initial message with the thinking content using proper Markdown formatting
+          let displayWithThinking =
+            currentContent +
+            '\n\n> **AI Thinking:**\n> \n' +
+            currentThinking
+              .split('\n')
+              .map(line => '> ' + line)
+              .join('\n');
+
+          // Send for display but don't write to file
+          sendMarkdownContent(displayWithThinking, session.path);
+          console.log('Updating thinking content');
+        }
+
+        // Log thinking for debugging
+        console.log(`AI Thinking: ${thinkingText}`);
+      },
+    };
+
+    console.log(`Going to structure KB session with Anthropic`);
+    const structuredContent = await anthropicCompletion(
+      prompt,
+      settings.anthropicApiKey,
+      undefined, // system prompt
+      true, // enable thinking
+      32000, // thinking tokens
+      callbacks // streaming callbacks
+    );
+    console.log(`Anthropic structured content complete`);
+
+    // Only write to file after completion
     fs.writeFileSync(runbookPath, structuredContent);
+
+    // Final update without thinking content
+    sendMarkdownContent(structuredContent, session.path);
 
     return {
       success: true,
@@ -265,6 +317,7 @@ ${session.goal}
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logToFile(`Error structuring KB session: ${errorMessage}`);
+    console.log(`Error structuring KB session: ${errorMessage}`);
     return { success: false, error: errorMessage };
   }
 }
@@ -281,20 +334,25 @@ async function endKBSession() {
     const endTime = new Date().toLocaleString();
     fs.appendFileSync(mdPath, `\n\n---\nSession ended at ${endTime}\n`);
 
-    // First, create the structured runbook
+    // Create runbook path
+    const runbookPath = getRunbookPath();
+
+    // Create initial file with placeholder content to ensure it exists
+    const initialContent =
+      '# Generating Runbook...\n\nPlease wait while the AI creates your runbook.';
+    fs.writeFileSync(runbookPath, initialContent);
+
+    // Open markdown preview window immediately with initial content
+    await createMarkdownPreviewWindow(runbookPath);
+    sendMarkdownContent(initialContent, session.path);
+
+    // Create the structured runbook (will update content in real-time via callbacks)
     const structuredResult = await structureKBSession();
-    if (!structuredResult.success || !structuredResult.runbookPath || !structuredResult.content) {
+    if (!structuredResult.success || !structuredResult.runbookPath) {
       throw new Error(
         `Failed to create structured runbook: ${structuredResult.error || 'Missing required data'}`
       );
     }
-
-    // Open markdown preview window with the structured runbook
-    await createMarkdownPreviewWindow(structuredResult.runbookPath);
-    ipcMain.emit('send-markdown-content', {
-      content: structuredResult.content,
-      basePath: session.path,
-    });
 
     return {
       success: true,
@@ -376,20 +434,12 @@ ${content}
 ${request}
 </request>`;
 
-    // Get API key from saved settings
     const settings = loadSettings();
-    if (!settings.openaiApiKey) {
-      throw new Error('OpenAI API key not found in settings');
+    if (!settings.anthropicApiKey) {
+      throw new Error('Anthropic API key not found in settings');
     }
 
-    const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-    const response = await openai.chat.completions.create({
-      model: 'o3-mini',
-      messages: [{ role: 'user', content: prompt }],
-      max_completion_tokens: 100000,
-    });
-
-    const updatedContent = response.choices[0].message.content!!;
+    const updatedContent = await anthropicCompletion(prompt, settings.anthropicApiKey);
 
     // Write the updated content to the markdown file
     fs.writeFileSync(mdPath, updatedContent);

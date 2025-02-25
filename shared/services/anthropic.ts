@@ -1,10 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 
-export default async function anthropic_completion(
+export interface AnthropicCallbacks {
+  onThinking?: (thinkingText: string) => void;
+  onText?: (text: string) => void;
+}
+
+export default async function anthropicCompletion(
   prompt: string,
   apiKey: string,
-  jsonMode: boolean = false,
-  systemPrompt: string | undefined = undefined
+  systemPrompt: string | undefined = undefined,
+  thinking: boolean = false,
+  thinkingTokens: number = 1024,
+  callbacks?: AnthropicCallbacks
 ) {
   const anthropic = new Anthropic({
     apiKey: apiKey,
@@ -15,42 +23,49 @@ export default async function anthropic_completion(
       content: prompt,
     },
   ];
-  if (jsonMode) {
-    messages.push({
-      role: 'assistant',
-      content: '{',
-    });
-  }
-  const response = await anthropic.messages.create({
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 8192,
-    temperature: 0,
+
+  // Always use streaming API
+  let fullText = '';
+  let fullThinking = '';
+
+  const inputParams = {
+    messages: messages as Anthropic.Beta.Messages.BetaMessageParam[],
+    model: 'claude-3-7-sonnet-latest',
+    max_tokens: 128000,
+    temperature: thinking ? 1 : 0,
     system: systemPrompt,
-  });
-  const content = response.content[0];
-  let message = 'type' in content && content.type === 'text' ? content.text : '';
-  if (jsonMode) {
-    let jsonMessage = '';
-    if (message.startsWith('{')) {
-      jsonMessage = message.substring(0, message.lastIndexOf('}') + 1);
-    } else {
-      jsonMessage = '{' + message.substring(0, message.lastIndexOf('}') + 1);
-    }
-    try {
-      // console.log(`Received JSON response from anthropic: ${message}`);
-      // console.log(`Parsing JSON response: ${jsonMessage}`);
-      return JSON.stringify(JSON.parse(jsonMessage));
-    } catch (e) {
-      console.error('Failed to parse JSON response:', e);
-      return message;
+    betas: ['output-128k-2025-02-19'],
+    ...(thinking && {
+      thinking: {
+        type: 'enabled',
+        budget_tokens: Math.max(thinkingTokens, 1024),
+      },
+    }),
+  } as BetaMessageStreamParams;
+
+  const stream = await anthropic.beta.messages.stream(inputParams);
+
+  for await (const event of stream) {
+    if (event.type === 'content_block_delta') {
+      if (event.delta.type === 'thinking_delta') {
+        fullThinking += event.delta.thinking;
+        // Invoke the onThinking callback if provided
+        if (callbacks?.onThinking) {
+          callbacks.onThinking(event.delta.thinking);
+        }
+      } else if (event.delta.type === 'text_delta') {
+        fullText += event.delta.text;
+        // Invoke the onText callback if provided
+        if (callbacks?.onText) {
+          callbacks.onText(event.delta.text);
+        }
+      }
     }
   }
 
-  return message;
+  if (fullThinking) {
+    console.log(`Sonnet thinking: ${fullThinking}`);
+  }
+
+  return fullText;
 }

@@ -244,17 +244,17 @@ export function sendAssistantAudio(audioData: any) {
   }
 }
 
-export function sendPatentQuestion(data: { question: string; reason: string }) {
+export function sendGeminiMessage({ message }: { message: string }) {
   if (mainWindowExists()) {
-    mainWindow?.webContents.send('patent-question', data);
+    mainWindow?.webContents.send('send-gemini-message', { message });
   }
 }
 
-export function reinitializePatentAgent() {
-  if (mainWindowExists()) {
-    mainWindow?.webContents.send('reinitialize-patent-agent');
-  }
-}
+// export function reinitializePatentAgent() {
+//   if (mainWindowExists()) {
+//     mainWindow?.webContents.send('reinitialize-patent-agent');
+//   }
+// }
 
 // Initialize module
 export function initializeMainWindow() {

@@ -2,7 +2,7 @@ import { BrowserWindow, app, ipcMain } from 'electron';
 import { loadSettings, saveSettings } from '../utils/settings-utils';
 import { loadHtmlFile } from '../utils/window-utils';
 import { sendSettingsUpdate } from './ControlWindow';
-import { updateSettings, reinitializePatentAgent } from './MainWindow';
+import { updateSettings } from './MainWindow';
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -89,8 +89,8 @@ export function initializeSettingsWindow() {
     // Just notify control window about API key availability without starting session
     sendSettingsUpdate(settings.apiKey);
 
-    // Reinitialize patent agent
-    reinitializePatentAgent();
+    // // Reinitialize patent agent
+    // reinitializePatentAgent();
 
     // Close settings window
     if (settingsWindowExists()) {
