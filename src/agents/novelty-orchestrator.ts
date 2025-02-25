@@ -159,6 +159,7 @@ Asking Questions:
 - Never combine multiple questions—keep each inquiry focused. 
 - Use follow-up questions to refine and probe deeper.
 - Adapt your questioning based on the user's responses.
+- Before you start probing into an area of novelty, inform the user what you are focusing on, and then begin probing.
 
 Remember to:
 1. Focus on one area of novelty at a time

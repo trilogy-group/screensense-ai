@@ -2,11 +2,13 @@ import { randomUUID } from 'crypto';
 import { app, shell } from 'electron';
 import * as fs from 'fs';
 import { mdToPdf } from 'md-to-pdf';
-import OpenAI from 'openai';
 import * as path from 'path';
 import { patentGeneratorTemplate } from '../../shared/templates/patent-generator-template';
+import anthropicCompletion from '../../shared/services/anthropic';
+import { sendMarkdownContent } from '../windows/MarkdownPreviewWindow';
 import { logToFile } from './logger';
 import { loadSettings } from './settings-utils';
+
 interface PatentSession {
   id: string;
   title: string;
@@ -215,17 +217,73 @@ ${section}
   `;
 
   const settings = loadSettings();
-  if (!settings.openaiApiKey) {
-    throw new Error('OpenAI API key not found in settings');
+  if (!settings.anthropicApiKey) {
+    throw new Error('Anthropic API key not found in settings');
   }
-  const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-  const response = await openai.chat.completions.create({
-    model: 'o3-mini',
-    messages: [{ role: 'user', content: prompt }],
-    max_completion_tokens: 100000,
-  });
 
-  const updatedContent = response.choices[0].message.content!!;
+  // Initialize variables to track state
+  let currentContent =
+    '# Updating Patent Document...\n\nPlease wait while the AI updates your document.';
+  let currentThinking = '';
+  let isFirstTextChunk = true;
+
+  // Get the session for content updates
+  const session = getCurrentSession();
+
+  // Define callbacks for streaming updates
+  const callbacks = {
+    onText: (text: string) => {
+      // For the first chunk, replace the waiting text instead of appending
+      if (isFirstTextChunk) {
+        currentContent = text;
+        isFirstTextChunk = false;
+      } else {
+        currentContent += text;
+      }
+
+      // Send updated content for display
+      sendMarkdownContent(currentContent, session.path);
+      console.log('Updating patent content with text');
+    },
+    onThinking: (thinkingText: string) => {
+      // Accumulate thinking content
+      currentThinking += thinkingText;
+
+      // Only display thinking if we haven't received any text content yet
+      if (isFirstTextChunk) {
+        // Combine the initial message with the thinking content using proper Markdown formatting
+        let displayWithThinking =
+          currentContent +
+          '\n\n> **AI Thinking:**\n> \n' +
+          currentThinking
+            .split('\n')
+            .map(line => '> ' + line)
+            .join('\n');
+
+        // Send for display but don't write to file
+        sendMarkdownContent(displayWithThinking, session.path);
+        console.log('Updating patent thinking content');
+      }
+
+      // Log thinking for debugging
+      console.log(`AI Thinking: ${thinkingText}`);
+    },
+  };
+
+  console.log(`Going to update patent content with Anthropic`);
+  const updatedContent = await anthropicCompletion(
+    prompt,
+    settings.anthropicApiKey,
+    undefined, // system prompt
+    true, // enable thinking
+    16000, // thinking tokens
+    callbacks // streaming callbacks
+  );
+  console.log(`Anthropic update complete`);
+
+  // Send final content update
+  sendMarkdownContent(updatedContent, session.path);
+
   return updatedContent;
 }
 
@@ -233,10 +291,12 @@ export async function createTemplate(title: string) {
   try {
     const session = createPatentSession(title);
 
-    // Create markdown file
+    // Create markdown file with initial content
     const mdPath = path.join(session.path, 'main.md');
     let initialMd = `# ${title}\n\n`;
     fs.writeFileSync(mdPath, initialMd);
+
+    // Create assets directory
     fs.mkdirSync(path.join(session.path, 'assets'), { recursive: true });
 
     logToFile(`Created patent template at: ${session.path}`);

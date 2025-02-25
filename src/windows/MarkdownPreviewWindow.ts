@@ -109,12 +109,20 @@ export function initializeMarkdownPreviewWindow() {
 
       logToFile(`Attempting to open patent file in preview: ${mdPath}`);
 
+      // Create the file with initial content if it doesn't exist
       if (!fs.existsSync(mdPath)) {
-        return { success: false, error: 'Patent file not found' };
+        const initialContent = `# ${session.title}\n\nInitializing patent document...`;
+        fs.writeFileSync(mdPath, initialContent);
+        logToFile(`Created initial patent file: ${mdPath}`);
       }
 
-      // Instead of shell.openPath, use our markdown preview
+      // Open the markdown preview window
       await createMarkdownPreviewWindow(mdPath);
+
+      // Send initial content
+      const content = fs.readFileSync(mdPath, 'utf8');
+      sendMarkdownContent(content, session.path);
+
       logToFile(`Successfully opened patent file in preview: ${mdPath}`);
       return { success: true };
     } catch (error) {
@@ -132,20 +140,13 @@ export function initializeMarkdownPreviewWindow() {
       }
 
       const mdPath = path.join(session.path, 'main.md');
-
-      // Update markdown content
       let mdContent = fs.existsSync(mdPath) ? fs.readFileSync(mdPath, 'utf8') : '';
-      const updatedContent = await updateContent(mdContent, content, section);
-      fs.writeFileSync(mdPath, updatedContent);
 
-      // Send content update to markdown preview window if it's open
-      if (markdownPreviewWindow && !markdownPreviewWindow.isDestroyed()) {
-        const basePath = path.dirname(mdPath);
-        markdownPreviewWindow.webContents.send('markdown-content-update', {
-          content: updatedContent,
-          basePath,
-        });
-      }
+      // Update markdown content - this will stream updates to the UI
+      const updatedContent = await updateContent(mdContent, content, section);
+
+      // Write the final content to file
+      fs.writeFileSync(mdPath, updatedContent);
 
       updateSessionModified();
       return { success: true, updatedContent };
