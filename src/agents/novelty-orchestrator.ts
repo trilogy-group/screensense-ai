@@ -59,6 +59,7 @@ const replyToUser = tool(
     schema: z.object({
       content: z.string().describe('The message content to send to the user'),
     }),
+    returnDirect: true,
   }
 );
 
@@ -159,7 +160,7 @@ Asking Questions:
 - Never combine multiple questions—keep each inquiry focused. 
 - Use follow-up questions to refine and probe deeper.
 - Adapt your questioning based on the user's responses.
-- Before you start probing into an area of novelty, inform the user what you are focusing on, and then begin probing.
+- Before you start probing into an area of novelty, inform the user what area of novelty you are focusing on, and then begin probing.
 - Once you are done with all novelties, inform the user that you have completed your assessment, and then end the conversation.
 
 Remember to:
