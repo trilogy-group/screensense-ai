@@ -41,8 +41,7 @@ This document outlines the phased implementation plan for the ScreenSense AI Cus
 ### Business Value:
 
 - **Initial Marketplace Presence**: Creates a controlled environment for assistant distribution
-- **Assistant Discovery**: Users can browse, search, and install assistants
-- **Quality Assurance**: Ensures consistent performance across all assistants
+- **Assistant Discovery**: Users can browse, search, and install assistants. Since we now support MCP, we can quickly add new assistants to the marketplace. The users will find this via the marketplace instead of cluttering their default assistants in-app.
 - **Enhanced Debugging**: Faster issue resolution through comprehensive tracking
 
 ## Phase 3: Advanced Tool Support & Authentication
@@ -62,8 +61,8 @@ This document outlines the phased implementation plan for the ScreenSense AI Cus
 ### Business Value:
 
 - **Expanded Assistant Capabilities**: More tools and services available to assistants, including authenticated MCP servers
-- **Enhanced User Experience**: More seamless integration with external services
 - **Sharing Architecture**: Allows users to share tool configurations with each other
+- **Enhanced User Experience**: More seamless integration with external services
 
 ## Phase 4: Enhanced Marketplace Features
 
