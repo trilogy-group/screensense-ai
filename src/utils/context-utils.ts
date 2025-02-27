@@ -226,11 +226,14 @@ export function initializeContext() {
       // console.log('Loaded metadata:', JSON.stringify(metadata, null, 2));
 
       const contextDir = path.join(app.getPath('userData'), 'context');
-      const metadataTimestamp = path
-        .basename(metadataPath)
-        .replace('conversation-metadata-', '')
-        .replace('.json', '');
-      const outputPath = path.join(contextDir, `conversation-merged-${metadataTimestamp}.wav`);
+      const timestamp = Date.now().toString();
+      const outputPath = path.join(contextDir, `merged-${timestamp}.wav`);
+      const tmpDir = path.join(contextDir, 'tmp');
+
+      // Create temp directory if it doesn't exist
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
 
       // Collect all input files and their timestamps
       const inputFiles: { path: string; timestamp: number }[] = [];
@@ -244,11 +247,13 @@ export function initializeContext() {
           'user',
           `conversation-user-${i}-${chunk.timestamp}.wav`
         );
-        inputFiles.push({
-          path: filePath,
-          timestamp: chunk.timestamp,
-        });
-        filesToDelete.push(filePath);
+        if (fs.existsSync(filePath)) {
+          inputFiles.push({
+            path: filePath,
+            timestamp: chunk.timestamp,
+          });
+          filesToDelete.push(filePath);
+        }
       }
 
       // Add assistant chunks
@@ -259,39 +264,61 @@ export function initializeContext() {
           'assistant',
           `conversation-assistant-${i}-${chunk.timestamp}.wav`
         );
-        inputFiles.push({
-          path: filePath,
-          timestamp: chunk.timestamp,
-        });
-        filesToDelete.push(filePath);
+        if (fs.existsSync(filePath)) {
+          inputFiles.push({
+            path: filePath,
+            timestamp: chunk.timestamp,
+          });
+          filesToDelete.push(filePath);
+        }
       }
 
-      // Build the filter complex string
-      let filterComplex = '';
+      // Skip processing if no valid input files found
+      if (inputFiles.length === 0) {
+        console.log('No valid audio files found to merge');
+        return null;
+      }
+
+      // Create a filter script instead of passing complex filter via command line
+      const filterScriptPath = path.join(tmpDir, `filter-${timestamp}.txt`);
+      filesToDelete.push(filterScriptPath);
+
+      // Build the filter script content with a named output
+      let filterScript = '';
       const mixInputs: string[] = [];
 
-      // Add each input file to the command and create its delay filter
-      const command = ffmpeg();
+      // Create delay filter for each input with proper naming
       inputFiles.forEach((file, idx) => {
-        if (fs.existsSync(file.path)) {
-          command.input(file.path);
-          // Apply delay to each input
-          filterComplex += `[${idx}:a]adelay=${file.timestamp}|${file.timestamp}[a${idx}];`;
-          mixInputs.push(`[a${idx}]`);
-        }
+        filterScript += `[${idx}:a]adelay=${file.timestamp}|${file.timestamp}[a${idx}];\n`;
+        mixInputs.push(`[a${idx}]`);
       });
 
-      // Add the mix command
-      filterComplex += `${mixInputs.join('')}amix=inputs=${inputFiles.length}:normalize=0`;
+      // Add the mix command to the filter script with a named output
+      filterScript += `${mixInputs.join('')}amix=inputs=${inputFiles.length}:normalize=0[aout]`;
 
-      // Configure and run the command
+      // Write the filter script to a file
+      await fs.promises.writeFile(filterScriptPath, filterScript, 'utf8');
+
+      // Build and run the ffmpeg command
+      const command = ffmpeg();
+
+      // Add all input files
+      inputFiles.forEach(file => {
+        command.input(file.path);
+      });
+
+      // Use the filter script file with proper addOption method
       await new Promise((resolve, reject) => {
         command
-          .complexFilter(filterComplex)
+          .addOption('-filter_complex_script', filterScriptPath)
+          .addOption('-map', '[aout]') // Map the named output from our filter
           .audioCodec('pcm_s16le')
           .on('error', (err: Error) => {
             console.error('FFmpeg error:', err);
             reject(err);
+          })
+          .on('start', (command: string) => {
+            console.log('FFmpeg command:', command);
           })
           .on('end', () => {
             // console.log('FFmpeg processing finished');
@@ -306,9 +333,8 @@ export function initializeContext() {
       await transcribeAndMergeConversation(outputPath, assistantDisplayName);
 
       filesToDelete.push(outputPath);
-      filesToDelete.push(metadataPath);
 
-      // Clean up audio chunks and metadata file after successful merge
+      // Clean up audio chunks, temp files, and metadata file after successful merge
       for (const file of filesToDelete) {
         try {
           if (fs.existsSync(file)) {
@@ -318,6 +344,13 @@ export function initializeContext() {
         } catch (err) {
           console.error(`Error cleaning up file ${file}:`, err);
         }
+      }
+
+      // Clean up temp directory if empty
+      try {
+        fs.rmdirSync(tmpDir);
+      } catch (err) {
+        // Ignore if not empty or other errors
       }
 
       return outputPath;

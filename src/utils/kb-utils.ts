@@ -228,6 +228,8 @@ Your task is to create a structured runbook from a knowledge base session, which
 
 <template>
 ${runbookTemplate}
+
+Note: If the runbook is not a troubleshooting guide, do not include all the sections, and use appropriate section names.
 </template>
 
 <session_content>
