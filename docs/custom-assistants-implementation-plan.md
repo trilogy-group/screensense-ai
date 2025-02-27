@@ -37,7 +37,46 @@ This document outlines the implementation plan for adding user-created assistant
   - Search functionality
   - Installation button
 
-## Phase 2: Built-in & External Tool Support (High Priority)
+## Phase 2: Migration, Testing & Logging (High Priority)
+
+### Assistant Migration
+
+- [ ] Convert existing assistants to new JSON format:
+  - Extract and format system instructions
+  - Map existing tool configurations to new format
+  - Categorize assistants appropriately
+- [ ] Publish all existing assistants to the marketplace:
+  - Create marketplace entries
+  - Set up default descriptions and metadata
+  - Initialize usage statistics
+
+### Regression Testing
+
+- [ ] Create comprehensive test suite:
+  - Compare performance against pre-migration baselines
+  - Measure response latency and quality
+  - Test all assistant functionalities
+- [ ] Implement automated integration tests:
+  - End-to-end testing for each assistant
+  - Tool execution validation
+  - User flow verification
+
+### Logging & Monitoring
+
+- [ ] Enhance PostHog integration:
+  - Track complete user journeys
+  - Implement error capture with context
+  - Add custom events for assistant-specific actions
+- [ ] Enhance file-based debug logging:
+  - Create structured log format
+  - Implement log rotation and management
+  - Add context-rich logging at key interaction points
+- [ ] Build monitoring dashboard:
+  - Real-time error tracking
+  - Performance metrics visualization
+  - Usage patterns analysis
+
+## Phase 3: Built-in & External Tool Support (High Priority)
 
 ### Built-in Tool Support
 
@@ -80,7 +119,26 @@ This document outlines the implementation plan for adding user-created assistant
   - Create on-demand authentication for shared tool templates
   - Handle graceful fallbacks when authentication fails
 
-## Phase 3: Enhanced Marketplace Features (Medium Priority)
+## Phase 4: Enhanced Marketplace Features (Medium Priority)
+
+### Monetization for Built-in Assistants
+
+- [ ] Define pricing tiers and models:
+  - Identify premium assistants vs. free assistants
+  - Establish subscription vs. one-time purchase options
+  - Create bundling strategies for related assistants
+- [ ] Implement payment infrastructure:
+  - Integrate payment processor (Stripe/PayPal)
+  - Set up secure payment flows
+  - Implement receipt generation and storage
+- [ ] Create entitlement management:
+  - Build licensing verification system
+  - Implement access control for premium assistants
+  - Add trial functionality for premium assistants
+- [ ] Design upgrade experience:
+  - Create in-app purchase flows
+  - Implement upgrade prompts and messaging
+  - Design payment success/failure handling
 
 ### Marketplace Enhancement
 
@@ -100,14 +158,7 @@ This document outlines the implementation plan for adding user-created assistant
   - Unpublish/republish assistants
   - View usage statistics
 
-### Licensing and Monetization
-
-- [ ] Implement premium assistant purchase flow
-- [ ] Add licensing enforcement
-- [ ] Create usage quotas and limitations
-- [ ] Integrate with payment processing
-
-## Phase 4: Advanced Features (Low Priority)
+## Phase 5: Advanced Features (Low Priority)
 
 ### Marketplace Growth Features
 
@@ -142,20 +193,19 @@ This document outlines the implementation plan for adding user-created assistant
   - Add timeout handling for external tool calls
   - Provide clear error messages to users
   - Create graceful recovery paths for authentication failures
+  - Handle payment failures elegantly
 - UI/UX:
   - Keep UI components modular and reusable
   - Implement proper loading states
   - Add error recovery flows
   - Design intuitive authentication flows that minimize user friction
+  - Create seamless payment experience
 
 ## Success Metrics
 
-- Number of assistants in marketplace
 - Assistant installation count
-- Tool usage frequency
 - Assistant usage frequency
-- User satisfaction with marketplace experience
-- System stability with multiple external tools
+- Tool usage frequency
 
 ## Risks and Mitigations
 
@@ -178,12 +228,20 @@ This document outlines the implementation plan for adding user-created assistant
    - Create automated testing for assistant functionality
 
 4. **Authentication Complexity**
+
    - Create detailed user documentation for authentication flows
    - Implement robust error handling for OAuth failures
    - Design fallback mechanisms when services are unavailable
    - Build monitoring system for token expiration and auto-renewal where possible
    - Implement secure credential storage with proper encryption
 
+5. **Payment Processing**
+   - Implement proper error handling for payment failures
+   - Create robust refund processes
+   - Establish clear terms of service and refund policies
+   - Implement comprehensive payment logging for debugging issues
+   - Design backup payment methods in case primary payment processor is unavailable
+
 ## Next Steps
 
-Begin with Phase 1 implementation focusing on user authentication and basic marketplace functionality.
+Begin with Phase 1 implementation focusing on user authentication and basic marketplace functionality, followed by Phase 2 to migrate existing assistants and establish robust testing and logging. Phase 3 will enhance tool support before implementing monetization for built-in assistants in Phase 4.
