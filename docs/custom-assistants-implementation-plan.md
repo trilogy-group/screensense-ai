@@ -2,25 +2,45 @@
 
 ## Overview
 
-This document outlines the implementation plan for adding user-created assistants to ScreenSense AI. The feature will allow users to create custom assistants with their own system prompts and a combination of pre-existing and external tools.
+This document outlines the implementation plan for adding user-created assistants to ScreenSense AI. The feature will allow users to create custom assistants with their own system prompts and a combination of pre-existing and external tools. Based on the new JSON-based assistant architecture, we will focus on building a marketplace for assistant distribution.
 
-## Phase 1: Core Infrastructure (High Priority)
+## Phase 1: Core Infrastructure & Marketplace Foundation (High Priority)
 
-### Assistant Configuration Storage
+### JSON-Based Assistant Configuration
 
-- [ ] Create `AssistantConfig` interface for custom assistant definitions
-  - Basic properties (id, name, system instruction)
-  - Tool selection configuration
+- [ ] Create `AssistantConfig` interface for custom assistant definitions:
+  - Basic properties (id, name, description, system instructions)
+  - Tool selection configuration (built-in and MCP-based)
   - Display requirements
-- [ ] Implement local storage service for assistant configurations
-- [ ] Add CRUD operations for assistant configurations
+- [ ] Implement JSON schema validation
+- [ ] Add serialization/deserialization utilities
+
+### User Authentication & Cloud Integration
+
+- [ ] Implement Google Sign-In
+- [ ] Create user account system
+- [ ] Design cloud storage interface for assistants
+- [ ] Implement assistant cloud sync:
+  - Store assistant configurations
+  - Sync across devices
+
+### Basic Marketplace Implementation
+
+- [ ] Create marketplace backend API:
+  - Assistant listing endpoint
+  - Assistant detail endpoint
+  - Search functionality
+- [ ] Implement assistant installation mechanism
+- [ ] Add basic assistant usage tracking
+- [ ] Create minimalist marketplace UI:
+  - Assistant listing view
+  - Search functionality
+  - Installation button
+
+## Phase 2: Built-in & External Tool Support (High Priority)
 
 ### Built-in Tool Support
 
-- [ ] Create core interfaces:
-  - `ToolCategory` for organizing tools into groups
-  - `ToolSelection` for managing tool enablement and configuration
-  - Extend existing Google AI Tool types as needed
 - [ ] Organize existing tools into categories:
   - Translation tools
   - Screen capture tools
@@ -29,81 +49,73 @@ This document outlines the implementation plan for adding user-created assistant
   - Patent tools
 - [ ] Add tool selection system for assistants
 
-### UI Components
+### MCP Integration
 
-- [ ] Create assistant creation/edit form
-- [ ] Add system prompt editor
-- [ ] Implement built-in tool selection interface:
-  - Category-based tool organization
-  - Enable/disable individual tools
-  - Tool-specific configuration options
-- [ ] Add basic assistant management UI (list, create, delete)
+- [ ] Install and configure MCP SDK:
+  - Set up dependencies
+  - Configure client initialization
+- [ ] Implement MCP client wrapper:
+  - Create connection management utility
+  - Handle connection errors and retries
+  - Add logging and diagnostics
+- [ ] Add MCP server configuration:
+  - Server URL/transport setting
+  - Authentication configuration (if needed)
+- [ ] Add tool execution:
+  - Convert MCP tools to assistant tools
+  - Convert parameters from assistant format to MCP format
+  - Handle tool response parsing and error handling
 
-## Phase 2: External Tool Integration (High Priority)
+### MCP Authentication & Sharing
 
-### MCP Client Implementation
+- [ ] Create secure credential storage system:
+  - Encrypt and securely store user-specific MCP endpoints
+  - Implement key management for credential access
+- [ ] Integrate with MCP Hive API:
+  - Implement OAuth flow within application
+  - Automate generation of authenticated MCP URLs
+  - Handle token refresh and expiration
+- [ ] Implement sharing architecture:
+  - Store only tool blueprints in shared assistant configurations
+  - Create on-demand authentication for shared tool templates
+  - Handle graceful fallbacks when authentication fails
 
-- [ ] Create MCP client for handling server connections:
-  - Implement MCP handshake protocol
-  - Handle version negotiation
-  - Support package (feature) negotiation
-  - Parse MCP messages (#$# format)
-- [ ] Add connection management:
-  - Connect/disconnect handling
-  - Connection state monitoring
-  - Reconnection logic
-- [ ] Implement error handling and boundaries
+## Phase 3: Enhanced Marketplace Features (Medium Priority)
 
-### MCP Tool Integration
+### Marketplace Enhancement
 
-- [ ] Create MCP tool wrapper interface:
-  - Convert MCP messages to tool format
-  - Map MCP packages to tool functions
-  - Handle tool lifecycle with MCP connection
-- [ ] Add support for MCP tool discovery:
-  - Query available packages from MCP server
-  - Convert package definitions to tool definitions
-- [ ] Implement tool response handling:
-  - Parse MCP responses
-  - Convert to assistant-compatible format
-  - Handle errors and timeouts
+- [ ] Add assistant categories and tags
+- [ ] Implement rating system
+- [ ] Create featured/popular sections
+- [ ] Add advanced search and filtering
+- [ ] Create assistant detail pages
+- [ ] Implement assistant update mechanism
 
-### UI Components
+### Assistant Creation & Management
 
-- [ ] Add MCP server configuration UI:
-  - Server URL input
-  - Available packages display
-  - Connection status indicator
-- [ ] Extend assistant tool selection for MCP tools:
-  - Display available MCP tools
-  - Enable/disable individual MCP tools
-- [ ] Add connection testing/preview functionality
+- [ ] Create web-based assistant creation interface
+- [ ] Implement assistant publishing workflow
+- [ ] Add user-created assistant management:
+  - Edit published assistants
+  - Unpublish/republish assistants
+  - View usage statistics
 
-## Phase 3: Cloud Integration (Medium Priority)
+### Licensing and Monetization
 
-### User Authentication
-
-- [ ] Implement Google Sign-In
-- [ ] Store user preferences in cloud
-- [ ] Handle sign-in/sign-out flows
-
-### Cloud Storage
-
-- [ ] Design cloud storage interface for assistants
-- [ ] Implement assistant cloud sync:
-  - Auto-save assistant configurations
-  - Sync across devices
-  - Handle offline/online states
+- [ ] Implement premium assistant purchase flow
+- [ ] Add licensing enforcement
+- [ ] Create usage quotas and limitations
+- [ ] Integrate with payment processing
 
 ## Phase 4: Advanced Features (Low Priority)
 
-### Assistant Sharing
+### Marketplace Growth Features
 
-- [ ] Add assistant export/import
-- [ ] Implement sharing mechanism
-- [ ] Create access control system
-- [ ] Add collaborative editing features
-- [ ] Add marketplace functionality for sharing assistants publicly
+- [ ] Add assistant installation analytics
+- [ ] Implement user reviews and comments
+- [ ] Create discovery features (recommendations)
+- [ ] Add social sharing functionality
+- [ ] Support assistant collections/bundles
 
 ### Version Control
 
@@ -114,6 +126,13 @@ This document outlines the implementation plan for adding user-created assistant
 
 ## Technical Considerations
 
+- Security and Privacy:
+  - Implement proper authentication and authorization
+  - Add input validation for all user inputs
+  - Create secure MCP server communication
+  - Protect user data and assistant configurations
+  - Implement secure storage for OAuth tokens and credentials
+  - Create strict separation between shareable tool definitions and user-specific authentication
 - Storage Abstraction:
   - Keep storage implementation details separate from business logic
   - Use interfaces for storage operations (local/cloud)
@@ -122,16 +141,20 @@ This document outlines the implementation plan for adding user-created assistant
   - Implement proper error boundaries for MCP tools
   - Add timeout handling for external tool calls
   - Provide clear error messages to users
+  - Create graceful recovery paths for authentication failures
 - UI/UX:
   - Keep UI components modular and reusable
   - Implement proper loading states
   - Add error recovery flows
+  - Design intuitive authentication flows that minimize user friction
 
 ## Success Metrics
 
-- Number of custom assistants created
-- External tool integration success rate
-- User satisfaction with assistant creation process
+- Number of assistants in marketplace
+- Assistant installation count
+- Tool usage frequency
+- Assistant usage frequency
+- User satisfaction with marketplace experience
 - System stability with multiple external tools
 
 ## Risks and Mitigations
@@ -148,6 +171,19 @@ This document outlines the implementation plan for adding user-created assistant
    - Implement versioning for stored configurations
    - Create backup system before migrations
 
+3. **Marketplace Quality**
+
+   - Implement basic quality checks for published assistants
+   - Add reporting mechanism for problematic assistants
+   - Create automated testing for assistant functionality
+
+4. **Authentication Complexity**
+   - Create detailed user documentation for authentication flows
+   - Implement robust error handling for OAuth failures
+   - Design fallback mechanisms when services are unavailable
+   - Build monitoring system for token expiration and auto-renewal where possible
+   - Implement secure credential storage with proper encryption
+
 ## Next Steps
 
-Begin with Phase 1 implementation
+Begin with Phase 1 implementation focusing on user authentication and basic marketplace functionality.
