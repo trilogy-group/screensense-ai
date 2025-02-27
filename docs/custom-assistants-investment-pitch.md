@@ -4,62 +4,66 @@
 
 This document outlines the phased implementation plan for the ScreenSense AI Custom Assistants Marketplace. Each phase is presented with time estimates and projected business value to facilitate investment decisions.
 
-## Phase 1: Core Infrastructure & Marketplace Foundation
+## Phase 1: Core Infrastructure & Initial MCP Tool Support
 
-**Estimated Time: 5 days**
+**Estimated Time: 7 days**
 
 ### Key Deliverables:
 
 - JSON-based assistant configuration system
 - User authentication with Google Sign-In
-- Basic marketplace backend and UI
-- Assistant installation mechanism
+- Cloud storage and synchronization
+- MCP SDK integration for internal assistants:
+  - Basic MCP client implementation
+  - Tool execution framework for existing assistants
+  - Initial MCP tool support for built-in assistants
 
 ### Business Value:
 
+- **Immediate User-Facing Improvements**: Enhanced built-in assistants with MCP tool capabilities
 - **Foundation for Future Growth**: Establishes the technical infrastructure required for all subsequent phases
 - **User Account System**: Enables user data persistence and personalization features
-- **Initial Marketplace Presence**: Creates a controlled environment for assistant distribution
-- **Technical Debt Reduction**: Standardizes assistant configuration format, improving maintainability
 
-_Note: While this phase has limited direct user-facing value, it creates the essential foundation for the revenue-generating features in later phases._
+## Phase 2: Migration, Marketplace & Testing
 
-## Phase 2: Migration, Testing & Logging
-
-**Estimated Time: 3 days**
+**Estimated Time: 5 days**
 
 ### Key Deliverables:
 
-- Existing assistants converted to new format and published to marketplace
-- Comprehensive test suite and automated integration tests
+- Existing assistants converted to new JSON format
+- Marketplace implementation:
+  - Backend API for assistant management
+  - Assistant installation mechanism
+  - Minimalist marketplace UI
+  - Publication of existing assistants
 - Enhanced logging and monitoring systems
 
 ### Business Value:
 
+- **Initial Marketplace Presence**: Creates a controlled environment for assistant distribution
+- **Assistant Discovery**: Users can browse, search, and install assistants
 - **Quality Assurance**: Ensures consistent performance across all assistants
-- **Improved Reliability**: Reduces user-facing errors and increases satisfaction
-- **Enhanced Debugging**: Faster issue resolution through comprehensive logging
-- **Analytics Foundation**: Prepares for data-driven decision making
-- **Reduced Support Costs**: Better error tracking leads to lower customer support overhead
+- **Enhanced Debugging**: Faster issue resolution through comprehensive tracking
 
-## Phase 3: Built-in & External Tool Support
+## Phase 3: Advanced Tool Support & Authentication
 
-**Estimated Time: 10 days**
+**Estimated Time: 8 days**
 
 ### Key Deliverables:
 
-- Organized tool categories for assistants
-- MCP SDK integration
+- Advanced organization of tool categories
+- Enhanced MCP client capabilities
 - Secure credential storage system
-- External tool authentication framework
+- MCP authentication framework:
+  - Implement OAuth flow within application
+  - Automate generation of authenticated MCP URLs
+- Sharing architecture for tool configurations
 
 ### Business Value:
 
-- **Enhanced Product Capabilities**: More powerful assistants through improved tool access
-- **Extensibility**: Ability to integrate with external services and APIs
-- **Platform Growth Potential**: Opens ecosystem to third-party integrations
-- **Competitive Differentiation**: Advanced tool support creates market advantages
-- **User Satisfaction**: More capable assistants lead to higher user retention
+- **Expanded Assistant Capabilities**: More tools and services available to assistants, including authenticated MCP servers
+- **Enhanced User Experience**: More seamless integration with external services
+- **Sharing Architecture**: Allows users to share tool configurations with each other
 
 ## Phase 4: Enhanced Marketplace Features
 
@@ -92,7 +96,11 @@ _Note: While this phase has limited direct user-facing value, it creates the ess
 
 ### Business Value:
 
-- **Ecosystem Maturation**: Creates self-sustaining marketplace with network effects
+- **Version Control**: Allows users to track and switch between different versions of assistants
 - **Increased User Retention**: Social features encourage platform loyalty
 - **Higher Monetization Potential**: Bundles and collections increase purchase opportunities
-- **Market Leadership**: Full-featured platform stands out from competitors
+- **Ecosystem Maturation**: Creates self-sustaining marketplace with network effects
+
+## Total Implementation Timeline
+
+**32 days** (approximately 6 weeks)

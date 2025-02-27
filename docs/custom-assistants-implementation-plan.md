@@ -4,7 +4,7 @@
 
 This document outlines the implementation plan for adding user-created assistants to ScreenSense AI. The feature will allow users to create custom assistants with their own system prompts and a combination of pre-existing and external tools. Based on the new JSON-based assistant architecture, we will focus on building a marketplace for assistant distribution.
 
-## Phase 1: Core Infrastructure & Marketplace Foundation (High Priority)
+## Phase 1: Core Infrastructure & Initial MCP Tool Support (High Priority)
 
 ### JSON-Based Assistant Configuration
 
@@ -24,7 +24,32 @@ This document outlines the implementation plan for adding user-created assistant
   - Store assistant configurations
   - Sync across devices
 
-### Basic Marketplace Implementation
+### Initial MCP Integration
+
+- [ ] Install and configure MCP SDK:
+  - Set up dependencies
+  - Configure client initialization
+- [ ] Implement basic MCP client wrapper:
+  - Create simple connection management
+  - Handle basic error scenarios
+- [ ] Add tool execution for built-in assistants:
+  - Connect MCP tools to existing assistants
+  - Implement basic parameter handling
+  - Create response parsing for standard tools
+
+## Phase 2: Migration, Marketplace & Testing (High Priority)
+
+### Assistant Migration
+
+- [ ] Convert existing assistants to new JSON format:
+  - Extract and format system instructions
+  - Map existing tool configurations to new format
+  - Categorize assistants appropriately
+- [ ] Prepare assistants for marketplace publication:
+  - Create default descriptions and metadata
+  - Initialize usage statistics
+
+### Marketplace Implementation
 
 - [ ] Create marketplace backend API:
   - Assistant listing endpoint
@@ -36,19 +61,7 @@ This document outlines the implementation plan for adding user-created assistant
   - Assistant listing view
   - Search functionality
   - Installation button
-
-## Phase 2: Migration, Testing & Logging (High Priority)
-
-### Assistant Migration
-
-- [ ] Convert existing assistants to new JSON format:
-  - Extract and format system instructions
-  - Map existing tool configurations to new format
-  - Categorize assistants appropriately
-- [ ] Publish all existing assistants to the marketplace:
-  - Create marketplace entries
-  - Set up default descriptions and metadata
-  - Initialize usage statistics
+- [ ] Publish all existing assistants to the marketplace
 
 ### Regression Testing
 
@@ -76,9 +89,9 @@ This document outlines the implementation plan for adding user-created assistant
   - Performance metrics visualization
   - Usage patterns analysis
 
-## Phase 3: Built-in & External Tool Support (High Priority)
+## Phase 3: Advanced Tool Support & Authentication (High Priority)
 
-### Built-in Tool Support
+### Enhanced Tool Organization
 
 - [ ] Organize existing tools into categories:
   - Translation tools
@@ -86,24 +99,7 @@ This document outlines the implementation plan for adding user-created assistant
   - Read/Write tools
   - Knowledge base tools
   - Patent tools
-- [ ] Add tool selection system for assistants
-
-### MCP Integration
-
-- [ ] Install and configure MCP SDK:
-  - Set up dependencies
-  - Configure client initialization
-- [ ] Implement MCP client wrapper:
-  - Create connection management utility
-  - Handle connection errors and retries
-  - Add logging and diagnostics
-- [ ] Add MCP server configuration:
-  - Server URL/transport setting
-  - Authentication configuration (if needed)
-- [ ] Add tool execution:
-  - Convert MCP tools to assistant tools
-  - Convert parameters from assistant format to MCP format
-  - Handle tool response parsing and error handling
+- [ ] Implement advanced tool selection system for assistants
 
 ### MCP Authentication & Sharing
 
@@ -184,6 +180,7 @@ This document outlines the implementation plan for adding user-created assistant
   - Protect user data and assistant configurations
   - Implement secure storage for OAuth tokens and credentials
   - Create strict separation between shareable tool definitions and user-specific authentication
+  - Ensure PCI compliance for payment processing
 - Storage Abstraction:
   - Keep storage implementation details separate from business logic
   - Use interfaces for storage operations (local/cloud)
@@ -206,6 +203,9 @@ This document outlines the implementation plan for adding user-created assistant
 - Assistant installation count
 - Assistant usage frequency
 - Tool usage frequency
+- Conversion rate (free to paid)
+- Revenue per user
+- Subscription retention rate
 
 ## Risks and Mitigations
 
@@ -244,4 +244,4 @@ This document outlines the implementation plan for adding user-created assistant
 
 ## Next Steps
 
-Begin with Phase 1 implementation focusing on user authentication and basic marketplace functionality, followed by Phase 2 to migrate existing assistants and establish robust testing and logging. Phase 3 will enhance tool support before implementing monetization for built-in assistants in Phase 4.
+Begin with Phase 1 implementation focusing on core infrastructure, user authentication, and initial MCP tool integration for built-in assistants, followed by Phase 2 to implement the marketplace, migrate existing assistants, and establish robust testing and logging.
