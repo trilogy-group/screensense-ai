@@ -405,7 +405,7 @@ function ControlTray({
 
       // Additional check for Anthropic API key in patent generator mode
       if (
-        selectedOption.value === 'patent_generator' &&
+        (selectedOption.value === 'patent_generator' || selectedOption.value === 'knowledge_base') &&
         (!settings.anthropicApiKey || !settings.openaiApiKey)
       ) {
         // Revert the control button state
@@ -413,16 +413,7 @@ function ControlTray({
         ipcRenderer.send('show-settings');
         ipcRenderer.send(
           'session-error',
-          'You need to set up your Anthropic and OpenAI API keys for patent generation.'
-        );
-        return;
-      } else if (selectedOption.value === 'knowledge_base' && !settings.openaiApiKey) {
-        // Revert the control button state
-        ipcRenderer.send('revert-control-button');
-        ipcRenderer.send('show-settings');
-        ipcRenderer.send(
-          'session-error',
-          'You need to set up your OpenAI API key for knowledge base.'
+          'You need to set up your Anthropic API key for patent generation and knowledge curator capabilities.'
         );
         return;
       }

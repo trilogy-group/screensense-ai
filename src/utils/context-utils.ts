@@ -173,7 +173,7 @@ export function initializeContext() {
           {
             role: 'system',
             content: `
-      You are a content paraphraser. The user will provide you with a conversation between a human and a helpful AI assistant called ${assistantDisplayName}. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
+      You are a content paraphraser. The user will provide you with a conversation between a human and a helpful AI assistant called ScreenSense AI - ${assistantDisplayName}. Your task is to paraphrase the conversation into a more correct and readable format. I want you to keep the original meaning of the conversation, but make it more readable and correct. 
       
       It is possible that sometimes the conversation is incomplete, but you should not try to complete it. Do not add any new information or make up any information. Just correct the transcript.
       
@@ -316,9 +316,6 @@ export function initializeContext() {
           .on('error', (err: Error) => {
             console.error('FFmpeg error:', err);
             reject(err);
-          })
-          .on('start', (command: string) => {
-            console.log('FFmpeg command:', command);
           })
           .on('end', () => {
             // console.log('FFmpeg processing finished');
