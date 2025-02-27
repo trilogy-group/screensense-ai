@@ -118,7 +118,7 @@
         }
       ],
       "identity": "G-DEV FZ-LLC (KRY77A2RML)",
-      "artifactName": "${productName.replace(/ /g, '-')}-${arch}.${ext}",
+      "artifactName": "${productName}-${arch}.${ext}",
       "forceCodeSigning": true
     },
     "win": {
