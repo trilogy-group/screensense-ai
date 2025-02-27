@@ -371,7 +371,7 @@ function ControlTray({
       // Start auto-save interval
       autoSaveInterval.current = window.setInterval(() => {
         saveRecordings(true); // Save and reset chunks every 30 seconds
-      }, 30000);
+      }, 15000);
     } else {
       // Clear interval when recording stops
       if (autoSaveInterval.current !== null) {
