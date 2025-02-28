@@ -8,12 +8,10 @@ This document outlines the implementation plan for adding user-created assistant
 
 ### JSON-Based Assistant Configuration
 
-- [ ] Create `AssistantConfig` interface for custom assistant definitions:
+- [x] Create `AssistantConfig` interface for custom assistant definitions:
   - Basic properties (id, name, description, system instructions)
   - Tool selection configuration (built-in and MCP-based)
   - Display requirements
-- [ ] Implement JSON schema validation
-- [ ] Add serialization/deserialization utilities
 
 ### User Authentication & Cloud Integration
 
