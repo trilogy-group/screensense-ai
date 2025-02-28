@@ -73,6 +73,10 @@ Based on the requirements analysis, we will implement a serverless architecture 
 - **Integration**: Native AWS service with strong Lambda integration
 - **Simplicity**: Assistant configurations are small and don't require complex queries
 
+**Decision: Create a Separate Tools Table**
+
+Given the importance of tool reusability and the marketplace vision outlined in the implementation plan, we will create a separate Tools table while keeping references to tools in the Assistants table.
+
 #### Data Model Design:
 
 **1. Users Table:**
@@ -82,12 +86,21 @@ Partition Key: userId (string, from Cognito)
 Attributes:
   - email (string)
   - name (string)
-  - createdAt (number, timestamp)
-  - updatedAt (number, timestamp)
-  - preferences (map, user preferences)
 ```
 
-**2. Assistants Table:**
+**2. Tools Table:**
+
+```
+Partition Key: toolId (string)
+Attributes:
+  - type (string, enum: BUILT_IN, MCP, GOOGLE_SEARCH, CODE_EXECUTION)
+  - name (string)
+  - description (string)
+  - parameters (map, optional JSON schema)
+  - mcpEndpoint (string, optional, for MCP tools only)
+```
+
+**3. Assistants Table:**
 
 ```
 Partition Key: assistantId (string)
@@ -95,32 +108,52 @@ Attributes:
   - displayName (string)
   - description (string)
   - systemInstruction (string)
-  - tools (list)
+  - toolIds (list of strings, references to Tools table)
   - requiresDisplay (boolean)
-  - creator (string, userId of creator, null for built-in)
-  - isPublic (boolean)
-  - createdAt (number, timestamp)
-  - updatedAt (number, timestamp)
 ```
 
-**3. UserAssistants Table (for associations):**
+**4. UserAssistants Table (for associations):**
 
 ```
 Partition Key: userId (string)
 Sort Key: assistantId (string)
 Attributes:
-  - isFavorite (boolean)
   - isInstalled (boolean)
-  - lastUsed (number, timestamp)
-  - customizations (map, any user-specific customizations)
 ```
+
+**Why a Separate UserAssistants Table:**
+
+- Enables efficient querying in both directions (user→assistants, assistant→users)
+- Allows for relationship-specific metadata (preferences, usage statistics)
+- Supports atomic updates to individual user-assistant relationships
+- Follows NoSQL best practices for many-to-many relationships
+- Avoids DynamoDB item size limitations when users install many assistants
+- Provides better scalability as the marketplace grows
 
 This model allows:
 
-- Assistants to exist as unique entities
-- Users to reference/install assistants without duplicating definitions
-- Built-in assistants to be available to all users
-- Future marketplace capabilities where users can publish assistants
+- Tools to be defined once and reused across multiple assistants
+- Independent versioning and updating of tools
+- Future marketplace capabilities for both tools and assistants
+- Efficient querying with minimal overhead
+
+#### Implementation Considerations:
+
+1. **Tool Resolution Strategy:**
+
+   - When retrieving assistant configurations, we'll need to resolve tool references
+   - This can be done efficiently using DynamoDB's BatchGetItem operation
+   - Client-side caching can reduce the need for repeated tool lookups
+
+2. **Data Integrity:**
+
+   - Implement validation to ensure all toolIds referenced by assistants exist
+   - Consider using DynamoDB transactions for operations that modify both assistants and tools
+
+3. **Migration Strategy:**
+   - Extract built-in tools from existing assistant configs
+   - Create entries in the Tools table for all unique tools
+   - Update assistant configurations to reference tool IDs instead of containing tool definitions
 
 ### 3. Backend API Implementation
 
@@ -144,6 +177,14 @@ This model allows:
 
 - `GET /users/me` - Get current user profile
 - `PUT /users/me` - Update user profile
+
+**Tools API:**
+
+- `GET /tools` - List all available tools
+- `GET /tools/{id}` - Get specific tool configuration
+- `POST /tools` - Create custom tool
+- `PUT /tools/{id}` - Update tool (if owner)
+- `DELETE /tools/{id}` - Delete tool (if owner)
 
 **Assistants API:**
 
@@ -201,5 +242,4 @@ This model allows:
 
 3. **Testing:**
    - Test authentication flows
-   - Test assistant management
    - Perform end-to-end testing
