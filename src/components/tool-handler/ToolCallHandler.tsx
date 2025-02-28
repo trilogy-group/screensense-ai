@@ -1,4 +1,4 @@
-import { type Tool } from '@google/generative-ai';
+import { convertToolsToGoogleFormat, Tool } from '../../configs/assistant-types';
 import { memo, useEffect, useState, useRef, useCallback } from 'react';
 import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-orchestrator';
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
@@ -111,7 +111,7 @@ function ToolCallHandlerComponent({
       systemInstruction: {
         parts: [{ text: systemInstruction }],
       },
-      tools: tools,
+      tools: convertToolsToGoogleFormat(tools),
     });
   }, [setConfig, systemInstruction, tools, assistantMode]);
 

@@ -211,7 +211,7 @@ function ControlTray({
     setSelectedOption(modes[carouselIndex]);
     // Send carousel update to control window
     const mode = modes[carouselIndex].value as keyof typeof assistantConfigs;
-    const modeName = assistantConfigs[mode].display_name;
+    const modeName = assistantConfigs[mode].displayName;
     const requiresDisplay = assistantConfigs[mode].requiresDisplay;
     ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
   }, [carouselIndex, modes, setSelectedOption]);
@@ -219,7 +219,7 @@ function ControlTray({
   // Send initial mode's requiresDisplay setting
   useEffect(() => {
     const initialMode = modes[0].value as keyof typeof assistantConfigs;
-    const modeName = assistantConfigs[initialMode].display_name;
+    const modeName = assistantConfigs[initialMode].displayName;
     const requiresDisplay = assistantConfigs[initialMode].requiresDisplay;
     ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
   }, [modes]);
@@ -350,7 +350,7 @@ function ControlTray({
       // Trigger merging of the conversation
       ipcRenderer.send('merge-conversation-audio', {
         assistantDisplayName:
-          assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].display_name,
+          assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].displayName,
       });
 
       // Reset audio chunks and timestamps if requested
@@ -405,7 +405,8 @@ function ControlTray({
 
       // Additional check for Anthropic API key in patent generator mode
       if (
-        (selectedOption.value === 'patent_generator' || selectedOption.value === 'knowledge_base') &&
+        (selectedOption.value === 'patent_generator' ||
+          selectedOption.value === 'knowledge_base') &&
         (!settings.anthropicApiKey || !settings.openaiApiKey)
       ) {
         // Revert the control button state
@@ -678,7 +679,7 @@ function ControlTray({
                 <span className="carousel-text">
                   {
                     assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
-                      .display_name
+                      .displayName
                   }
                 </span>
               </div>

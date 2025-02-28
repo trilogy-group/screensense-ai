@@ -172,7 +172,7 @@ function App() {
   useEffect(() => {
     const handleModeUpdateRequest = () => {
       const mode = selectedOption.value as keyof typeof assistantConfigs;
-      const modeName = assistantConfigs[mode].display_name;
+      const modeName = assistantConfigs[mode].displayName;
       const requiresDisplay = assistantConfigs[mode].requiresDisplay;
       ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
     };

@@ -235,14 +235,22 @@ export const knowledgeBaseTools: Tool[] = [
 
 // Google Search tool - special case
 const googleSearchTool: Tool = {
-  type: ToolType.BUILT_IN,
+  type: ToolType.GOOGLE_SEARCH,
   name: 'google_search',
   description: 'Searches the web using Google',
 };
 
+// Code Execution tool - special case
+const codeExecutionTool: Tool = {
+  type: ToolType.CODE_EXECUTION,
+  name: 'code_execution',
+  description: 'Executes code in a sandbox environment',
+};
+
 // Convert legacy assistant configs to new AssistantConfig format
-export const assistantConfigs: Record<string, AssistantConfig> = {
+export const assistantConfigs = {
   daily_helper: {
+    id: 'daily_helper',
     displayName: 'Daily Guide',
     description: 'Helps with your daily tasks using Google Search when needed',
     tools: [googleSearchTool],
@@ -272,6 +280,7 @@ Your role:
 Your mission: Provide the best possible assistance for the user's daily tasks using all the resources and abilities at your disposal while respecting the guidelines above.`,
   },
   author: {
+    id: 'author',
     displayName: 'Document Expert',
     description: 'Helps with writing, editing, and text manipulation',
     tools: [...readWriteTools],
@@ -321,6 +330,7 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
 `,
   },
   patent_generator: {
+    id: 'patent_generator',
     displayName: 'Patent Generator',
     description: 'Assists with creating patent documentation',
     tools: [...patentGeneratorTools],
@@ -354,6 +364,7 @@ Key Points:
 - While giving a confirmation message to the user, do not read the function call response to user. Everything you say should be English. Do not read out Json structure to user.`,
   },
   insight_generator: {
+    id: 'insight_generator',
     displayName: 'Insight Generator',
     description: 'Helps generate insights from text and data',
     tools: [...readWriteTools, googleSearchTool],
@@ -384,6 +395,7 @@ Important Instructions:
 `,
   },
   knowledge_base: {
+    id: 'knowledge_base',
     displayName: 'Knowledge Curator',
     description: 'Helps document and organize knowledge',
     tools: [...knowledgeBaseTools],
@@ -418,6 +430,7 @@ Important Instructions:
 Your mission: Be an invisible observer, reporting only when explicitly asked. Remember, never speak or say anything out loud.`,
   },
   translator: {
+    id: 'translator',
     displayName: 'Transcriber',
     description: 'Converts spoken content into English subtitles in real time',
     tools: translationTools,
@@ -437,6 +450,7 @@ Key Behaviors:
 Remember: Your only role is to silently provide accurate subtitles. Do not engage in conversation or provide any responses beyond the subtitles themselves.`,
   },
   tutor: {
+    id: 'tutor',
     displayName: 'Tutor',
     description: 'Helps with learning and education',
     tools: [...readWriteTools],
@@ -461,6 +475,7 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     `,
   },
   screen_capture_record: {
+    id: 'screen_capture_record',
     displayName: 'Action Recorder',
     description: 'Records screen actions for later playback',
     tools: [...screenCaptureTools],
@@ -475,6 +490,7 @@ Give a confirmation message to the user after every message. Do not read the fun
     `,
   },
   screen_capture_play: {
+    id: 'screen_capture_play',
     displayName: 'Action Player',
     description: 'Plays back recorded screen actions',
     tools: [...screenCaptureTools],
@@ -488,17 +504,6 @@ When the user asks you to continue the action, you must call the continue_action
 Give a confirmation message to the user after every message.
     `,
   },
-};
+} as const satisfies Record<string, AssistantConfig>;
 
-// Type for the configuration modes
 export type AssistantConfigMode = keyof typeof assistantConfigs;
-
-// Function to get Google Tool format for a specific assistant
-export function getGoogleToolsForAssistant(assistantId: AssistantConfigMode) {
-  const config = assistantConfigs[assistantId];
-  if (!config) {
-    throw new Error(`Assistant with ID ${assistantId} not found`);
-  }
-
-  return convertToolsToGoogleFormat(config.tools);
-}

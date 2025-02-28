@@ -4,6 +4,8 @@ import { type Tool as GoogleTool, Schema, SchemaType } from '@google/generative-
 export enum ToolType {
   BUILT_IN = 'built_in',
   MCP = 'mcp',
+  GOOGLE_SEARCH = 'google_search',
+  CODE_EXECUTION = 'code_execution',
 }
 
 export interface Tool {
@@ -17,53 +19,57 @@ export interface Tool {
 
 // Base assistant configuration interface
 export interface AssistantConfig {
-  id?: string; // Optional as it may be assigned later
+  id: string;
   displayName: string;
   description: string;
   systemInstruction: string;
-  tools: Tool[];
+  tools: readonly Tool[];
   requiresDisplay: boolean;
 }
 
-// Utility to convert our Tool format to Google's Tool format
-export function convertToGoogleTool(tool: Tool): GoogleTool {
-  // Extract only the properties needed for Google's function declaration
-  const { name, description, parameters } = tool;
+// Utility to convert an array of our tools to Google's Tool format
+export function convertToolsToGoogleFormat(
+  tools: Tool[]
+): Array<GoogleTool | { googleSearch: {} } | { codeExecution: {} }> {
+  // If there are no tools, return an empty array
+  if (tools.length === 0) {
+    return [];
+  }
 
-  // Return as a Google Tool with a single function declaration using spread operator
-  return {
-    functionDeclarations: [
-      {
+  // Split tools into regular function tools and special Google tools
+  const regularTools: Tool[] = [];
+  const specialTools: Array<{ googleSearch: {} } | { codeExecution: {} }> = [];
+
+  // Process each tool
+  tools.forEach(tool => {
+    if (tool.type === ToolType.GOOGLE_SEARCH) {
+      specialTools.push({ googleSearch: {} });
+    } else if (tool.type === ToolType.CODE_EXECUTION) {
+      specialTools.push({ codeExecution: {} });
+    } else {
+      regularTools.push(tool);
+    }
+  });
+
+  // Convert regular tools to function declarations
+  const result: Array<GoogleTool | { googleSearch: {} } | { codeExecution: {} }> = [];
+
+  // Only add the function tool if we have regular tools
+  if (regularTools.length > 0) {
+    const allFunctionDeclarations = regularTools.map(tool => {
+      const { name, description, parameters } = tool;
+      return {
         name,
         description,
         ...(parameters !== undefined ? { parameters } : {}),
-      },
-    ],
-  } as GoogleTool;
-}
-
-// Utility to convert an array of our tools to Google's Tool format
-export function convertToolsToGoogleFormat(tools: Tool[]): GoogleTool[] {
-  // We need to group tools by their type for Google's format
-  const groupedTools: Record<string, GoogleTool> = {};
-
-  // Group built-in tools (each goes to its own Google Tool)
-  tools
-    .filter(tool => tool.type === ToolType.BUILT_IN)
-    .forEach(tool => {
-      const googleTool = convertToGoogleTool(tool);
-      groupedTools[tool.name] = googleTool;
+      };
     });
 
-  // Special handling for MCP tools (can be grouped differently if needed)
-  tools
-    .filter(tool => tool.type === ToolType.MCP)
-    .forEach(tool => {
-      // For now, just convert each MCP tool like a built-in tool
-      const googleTool = convertToGoogleTool(tool);
-      groupedTools[tool.name] = googleTool;
-    });
+    result.push({
+      functionDeclarations: allFunctionDeclarations,
+    } as GoogleTool);
+  }
 
-  // Convert the grouped record to an array
-  return Object.values(groupedTools);
+  // Add special tools
+  return [...result, ...specialTools];
 }
