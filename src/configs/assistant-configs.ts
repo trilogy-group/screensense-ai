@@ -1,244 +1,259 @@
-import { type Tool, SchemaType } from '@google/generative-ai';
+import { SchemaType } from '@google/generative-ai';
+import { Tool, ToolType, AssistantConfig, convertToolsToGoogleFormat } from './assistant-types';
 
 // Tool configurations
-
 const translationTools: Tool[] = [
   {
-    functionDeclarations: [
-      {
-        name: 'render_subtitles',
-        description:
-          'Displays subtitles in an overlay window. Use this whenever you wish to display subtitles.',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            subtitles: {
-              type: SchemaType.STRING,
-              description: 'The text to display as subtitles',
-            },
-          },
-          required: ['subtitles'],
+    type: ToolType.BUILT_IN,
+    name: 'render_subtitles',
+    description:
+      'Displays subtitles in an overlay window. Use this whenever you wish to display subtitles.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        subtitles: {
+          type: SchemaType.STRING,
+          description: 'The text to display as subtitles',
         },
       },
-      {
-        name: 'remove_subtitles',
-        description:
-          'Removes the subtitles overlay window. Use this when the user is done translating text.',
-      },
-    ],
+      required: ['subtitles'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'remove_subtitles',
+    description:
+      'Removes the subtitles overlay window. Use this when the user is done translating text.',
   },
 ];
 
 export const readWriteTools: Tool[] = [
   {
-    functionDeclarations: [
-      {
-        name: 'read_text',
-        description: "Reads text from the user's screen",
-      },
-      {
-        name: 'write_text',
-        description:
-          'Writes the provided text at the current cursor position in any active window.',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            content: {
-              type: SchemaType.STRING,
-              description: 'The text content to write at the current cursor position',
-            },
-          },
-          required: ['content'],
+    type: ToolType.BUILT_IN,
+    name: 'read_text',
+    description: "Reads text from the user's screen",
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'write_text',
+    description: 'Writes the provided text at the current cursor position in any active window.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        content: {
+          type: SchemaType.STRING,
+          description: 'The text content to write at the current cursor position',
         },
       },
-    ],
+      required: ['content'],
+    },
   },
 ];
 
 export const screenCaptureTools: Tool[] = [
   {
-    functionDeclarations: [
-      {
-        name: 'start_recording',
-        description: 'Starts screen recording',
-      },
-      {
-        name: 'stop_recording',
-        description: 'Stops the screen recording',
-      },
-      {
-        name: 'run_action',
-        description: 'This function runs a predefined action',
-      },
-      {
-        name: 'continue_action',
-        description: 'This function continues the action that is being performed',
-      },
-    ],
+    type: ToolType.BUILT_IN,
+    name: 'start_recording',
+    description: 'Starts screen recording',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'stop_recording',
+    description: 'Stops the screen recording',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'run_action',
+    description: 'This function runs a predefined action',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'continue_action',
+    description: 'This function continues the action that is being performed',
   },
 ];
 
 export const patentGeneratorTools: Tool[] = [
   {
-    functionDeclarations: [
-      {
-        name: 'create_template',
-        description:
-          'Creates a blank patent markdown file with initial sections. The title must be provided by the user.',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            title: { type: SchemaType.STRING },
-          },
-          required: ['title'],
+    type: ToolType.BUILT_IN,
+    name: 'create_template',
+    description:
+      'Creates a blank patent markdown file with initial sections. The title must be provided by the user.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        title: { type: SchemaType.STRING },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'resume_patent_creation',
+    description: 'Resumes the patent creation from the last saved session',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'export_as_pdf',
+    description: 'Exports the patent file as a pdf',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'display_patent',
+    description: 'Opens the markdown file for the user to view',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'capture_patent_screenshot',
+    description: 'Captures a screenshot and saves it to the patent assets folder',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        description: {
+          type: SchemaType.STRING,
+          description: 'A brief description of what the screenshot shows',
+        },
+        context: {
+          type: SchemaType.STRING,
+          description:
+            'A description of the context in which the screenshot is taken, explaining what is happening and why.',
+        },
+        isCodeOrDiagram: {
+          type: SchemaType.BOOLEAN,
+          description: 'Whether the screenshot is a code or a diagram',
         },
       },
-      {
-        name: 'resume_patent_creation',
-        description: 'Resumes the patent creation from the last saved session',
-      },
-      {
-        name: 'export_as_pdf',
-        description: 'Exports the patent file as a pdf',
-      },
-      {
-        name: 'display_patent',
-        description: 'Opens the markdown file for the user to view',
-      },
-      {
-        name: 'capture_patent_screenshot',
-        description: 'Captures a screenshot and saves it to the patent assets folder',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            description: {
-              type: SchemaType.STRING,
-              description: 'A brief description of what the screenshot shows',
-            },
-            context: {
-              type: SchemaType.STRING,
-              description:
-                'A description of the context in which the screenshot is taken, explaining what is happening and why.',
-            },
-            isCodeOrDiagram: {
-              type: SchemaType.BOOLEAN,
-              description: 'Whether the screenshot is a code or a diagram',
-            },
-          },
-          required: ['description', 'context'],
+      required: ['description', 'context'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'send_user_response',
+    description: 'Sends the user response to the patent orchestrator and returns its next action',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        message: {
+          type: SchemaType.STRING,
+          description: 'The message to send to the orchestrator',
         },
       },
-      {
-        name: 'send_user_response',
-        description:
-          'Sends the user response to the patent orchestrator and returns its next action',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            message: {
-              type: SchemaType.STRING,
-              description: 'The message to send to the orchestrator',
-            },
-          },
-          required: ['message'],
-        },
-      },
-    ],
+      required: ['message'],
+    },
   },
 ];
 
 export const knowledgeBaseTools: Tool[] = [
   {
-    functionDeclarations: [
-      {
-        name: 'start_kb_session',
-        description: 'Creates a new knowledge base capture session',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            goal: {
-              type: SchemaType.STRING,
-              description: 'The goal or purpose of this knowledge capture session',
-            },
-          },
-          required: ['goal'],
+    type: ToolType.BUILT_IN,
+    name: 'start_kb_session',
+    description: 'Creates a new knowledge base capture session',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        goal: {
+          type: SchemaType.STRING,
+          description: 'The goal or purpose of this knowledge capture session',
         },
       },
-      {
-        name: 'end_kb_session',
-        description: 'Ends the knowledge base capture session and generates the final document',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            content: {
-              type: SchemaType.STRING,
-              description: 'A summary of what happened since the last entry',
-            },
-          },
-          required: ['content'],
+      required: ['goal'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'end_kb_session',
+    description: 'Ends the knowledge base capture session and generates the final document',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        content: {
+          type: SchemaType.STRING,
+          description: 'A summary of what happened since the last entry',
         },
       },
-      {
-        name: 'resume_kb_session',
-        description: 'Resumes the knowledge base capture session',
-      },
-      {
-        name: 'add_entry',
-        description: 'Adds an entry to the knowledge base',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            content: {
-              type: SchemaType.STRING,
-              description: 'A summary of what happened since the last entry',
-            },
-          },
-          required: ['content'],
+      required: ['content'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'resume_kb_session',
+    description: 'Resumes the knowledge base capture session',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'add_entry',
+    description: 'Adds an entry to the knowledge base',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        content: {
+          type: SchemaType.STRING,
+          description: 'A summary of what happened since the last entry',
         },
       },
-      {
-        name: 'capture_kb_screenshot',
-        description: 'Captures a screenshot and saves it to the knowledge base',
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            description: {
-              type: SchemaType.STRING,
-              description: 'A description of what the screenshot shows',
-            },
-            context: {
-              type: SchemaType.STRING,
-              description:
-                'A description of the context in which the screenshot is taken, explaining what is happening and why.',
-            },
-          },
-          required: ['description', 'context'],
+      required: ['content'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'capture_kb_screenshot',
+    description: 'Captures a screenshot and saves it to the knowledge base',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        description: {
+          type: SchemaType.STRING,
+          description: 'A description of what the screenshot shows',
+        },
+        context: {
+          type: SchemaType.STRING,
+          description:
+            'A description of the context in which the screenshot is taken, explaining what is happening and why.',
         },
       },
-      {
-        name: 'update_kb_content',
-        description: "Sends a request to update the knowledge base according to the user's request",
-        parameters: {
-          type: SchemaType.OBJECT,
-          properties: {
-            request: { type: SchemaType.STRING },
-          },
-          required: ['request'],
-        },
+      required: ['description', 'context'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'update_kb_content',
+    description: "Sends a request to update the knowledge base according to the user's request",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        request: { type: SchemaType.STRING },
       },
-      {
-        name: 'export_kb_as_pdf',
-        description: 'Exports the knowledge base as a pdf',
-      },
-    ],
+      required: ['request'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'export_kb_as_pdf',
+    description: 'Exports the knowledge base as a pdf',
   },
 ];
 
-// Mode-based configurations
+// Google Search tool - special case
+const googleSearchTool: Tool = {
+  type: ToolType.GOOGLE_SEARCH,
+  name: 'google_search',
+  description: 'Searches the web using Google',
+};
+
+// Code Execution tool - special case
+const codeExecutionTool: Tool = {
+  type: ToolType.CODE_EXECUTION,
+  name: 'code_execution',
+  description: 'Executes code in a sandbox environment',
+};
+
+// Convert legacy assistant configs to new AssistantConfig format
 export const assistantConfigs = {
   daily_helper: {
-    display_name: 'Daily Guide',
-    tools: [{ googleSearch: {} } as Tool],
+    id: 'daily_helper',
+    displayName: 'Daily Guide',
+    description: 'Helps with your daily tasks using Google Search when needed',
+    tools: [googleSearchTool],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in Daily Guide Mode.  
 
@@ -265,7 +280,9 @@ Your role:
 Your mission: Provide the best possible assistance for the user's daily tasks using all the resources and abilities at your disposal while respecting the guidelines above.`,
   },
   author: {
-    display_name: 'Document Expert',
+    id: 'author',
+    displayName: 'Document Expert',
+    description: 'Helps with writing, editing, and text manipulation',
     tools: [...readWriteTools],
     requiresDisplay: false,
     systemInstruction: `
@@ -313,7 +330,9 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
 `,
   },
   patent_generator: {
-    display_name: 'Patent Generator',
+    id: 'patent_generator',
+    displayName: 'Patent Generator',
+    description: 'Assists with creating patent documentation',
     tools: [...patentGeneratorTools],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, a communication interface between inventors and patent lawyers. You facilitate patent documentation by:
@@ -345,8 +364,10 @@ Key Points:
 - While giving a confirmation message to the user, do not read the function call response to user. Everything you say should be English. Do not read out Json structure to user.`,
   },
   insight_generator: {
-    display_name: 'Insight Generator',
-    tools: [...readWriteTools, { googleSearch: {} } as Tool],
+    id: 'insight_generator',
+    displayName: 'Insight Generator',
+    description: 'Helps generate insights from text and data',
+    tools: [...readWriteTools, googleSearchTool],
     requiresDisplay: false,
     systemInstruction: `You are ScreenSense AI, operating in Insight Generator Mode.
 Your task is to help the user frame an insight they can share with their audience.
@@ -374,7 +395,9 @@ Important Instructions:
 `,
   },
   knowledge_base: {
-    display_name: 'Knowledge Curator',
+    id: 'knowledge_base',
+    displayName: 'Knowledge Curator',
+    description: 'Helps document and organize knowledge',
     tools: [...knowledgeBaseTools],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI in Knowledge Curator Mode. Your sole role is to observe silently and document only when explicitly requested.
@@ -407,7 +430,9 @@ Important Instructions:
 Your mission: Be an invisible observer, reporting only when explicitly asked. Remember, never speak or say anything out loud.`,
   },
   translator: {
-    display_name: 'Transcriber',
+    id: 'translator',
+    displayName: 'Transcriber',
+    description: 'Converts spoken content into English subtitles in real time',
     tools: translationTools,
     requiresDisplay: false,
     systemInstruction: `You are ScreenSense AI in Translator Mode.
@@ -425,7 +450,9 @@ Key Behaviors:
 Remember: Your only role is to silently provide accurate subtitles. Do not engage in conversation or provide any responses beyond the subtitles themselves.`,
   },
   tutor: {
-    display_name: 'Tutor',
+    id: 'tutor',
+    displayName: 'Tutor',
+    description: 'Helps with learning and education',
     tools: [...readWriteTools],
     requiresDisplay: true,
     systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in tutor mode. 
@@ -448,7 +475,9 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     `,
   },
   screen_capture_record: {
-    display_name: 'Action Recorder',
+    id: 'screen_capture_record',
+    displayName: 'Action Recorder',
+    description: 'Records screen actions for later playback',
     tools: [...screenCaptureTools],
     requiresDisplay: false,
     systemInstruction: `
@@ -461,7 +490,9 @@ Give a confirmation message to the user after every message. Do not read the fun
     `,
   },
   screen_capture_play: {
-    display_name: 'Action Player',
+    id: 'screen_capture_play',
+    displayName: 'Action Player',
+    description: 'Plays back recorded screen actions',
     tools: [...screenCaptureTools],
     requiresDisplay: false,
     systemInstruction: `
@@ -473,7 +504,6 @@ When the user asks you to continue the action, you must call the continue_action
 Give a confirmation message to the user after every message.
     `,
   },
-} as const;
+} as const satisfies Record<string, AssistantConfig>;
 
-// Type for the configuration modes
 export type AssistantConfigMode = keyof typeof assistantConfigs;
