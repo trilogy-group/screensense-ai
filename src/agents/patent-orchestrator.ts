@@ -21,8 +21,8 @@ export async function invokePatentAgent(
 
   if (isNewPatent || isResume) resetPatentThread();
 
-  console.log('📨 [PatentOrchestrator] Message preview:', userMessage.slice(0, 100) + '...');
-  console.log('🤖 Current agent:', currentAgent);
+  // console.log('📨 [PatentOrchestrator] Message preview:', userMessage.slice(0, 100) + '...');
+  // console.log('🤖 Current agent:', currentAgent);
 
   try {
     let response;
@@ -32,15 +32,15 @@ export async function invokePatentAgent(
       if (patentDoc.success && patentDoc.contents) {
         currentAgent = 'novelty';
         await initializeNoveltyAgent(patentDoc.contents);
-        response = await invokeNoveltyAgent(
-          `The user wants to continue documenting their invention.`
-        );
+        // response = await invokeNoveltyAgent(
+        //   `The user wants to continue documenting their invention.`
+        // );
       } else {
         ipcRenderer.send('send-gemini-message', {
           message: `Tell the user this out loud: 'I couldn't find any existing patent session. Would you like to start a new one?'`,
         });
-        return null;
       }
+      return null;
     } else if (currentAgent === 'recon') {
       response = await invokeReconAgent(userMessage, isNewPatent);
 
@@ -74,7 +74,7 @@ export async function invokePatentAgent(
 
 // Reset both agents and return to recon phase
 export function resetPatentThread() {
-  console.log('🔄 [PatentOrchestrator] Resetting patent thread');
+  // console.log('🔄 [PatentOrchestrator] Resetting patent thread');
   currentAgent = 'recon';
 }
 

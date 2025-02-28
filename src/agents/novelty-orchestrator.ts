@@ -13,7 +13,7 @@ const askNextQuestion = tool(
     console.log('🔍 [NoveltyAgent:askNextQuestion] Called with:', { reason, question });
 
     ipcRenderer.send('send-gemini-message', {
-      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`,
+      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, you MUST send the response to the laywer using the send_user_response tool.`,
     });
     return {
       success: true,
@@ -71,7 +71,10 @@ const addContent = tool(
         message: `Say this out loud to the user: 'Please give me a few seconds to add the content to the document.'`,
       });
       const result = await ipcRenderer.invoke('add_content', { content, section });
-      //   console.log('✅ [addContent] Content added successfully:', result);
+      ipcRenderer.send('send-gemini-message', {
+        message: `Say this out loud to the user: 'I've added the content to the document. Would you like to change anything? Or would you like to continue with the next novelty area?'`,
+      });
+      console.log('✅ [addContent] Content added successfully:', result);
       return result;
     } catch (error) {
       console.error('❌ [addContent] Error:', error);
@@ -83,12 +86,13 @@ const addContent = tool(
   },
   {
     name: 'add_content',
-    description: 'Updates the markdown file with new content or modifications.',
+    description:
+      'Updates the markdown file with new content or modifications. Make sure to include all images, diagrams, and code snippets if any (you can embed them using markdown syntax).',
     schema: z.object({
       content: z.string().describe('The content to add to the document'),
       section: z.string().describe('The name of the section to add the content to'),
     }),
-    // returnDirect: true,
+    returnDirect: true,
   }
 );
 
@@ -97,83 +101,57 @@ const tools = [askNextQuestion, replyToUser, addContent];
 let noveltyAgent: any = null;
 
 // Initialize the agent
-console.log('🤖 Initializing Claude model for NoveltyAgent');
+// console.log('🤖 Initializing Claude model for NoveltyAgent');
 export async function initializeNoveltyAgent(patentDocument: string) {
   // console.log(patentDocument);
   let model = await initializeModel();
-  console.log('💾 Initializing memory saver for NoveltyAgent');
+  // console.log('💾 Initializing memory saver for NoveltyAgent');
 
-  let systemPrompt = `You are an expert in novelty assessment for patent applications. Your role is to systematically identify, assess, and document the novel and patentable aspects of the invention.
+  let systemPrompt = `You are an expert in novelty assessment for patent applications. Your role is to identify, assess, and document the novel, patentable aspects of the invention.
 
-WORKFLOW:
-1. Area Discovery
-- Ask targeted questions to identify distinct areas of novelty
-- Focus on one area at a time until fully understood
-- Use the dimensions below to guide your exploration
+**Workflow:**
 
-2. Deep Documentation
-For each identified area of novelty:
-- Gather comprehensive details through focused questions
-- Document the novelty thoroughly once you have sufficient information
-- Use the add_content tool to add the documented novelty to the appropriate section
-- Confirm with the user if the documentation captures their innovation accurately
-- Move to the next area only after current area is fully documented
+1. **Initial Notification & Area Discovery:**
+   - **Start by using the \`reply_to_user\` tool** to inform the user about the specific novelty area you will explore.
+   - Ask focused, targeted questions to uncover one distinct novelty area at a time.
 
-3. Section Organization
-When documenting novelties, add them to these sections as appropriate:
-- "What and How" - For technical implementation details and core mechanisms
-- "Implementation Details" - For specific configurations and technical choices
-- "Problems Solved" - For how the novelty addresses existing challenges
-- "Alternatives" - For comparing with existing solutions and highlighting advantages
+2. **Deep Documentation:**
+   - Probe with follow-up questions to gather comprehensive details for the current novelty area.
+   - Document the fully explored area using the \`add_content\` tool.
+   - Make sure to include all images, diagrams, and code snippets if any (you can embed them using markdown syntax).
+   - Confirm with the user that the documentation accurately reflects their innovation before proceeding.
 
-Assess the invention across multiple dimensions:
-- Technical Uniqueness: What specific features or mechanisms differentiate this invention?
-- Inventive Step Analysis: Would an expert in the field find this approach obvious or surprising?
-- Combination of Known Elements: Are existing technologies being combined in an unconventional way?
-- Unexpected Results: Does the invention lead to performance, efficiency, or usability improvements that are not obvious?
-- Market Disruption Potential: How does this approach change industry standards or user expectations?
+3. **Section Organization:**
+   - Organize documented content into:
+     - **"What and How":** Technical implementation details and core mechanisms.
+     - **"Implementation Details":** Specific configurations and technical choices.
+     - **"Problems Solved":** How the novelty addresses existing challenges.
+     - **"Alternatives":** Comparisons with existing solutions and advantages.
 
-Prior Art Investigation:
-- Identify competing solutions or patents and directly compare them
-- Pinpoint the precise aspect that is missing in prior art
-- If similar concepts exist, document how this invention overcomes their limitations
+**Assessment Focus:**
+- **Technical Uniqueness:** What makes the invention stand out?
+- **Inventive Step Analysis:** Would experts find it obvious or surprising?
+- **Combination of Known Elements:** Are existing technologies combined in an unconventional way?
+- **Unexpected Results:** Are there non-obvious improvements in performance or usability?
+- **Market Disruption Potential:** Could this change industry standards?
 
-Strengthening Patentability
-- Guide the user in reframing non-novel aspects into patentable claims.
-- If novelty is weak, explore adjacent innovations that could enhance uniqueness.
-- Identify broad vs. narrow claims, helping structure a robust patent strategy.
+**Prior Art & Patentability:**
+- Compare the invention with existing patents or solutions.
+- Highlight missing aspects in prior art and demonstrate how the invention overcomes them.
+- Reframe non-novel aspects into patentable claims, exploring adjacent innovations if necessary.
 
-Guidelines for Documentation:
-- Use clear, precise technical language suitable for patents
-- Include specific implementation details and configurations
-- Highlight the non-obvious aspects and technical advantages
-- Document both the novel features and their benefits
-- Structure content to support broad and narrow patent claims
+**Guidelines:**
+- Use clear, precise technical language.
+- **Always use the \`reply_to_user\` tool to notify the user of the current novelty area before probing.**
+- Ask one question at a time; follow up as needed.
+- Fully document each novelty area and confirm accuracy before moving to the next.
+- End the assessment by informing the user that the evaluation is complete.
 
-Tool Usage:
-- Use ask_next_question to gather information about each area of novelty
-- Use add_content to document each fully explored novelty area
-- Use reply_to_user to maintain conversational flow and confirm understanding
-
-Asking Questions:
-- Ask One Question at a Time. 
-- Never combine multiple questions—keep each inquiry focused. 
-- Use follow-up questions to refine and probe deeper.
-- Adapt your questioning based on the user's responses.
-- Before you start probing into an area of novelty, inform the user what area of novelty you are focusing on, and then begin probing.
-- Once you are done with all novelties, inform the user that you have completed your assessment, and then end the conversation.
-
-Remember to:
-1. Focus on one area of novelty at a time
-2. Document each area thoroughly before moving to the next
-3. Organize content into appropriate sections
-4. Confirm accuracy with the user before proceeding
-5. Maintain clear technical language throughout
-
-Current Patent Document:
+**Current Patent Document:**
 ${patentDocument}
 
-Analyze the above patent document and focus your questions on uncovering novel aspects not yet documented or areas that need more detail to establish patentability.`;
+Focus your questions on uncovering novel aspects not yet documented or areas needing further detail for patentability.
+`;
   // Create the agent with the system message
   noveltyAgent = createReactAgent({
     llm: model,
@@ -188,7 +166,7 @@ Analyze the above patent document and focus your questions on uncovering novel a
   };
   const userMessage = {
     role: 'user',
-    content: `Plase start by asking your first question. And remember to ask question using the ask_next_question tool. Ask one question at a time`,
+    content: `Plase start by informing the user about the specific novelty area you will explore.`,
   };
   currentThreadId = `novelty_${Date.now()}`;
   await noveltyAgent.invoke(
@@ -232,6 +210,8 @@ export async function invokeNoveltyAgent(userMessage: string): Promise<Orchestra
       numToolCalls: Object.keys(toolCalls).length,
       toolCallTypes: Object.keys(toolCalls),
     });
+
+    // console.log('Messages:', JSON.stringify(response.messages, null, 2));
 
     return {
       messages: response.messages,

@@ -395,8 +395,14 @@ function ToolCallHandlerComponent({
             // Display the patent document
             await ipcRenderer.invoke('display_patent');
 
+            client.send([
+              {
+                text: `Tell the user this out loud: 'I've reopened your patent document for "${currentSession.title}". I will continue asking questions to help document your invention.''\n\nDo NOT use the send_user_response tool for this.`,
+              },
+            ]);
+
             // Tell the patent agent to resume
-            await invokePatentAgent(``, false, true);
+            await invokePatentAgent('Placeholder', false, true);
 
             client.sendToolResponse({
               functionResponses: [
@@ -411,12 +417,6 @@ function ToolCallHandlerComponent({
                 },
               ],
             });
-
-            client.send([
-              {
-                text: `Patent session resumed. Tell the user this out loud: 'I've reopened your patent document for "${currentSession.title}". I will continue asking questions to help document your invention.'`,
-              },
-            ]);
 
             hasResponded = true;
             break;
@@ -472,7 +472,7 @@ function ToolCallHandlerComponent({
           case 'send_user_response': {
             client.send([
               {
-                text: `Tell the user this out loud that you will convey their message to the laywer. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time.`,
+                text: `Tell the user this out loud that you will convey their message to the laywer. Now wait for the lawyer to ask the next question, and do not invoke any other tool in the mean time. When the user replies again, use the send_user_response tool to send the response to the laywer.`,
               },
             ]);
 

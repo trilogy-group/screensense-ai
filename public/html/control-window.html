@@ -469,7 +469,7 @@
       connectButton.addEventListener('click', async () => {
         if (!isConnected) {
           await ipcRenderer.send('session-start');
-          console.log('Session started');
+          // console.log('Session started');
           isConnected = true;
           connectButton.querySelector('span').textContent = 'pause';
           connectButton.querySelector('span').classList.add('filled');

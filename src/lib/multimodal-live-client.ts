@@ -151,15 +151,15 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
 
         ws.removeEventListener('error', onError);
         ws.addEventListener('close', (ev: CloseEvent) => {
-          console.log(
-            JSON.stringify({
-              code: ev.code,
-              reason: ev.reason,
-              wasClean: ev.wasClean,
-              type: ev.type,
-              isTrusted: ev.isTrusted,
-            })
-          );
+          // console.log(
+          //   JSON.stringify({
+          //     code: ev.code,
+          //     reason: ev.reason,
+          //     wasClean: ev.wasClean,
+          //     type: ev.type,
+          //     isTrusted: ev.isTrusted,
+          //   })
+          // );
           if (setupTimeout) clearTimeout(setupTimeout);
           this.disconnect(ws);
           let reason = ev.reason || '';

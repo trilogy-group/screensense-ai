@@ -195,7 +195,7 @@ function ControlTray({
           }
         }
       } else {
-        console.log('🎥 Stopping screen sharing');
+        // console.log('🎥 Stopping screen sharing');
         setActiveVideoStream(null);
         onVideoStreamChange(null);
         // Clear screen sharing state through IPC
@@ -419,7 +419,7 @@ function ControlTray({
         return;
       }
 
-      console.log('[ControlTray] Initiating connection...');
+      // console.log('[ControlTray] Initiating connection...');
       setIsRecordingSession(true);
       userAudioChunks.current = [];
       assistantAudioChunks.current = [];
@@ -430,9 +430,9 @@ function ControlTray({
       });
       connect();
     } else {
-      console.log('[ControlTray] Initiating explicit disconnection...');
+      // console.log('[ControlTray] Initiating explicit disconnection...');
       setIsRecordingSession(false);
-      console.log(`[ControlTray] Going to save recordings`);
+      // console.log(`[ControlTray] Going to save recordings`);
       saveRecordings(false);
       // Let the permanent disconnect effect handle stream cleanup
       disconnect();
@@ -506,11 +506,11 @@ function ControlTray({
         case 'screen':
           if (action.value) {
             // Normal screen selection flow
-            console.log('🎥 Starting normal screen selection flow');
+            // console.log('🎥 Starting normal screen selection flow');
             changeStreams(screenCapture)();
           } else {
             // Stop screen sharing
-            console.log('🎥 Stopping screen sharing');
+            // console.log('🎥 Stopping screen sharing');
             changeStreams()();
           }
           break;
@@ -701,7 +701,7 @@ function ControlTray({
               className={cn('action-button connect-toggle', { connected })}
               onClick={() => {
                 ipcRenderer.send('session-start');
-                console.log('Session started');
+                // console.log('Session started');
                 handleConnect();
               }}
             >

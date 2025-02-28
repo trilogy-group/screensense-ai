@@ -7,7 +7,7 @@ import { loadSettings } from './settings-utils';
 
 export function initializeContext() {
   ipcMain.on('session-start', () => {
-    console.log('Session started');
+    // console.log('Session started');
 
     const contextDir = path.join(app.getPath('appData'), 'screensense-ai', 'context');
     const userDir = path.join(contextDir, 'user');
@@ -54,7 +54,7 @@ export function initializeContext() {
         }
       });
 
-      console.log('Session directories cleaned and recreated successfully');
+      // console.log('Session directories cleaned and recreated successfully');
     } catch (error) {
       console.error('Error during session cleanup:', error);
     }

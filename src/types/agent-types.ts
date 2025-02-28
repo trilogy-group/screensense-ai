@@ -47,7 +47,7 @@ export async function initializeModel() {
     console.error('❌ Anthropic API key not found in settings');
     throw new Error('Anthropic API key not found');
   }
-  console.log('✅ Got API key from settings');
+  // console.log('✅ Got API key from settings');
 
   model = new ChatAnthropic({
     modelName: 'claude-3-7-sonnet-latest',

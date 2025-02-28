@@ -83,7 +83,7 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
   }, [audioStreamerRef]);
 
   const connect = useCallback(async () => {
-    console.log('Going to connect');
+    // console.log('Going to connect');
     // console.log(JSON.stringify(config));
     if (!config) {
       throw new Error('config has not been set');

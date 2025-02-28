@@ -18,7 +18,7 @@ const askNextQuestion = tool(
   async ({ reason, question }) => {
     console.log('🔍 [ReconAgent:askNextQuestion] Called with:', { reason, question });
     ipcRenderer.send('send-gemini-message', {
-      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, send the response to the laywer using the send_user_response tool.`,
+      message: `The laywer asked the following question, which you must ask out loud to the user: ${question}\n\nOnce the user answers the question, you MUST send the response to the laywer using the send_user_response tool.`,
     });
 
     return {
@@ -108,7 +108,7 @@ const reconComplete = tool(
       summary: z
         .string()
         .describe(
-          'A comprehensive summary of the innovation discovered during the discovery phase'
+          'A comprehensive summary of the innovation discovered during the discovery phase. Includes images, diagrams, and code snippets if any (you can embed them using markdown syntax).'
         ),
     }),
     returnDirect: true,
@@ -130,7 +130,7 @@ export async function initializeReconAgent() {
     tools,
     checkpointSaver: new MemorySaver(),
   });
-  console.log('✅ Recon agent initialized');
+  // console.log('✅ Recon agent initialized');
 }
 
 export async function invokeReconAgent(
@@ -202,7 +202,7 @@ Your objective is to fully understand the invention by gathering:
 
 6. TOOL USAGE
 - Use ask_next_question for each focused, context-driven query
-- Use recon_complete when you have gathered sufficient background information
+- Use recon_complete when you have gathered sufficient background information. Pass in a summary of the background information gathered, along with any images, diagrams, and code snippets (you can embed them using markdown syntax).
 - Use reply_to_user to maintain conversational flow
 
 Remember to focus on gathering comprehensive background information before transitioning to novelty assessment.`,
@@ -235,7 +235,7 @@ Remember to focus on gathering comprehensive background information before trans
         response: { output: step.observation },
       })) || [];
 
-    console.log('🔍 [invokeReconAgent] Tool calls:', toolCalls);
+    // console.log('🔍 [invokeReconAgent] Tool calls:', toolCalls);
 
     console.log('✅ [invokeReconAgent] Response received:', {
       threadId: currentThreadId,
@@ -261,7 +261,7 @@ Remember to focus on gathering comprehensive background information before trans
 }
 
 export function resetReconThread() {
-  console.log('🔄 [resetReconThread] Resetting current thread');
+  // console.log('🔄 [resetReconThread] Resetting current thread');
   currentThreadId = null;
 }
 
