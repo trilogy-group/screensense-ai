@@ -1,14 +1,12 @@
-import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
+import cn from 'classnames';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import './App.scss';
-import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
-import { ToolCallHandler } from './components/tool-handler/ToolCallHandler';
 import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
-// import Auth from './components/auth/Auth';
-import cn from 'classnames';
+import { ToolCallHandler } from './components/tool-handler/ToolCallHandler';
 import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
+import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
 import { initAnalytics, trackEvent } from './services/analytics';
-import { isAuthenticated as isAuthenticatedService } from './services/authService';
 const { ipcRenderer } = window.require('electron');
 
 const host = 'generativelanguage.googleapis.com';
@@ -121,25 +119,6 @@ function App() {
     initAnalyticsWithMachineId();
   }, []);
 
-  // Add auth status check handler
-  // useEffect(() => {
-  //   const handleAuthStatusCheck = async () => {
-  //     try {
-  //       const isAuthenticated = await isAuthenticatedService();
-  //       ipcRenderer.send('auth-status-response', isAuthenticated);
-  //     } catch (error) {
-  //       console.error('Error checking auth status:', error);
-  //       ipcRenderer.send('auth-status-response', false);
-  //     }
-  //   };
-
-  //   ipcRenderer.on('get-auth-status', handleAuthStatusCheck);
-
-  //   return () => {
-  //     ipcRenderer.removeListener('get-auth-status', handleAuthStatusCheck);
-  //   };
-  // }, []);
-
   // Load saved settings when app starts
   useEffect(() => {
     const loadSavedSettings = async () => {
@@ -158,7 +137,6 @@ function App() {
   // Handle settings-related IPC messages
   useEffect(() => {
     const handleGetSettings = () => {
-      // console.log('Sending current settings:', { geminiApiKey });
       ipcRenderer.send('settings-data', { geminiApiKey });
     };
 
@@ -209,26 +187,10 @@ function App() {
 
   // Check if we're in markdown preview or auth mode
   const isMarkdownPreview = window.location.hash === '#/markdown-preview';
-  // const isAuth = window.location.hash === '#/auth';
 
   if (isMarkdownPreview) {
     return <MarkdownPreview />;
   }
-
-  // if (isAuth) {
-  //   console.log('Rendering auth page');
-  //   return (
-  //     <div className="auth-page">
-  //       <Auth onAuthStateChanged={(isAuthenticated, user) => {
-  //         console.log('Auth state changed:', { isAuthenticated, user });
-  //         if (isAuthenticated && user) {
-  //           console.log('User authenticated, sending success event');
-  //           ipcRenderer.send('auth-success', user);
-  //         }
-  //       }} />
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="App">

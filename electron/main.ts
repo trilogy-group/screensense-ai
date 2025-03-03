@@ -10,17 +10,14 @@ import { initializeKBHandlers } from '../src/utils/kb-utils';
 import { logToFile } from '../src/utils/logger';
 import { loadSession } from '../src/utils/patent-utils';
 import { initializeActionWindow } from '../src/windows/ActionWindow';
-import { createControlWindow, initializeControlWindow } from '../src/windows/ControlWindow';
+import { createAuthWindow, initializeAuthWindow } from '../src/windows/AuthWindow';
+import { initializeControlWindow } from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
-import { createMainWindow, getMainWindow, initializeMainWindow } from '../src/windows/MainWindow';
+import { initializeMainWindow } from '../src/windows/MainWindow';
 import { initializeMarkdownPreviewWindow } from '../src/windows/MarkdownPreviewWindow';
 import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
-import {
-  createSubtitleOverlayWindow,
-  initializeSubtitleOverlay,
-} from '../src/windows/SubtitleOverlay';
+import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
-import { initializeAuthWindow, createAuthWindow, closeAuthWindow } from '../src/windows/AuthWindow';
 dotenv.config();
 
 // Set environment variables for the packaged app
