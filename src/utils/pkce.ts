@@ -22,13 +22,3 @@ export async function generateCodeChallenge(verifier: string): Promise<string> {
   // Convert to base64url format
   return hash.toString('base64url');
 }
-
-/**
- * Validates that a code verifier matches its code challenge
- */
-export async function isCodeVerifierValid(
-  codeVerifier: string,
-  codeChallenge: string
-): Promise<boolean> {
-  return (await generateCodeChallenge(codeVerifier)) === codeChallenge;
-}

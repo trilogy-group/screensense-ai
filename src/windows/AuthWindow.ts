@@ -11,7 +11,7 @@ import {
 } from '../constants/constants';
 import { saveTokens, getTokens, isTokenExpired } from '../services/tokenService';
 import { logToFile } from '../utils/logger';
-import { generateCodeVerifier, generateCodeChallenge, isCodeVerifierValid } from '../utils/pkce';
+import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;
@@ -27,10 +27,8 @@ export async function createAuthWindow() {
   currentCodeVerifier = await generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(currentCodeVerifier);
 
-  console.log('Code verifier:', currentCodeVerifier);
-  console.log('Code challenge:', codeChallenge);
-  const isValid = await isCodeVerifierValid(currentCodeVerifier, codeChallenge);
-  console.log('Is code verifier valid?', isValid);
+  // console.log('Code verifier:', currentCodeVerifier);
+  // console.log('Code challenge:', codeChallenge);
 
   console.log('Creating new auth window');
   authWindow = new BrowserWindow({
@@ -94,6 +92,14 @@ export function sendAuthCallback(url: string) {
   }
 }
 
+async function launchScreenSense() {
+  // Create main windows
+  await createMainWindow();
+  await createSubtitleOverlayWindow();
+  await createControlWindow();
+  closeAuthWindow();
+}
+
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
 
@@ -109,6 +115,20 @@ export function initializeAuthWindow() {
   ipcMain.handle('handle-auth-success', async (_, code: string) => {
     console.log('Auth success received, processing token');
 
+    // If code is 'already-authenticated', we have valid tokens
+    if (code === 'already-authenticated') {
+      try {
+        // Create main windows
+        await launchScreenSense();
+        return true;
+      } catch (error) {
+        console.error('Error creating windows:', error);
+        logToFile(`Error creating windows: ${error}`);
+        return false;
+      }
+    }
+
+    // Otherwise, proceed with code exchange
     if (!currentCodeVerifier) {
       throw new Error('No code verifier found. Please restart the authentication process.');
     }
@@ -123,13 +143,6 @@ export function initializeAuthWindow() {
         code_verifier: currentCodeVerifier,
       });
 
-      console.log('Token exchange request:', {
-        url: COGNITO_TOKEN_URL,
-        client_id: COGNITO_CLIENT_ID,
-        code_verifier_length: currentCodeVerifier.length,
-        redirect_uri: COGNITO_REDIRECT_URI,
-      });
-
       const tokenResponse = await fetch(COGNITO_TOKEN_URL, {
         method: 'POST',
         headers: {
@@ -139,8 +152,6 @@ export function initializeAuthWindow() {
       });
 
       const responseText = await tokenResponse.text();
-      console.log(`Token response status: ${tokenResponse.status}`);
-      console.log(`Token response body: ${responseText}`);
 
       if (!tokenResponse.ok) {
         throw new Error(`Failed to exchange code for tokens: ${responseText}`);
@@ -157,12 +168,8 @@ export function initializeAuthWindow() {
       });
 
       // Create main windows
-      await createMainWindow();
-      await createSubtitleOverlayWindow();
-      await createControlWindow();
+      await launchScreenSense();
 
-      // Close auth window after main windows are created
-      closeAuthWindow();
       return true;
     } catch (error) {
       console.error('Error handling auth success:', error);
