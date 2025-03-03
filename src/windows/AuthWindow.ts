@@ -1,4 +1,8 @@
-import { BrowserWindow, app, ipcMain, shell } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
+import { loadHtmlFile } from '../utils/window-utils';
+import { createMainWindow } from './MainWindow';
+import { createSubtitleOverlayWindow } from './SubtitleOverlay';
+import { createControlWindow } from './ControlWindow';
 
 let authWindow: BrowserWindow | null = null;
 
@@ -19,6 +23,7 @@ export async function createAuthWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
+      additionalArguments: [`--auth-url=${encodeURIComponent(COGNITO_AUTH_URL)}`],
     },
     show: false,
     frame: true,
@@ -27,88 +32,22 @@ export async function createAuthWindow() {
     center: true,
   });
 
-  // Create a simple HTML content
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background: #f5f5f5;
-          }
-          .button {
-            background: #4285f4;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
-          }
-          .button:hover {
-            background: #357abd;
-          }
-          .message {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #333;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="message">Click below to sign in to ScreenSense</div>
-        <button class="button" onclick="openAuthPage()">Sign in</button>
-        <script>
-          const { shell } = require('electron');
-          
-          function openAuthPage() {
-            shell.openExternal('${COGNITO_AUTH_URL}');
-          }
-
-          // Handle auth callback
-          const { ipcRenderer } = require('electron');
-          
-          ipcRenderer.on('auth-callback', async (event, url) => {
-            console.log('Received auth callback');
-            const urlObj = new URL(url);
-            const code = urlObj.searchParams.get('code');
-            
-            if (code) {
-              console.log('Auth code received, emitting auth-success');
-              // In a real implementation, we would exchange the code for tokens here
-              // For now, just emit success since we'll implement token exchange later
-              ipcRenderer.send('auth-success', { id: code });
-            }
-          });
-
-          // Handle auth status check
-          ipcRenderer.on('get-auth-status', () => {
-            console.log('Received auth status check');
-            // For now, we'll always return false since we haven't implemented token storage
-            ipcRenderer.send('auth-status-response', false);
-          });
-        </script>
-      </body>
-    </html>
-  `;
-
-  // Load the HTML content
-  authWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
+  // Load the HTML file using the utility function
+  await loadHtmlFile(authWindow, 'auth.html', {
+    logPrefix: 'auth window',
+  });
 
   authWindow.once('ready-to-show', () => {
+    console.log('Auth window ready to show');
     if (authWindow) {
       authWindow.show();
       authWindow.focus();
     }
+  });
+
+  // Add error handler
+  authWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+    console.error('Failed to load auth window:', errorCode, errorDescription);
   });
 
   authWindow.on('closed', () => {
@@ -133,14 +72,19 @@ export function getAuthWindow() {
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
 
-  // Listen for auth success but don't close window immediately
-  ipcMain.on('auth-success', () => {
-    console.log('Auth success received');
-  });
+  // Listen for auth success and create main windows
+  ipcMain.on('auth-success', async () => {
+    console.log('Auth success received, creating main windows');
 
-  // Listen for explicit close command after main windows are created
-  ipcMain.on('close-auth-window', () => {
-    console.log('Closing auth window after main windows created');
+    // Create main windows
+    const appWindow = await createMainWindow();
+    await createSubtitleOverlayWindow();
+    await createControlWindow();
+
+    // Close auth window after main windows are created
     closeAuthWindow();
   });
+
+  // Remove the close-auth-window handler since we handle it in auth-success
+  ipcMain.removeAllListeners('close-auth-window');
 }
