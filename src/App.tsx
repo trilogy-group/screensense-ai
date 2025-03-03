@@ -6,7 +6,7 @@ import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
 import cn from 'classnames';
 import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
-import { initAnalytics, trackEvent } from './shared/analytics';
+import { initAnalytics, trackEvent } from './services/analytics';
 const { ipcRenderer } = window.require('electron');
 
 const host = 'generativelanguage.googleapis.com';

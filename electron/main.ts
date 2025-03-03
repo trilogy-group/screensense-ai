@@ -12,7 +12,7 @@ import { loadSession } from '../src/utils/patent-utils';
 import { initializeActionWindow } from '../src/windows/ActionWindow';
 import { createControlWindow, initializeControlWindow } from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
-import { createMainWindow, initializeMainWindow } from '../src/windows/MainWindow';
+import { createMainWindow, getMainWindow, initializeMainWindow } from '../src/windows/MainWindow';
 import { initializeMarkdownPreviewWindow } from '../src/windows/MarkdownPreviewWindow';
 import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import {
@@ -80,6 +80,39 @@ async function initializeApp() {
   await createMainWindow();
   createSubtitleOverlayWindow();
   createControlWindow();
+
+  // Register the custom protocol handler for authentication
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient('screensense', process.execPath, [process.argv[1]]);
+    }
+  } else {
+    app.setAsDefaultProtocolClient('screensense');
+  }
+
+  // Store the deeplink URL if the app is launched with it
+  let deeplinkingUrl: string | null = null;
+
+  // Handle protocol URL (for macOS)
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    // If the app is already running, process the URL
+    const mainWindow = getMainWindow();
+    if (mainWindow) {
+      mainWindow.webContents.send('auth-callback', url);
+    } else {
+      // Store URL to be processed after window is created
+      deeplinkingUrl = url;
+    }
+  });
+
+  // Process any auth URL that was used to start the app
+  const mainWindow = getMainWindow();
+  if (deeplinkingUrl && mainWindow) {
+    mainWindow.webContents.send('auth-callback', deeplinkingUrl);
+    deeplinkingUrl = null;
+  }
+
   // console.log('App is ready. Listening for global mouse events...');
 }
 

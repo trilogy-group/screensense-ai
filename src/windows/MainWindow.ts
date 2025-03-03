@@ -6,12 +6,9 @@ import { closeControlWindow } from './ControlWindow';
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile, loadUrl } from '../utils/window-utils';
 import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
+import { getSettingsPath } from '../utils/settings-utils';
 
 let mainWindow: BrowserWindow | null = null;
-
-function getSettingsPath() {
-  return path.join(app.getPath('userData'), 'settings.json');
-}
 
 function loadSettings() {
   try {
