@@ -22,6 +22,7 @@ import { initializeMarkdownPreviewWindow } from '../src/windows/MarkdownPreviewW
 import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
+import { COGNITO_REDIRECT_URI } from '../src/constants/constants';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -99,7 +100,7 @@ async function initializeApp() {
     console.log('Received open-url event with URL:', url);
 
     // Process the auth callback immediately
-    if (url.startsWith('screensense://callback')) {
+    if (url.startsWith(COGNITO_REDIRECT_URI)) {
       console.log('Processing auth callback URL');
       sendAuthCallback(url);
     }
@@ -107,8 +108,8 @@ async function initializeApp() {
 
   // Handle Windows protocol activation
   app.on('second-instance', (event, commandLine) => {
-    const url = commandLine.find(arg => arg.startsWith('screensense://'));
-    if (url && url.startsWith('screensense://callback')) {
+    const url = commandLine.find(arg => arg.startsWith(COGNITO_REDIRECT_URI));
+    if (url) {
       console.log('Processing auth callback URL from second instance');
       sendAuthCallback(url);
     }
