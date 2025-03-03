@@ -115,36 +115,16 @@ async function initializeApp() {
 
   // Wait for authentication before creating other windows
   return new Promise(resolve => {
-    ipcMain.once('auth-status-response', async (_, isAuthenticated) => {
-      console.log('Initial auth status checked:', isAuthenticated);
-
-      if (!isAuthenticated) {
-        console.log('User not authenticated, keeping auth window open');
-        // Keep auth window open and wait for auth-success event
-        ipcMain.once('auth-success', async (event, user) => {
-          console.log('Authentication successful, user:', user);
-          // Create other windows before closing auth window
-          const appWindow = await createMainWindow();
-          await createSubtitleOverlayWindow();
-          await createControlWindow();
-          // Now we can safely close the auth window
-          closeAuthWindow();
-          resolve(appWindow);
-        });
-      } else {
-        console.log('User already authenticated, creating main windows');
-        // User is already authenticated, create windows immediately
-        const appWindow = await createMainWindow();
-        createSubtitleOverlayWindow();
-        createControlWindow();
-        resolve(appWindow);
-      }
-    });
-
-    // Check auth status immediately
-    authWindow.webContents.on('did-finish-load', () => {
-      console.log('Auth window loaded, checking auth status');
-      authWindow.webContents.send('get-auth-status');
+    // Listen for auth success event
+    ipcMain.once('auth-success', async (event, user) => {
+      console.log('Authentication successful, user:', user);
+      // Create other windows before closing auth window
+      const appWindow = await createMainWindow();
+      await createSubtitleOverlayWindow();
+      await createControlWindow();
+      // Now we can safely close the auth window
+      closeAuthWindow();
+      resolve(appWindow);
     });
   });
 }

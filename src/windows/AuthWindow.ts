@@ -18,8 +18,8 @@ export async function createAuthWindow() {
 
   console.log('Creating new auth window');
   authWindow = new BrowserWindow({
-    width: 300,
-    height: 200,
+    width: 400,
+    height: 300,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -72,19 +72,29 @@ export function getAuthWindow() {
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
 
-  // Listen for auth success and create main windows
-  ipcMain.on('auth-success', async () => {
-    console.log('Auth success received, creating main windows');
-
-    // Create main windows
-    const appWindow = await createMainWindow();
-    await createSubtitleOverlayWindow();
-    await createControlWindow();
-
-    // Close auth window after main windows are created
-    closeAuthWindow();
+  // Handle auth status check
+  ipcMain.handle('check-auth-status', async () => {
+    console.log('Checking auth status');
+    // For now, we'll always return false since we haven't implemented token storage
+    return false;
   });
 
-  // Remove the close-auth-window handler since we handle it in auth-success
-  ipcMain.removeAllListeners('close-auth-window');
+  // Handle auth success
+  ipcMain.handle('handle-auth-success', async (_, code: string) => {
+    console.log('Auth success received, creating main windows');
+
+    try {
+      // Create main windows
+      const appWindow = await createMainWindow();
+      await createSubtitleOverlayWindow();
+      await createControlWindow();
+
+      // Close auth window after main windows are created
+      closeAuthWindow();
+      return true;
+    } catch (error) {
+      console.error('Error creating windows:', error);
+      return false;
+    }
+  });
 }

@@ -2,41 +2,103 @@
 <html>
   <head>
     <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
           sans-serif;
-        margin: 0;
-        padding: 20px;
+        padding: 40px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        height: 100vh;
         background: #f5f5f5;
       }
       .button {
         background: #4285f4;
         color: white;
         border: none;
-        padding: 10px 20px;
-        border-radius: 4px;
+        padding: 12px 24px;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 16px;
         transition: background 0.2s;
+        margin: 20px auto; /* Center the button */
       }
       .button:hover {
         background: #357abd;
       }
       .message {
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         color: #333;
+        font-size: 24px;
+      }
+      .status {
+        font-size: 16px;
+        color: #666;
+        margin-top: 12px;
+        text-align: center;
+        max-width: 300px;
+        line-height: 1.4;
+      }
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #4285f4;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .state-container {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+      .state-container.active {
+        display: flex;
       }
     </style>
   </head>
   <body>
-    <div class="message">Click below to sign in to ScreenSense</div>
-    <button class="button" onclick="openAuthPage()">Sign in</button>
+    <div id="initial-state" class="state-container">
+      <div class="message">Welcome to ScreenSense</div>
+      <div class="status">Click below to sign in with your account</div>
+      <button class="button" onclick="openAuthPage()">Sign in</button>
+    </div>
+
+    <div id="signing-in-state" class="state-container">
+      <div class="message">Signing in...</div>
+      <div class="spinner"></div>
+      <div class="status">Complete the sign in in your browser</div>
+    </div>
+
+    <div id="success-state" class="state-container">
+      <div class="message">Successfully signed in!</div>
+      <div class="spinner"></div>
+      <div class="status">Launching ScreenSense...</div>
+    </div>
+
     <script>
       const { shell, ipcRenderer } = require('electron');
 
@@ -44,11 +106,19 @@
       const authUrlArg = process.argv.find(arg => arg.startsWith('--auth-url='));
       const COGNITO_AUTH_URL = authUrlArg ? decodeURIComponent(authUrlArg.split('=')[1]) : '';
 
-      console.log('Auth URL:', COGNITO_AUTH_URL);
+      function showState(stateId) {
+        // Hide all states
+        document.querySelectorAll('.state-container').forEach(container => {
+          container.classList.remove('active');
+        });
+        // Show the requested state
+        document.getElementById(stateId).classList.add('active');
+      }
 
       function openAuthPage() {
         console.log('Opening auth page with URL:', COGNITO_AUTH_URL);
         shell.openExternal(COGNITO_AUTH_URL);
+        showState('signing-in-state');
       }
 
       // Handle auth callback
@@ -58,19 +128,39 @@
         const code = urlObj.searchParams.get('code');
 
         if (code) {
-          console.log('Auth code received, emitting auth-success');
-          // In a real implementation, we would exchange the code for tokens here
-          // For now, just emit success since we'll implement token exchange later
-          ipcRenderer.send('auth-success', { id: code });
+          console.log('Auth code received, handling auth success');
+          showState('success-state');
+
+          try {
+            // Handle auth success and wait for windows to be created
+            const success = await ipcRenderer.invoke('handle-auth-success', code);
+            if (!success) {
+              console.error('Failed to create windows');
+              showState('initial-state');
+            }
+          } catch (error) {
+            console.error('Error handling auth success:', error);
+            showState('initial-state');
+          }
         }
       });
 
-      // Handle auth status check
-      ipcRenderer.on('get-auth-status', () => {
-        console.log('Received auth status check');
-        // For now, we'll always return false since we haven't implemented token storage
-        ipcRenderer.send('auth-status-response', false);
-      });
+      // Check auth status when the page loads
+      async function checkAuthStatus() {
+        try {
+          const isAuthenticated = await ipcRenderer.invoke('check-auth-status');
+          if (isAuthenticated) {
+            showState('success-state');
+            await ipcRenderer.invoke('handle-auth-success', 'already-authenticated');
+          }
+        } catch (error) {
+          console.error('Error checking auth status:', error);
+        }
+      }
+
+      // Initialize the page
+      showState('initial-state');
+      checkAuthStatus();
     </script>
   </body>
 </html>
