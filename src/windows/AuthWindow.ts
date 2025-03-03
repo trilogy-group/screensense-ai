@@ -7,13 +7,14 @@ import {
   COGNITO_AUTH_URL,
   COGNITO_TOKEN_URL,
   COGNITO_CLIENT_ID,
-  COGNITO_CLIENT_SECRET,
   COGNITO_REDIRECT_URI,
 } from '../constants/constants';
 import { saveTokens, getTokens, isTokenExpired } from '../services/tokenService';
 import { logToFile } from '../utils/logger';
+import { generateCodeVerifier, generateCodeChallenge, isCodeVerifierValid } from '../utils/pkce';
 
 let authWindow: BrowserWindow | null = null;
+let currentCodeVerifier: string | null = null;
 
 export async function createAuthWindow() {
   if (authWindow && !authWindow.isDestroyed()) {
@@ -22,6 +23,15 @@ export async function createAuthWindow() {
     return authWindow;
   }
 
+  // Generate PKCE values
+  currentCodeVerifier = await generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(currentCodeVerifier);
+
+  console.log('Code verifier:', currentCodeVerifier);
+  console.log('Code challenge:', codeChallenge);
+  const isValid = await isCodeVerifierValid(currentCodeVerifier, codeChallenge);
+  console.log('Is code verifier valid?', isValid);
+
   console.log('Creating new auth window');
   authWindow = new BrowserWindow({
     width: 400,
@@ -29,7 +39,10 @@ export async function createAuthWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      additionalArguments: [`--auth-url=${encodeURIComponent(COGNITO_AUTH_URL)}`],
+      additionalArguments: [
+        `--auth-url=${encodeURIComponent(COGNITO_AUTH_URL)}`,
+        `--code-challenge=${encodeURIComponent(codeChallenge)}`,
+      ],
     },
     show: false,
     frame: true,
@@ -96,25 +109,38 @@ export function initializeAuthWindow() {
   ipcMain.handle('handle-auth-success', async (_, code: string) => {
     console.log('Auth success received, processing token');
 
+    if (!currentCodeVerifier) {
+      throw new Error('No code verifier found. Please restart the authentication process.');
+    }
+
     try {
       // Exchange the code for tokens
+      const requestBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: COGNITO_CLIENT_ID,
+        code: code,
+        redirect_uri: COGNITO_REDIRECT_URI,
+        code_verifier: currentCodeVerifier,
+      });
+
+      console.log('Token exchange request:', {
+        url: COGNITO_TOKEN_URL,
+        client_id: COGNITO_CLIENT_ID,
+        code_verifier_length: currentCodeVerifier.length,
+        redirect_uri: COGNITO_REDIRECT_URI,
+      });
+
       const tokenResponse = await fetch(COGNITO_TOKEN_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: COGNITO_CLIENT_ID,
-          client_secret: COGNITO_CLIENT_SECRET,
-          code: code,
-          redirect_uri: COGNITO_REDIRECT_URI,
-        }),
+        body: requestBody,
       });
 
       const responseText = await tokenResponse.text();
-      // console.log(`Token response status: ${tokenResponse.status}`);
-      // console.log(`Token response body: ${responseText}`);
+      console.log(`Token response status: ${tokenResponse.status}`);
+      console.log(`Token response body: ${responseText}`);
 
       if (!tokenResponse.ok) {
         throw new Error(`Failed to exchange code for tokens: ${responseText}`);
@@ -142,6 +168,9 @@ export function initializeAuthWindow() {
       console.error('Error handling auth success:', error);
       logToFile(`Error handling auth success: ${error}`);
       return false;
+    } finally {
+      // Clear the code verifier after use
+      currentCodeVerifier = null;
     }
   });
 }

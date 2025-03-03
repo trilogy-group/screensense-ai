@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
   <head>
+    <title>ScreenSense AI - Sign In</title>
     <style>
       * {
         box-sizing: border-box;
@@ -38,12 +39,14 @@
       .button:hover {
         background: #357abd;
       }
+
       .message {
         text-align: center;
         margin-bottom: 16px;
         color: #333;
         font-size: 24px;
       }
+
       .status {
         font-size: 16px;
         color: #666;
@@ -52,6 +55,7 @@
         max-width: 300px;
         line-height: 1.4;
       }
+
       .spinner {
         width: 32px;
         height: 32px;
@@ -61,6 +65,7 @@
         animation: spin 1s linear infinite;
         margin: 20px auto;
       }
+
       @keyframes spin {
         0% {
           transform: rotate(0deg);
@@ -102,9 +107,13 @@
     <script>
       const { shell, ipcRenderer } = require('electron');
 
-      // Get the auth URL from process arguments
+      // Get the auth URL and code challenge from process arguments
       const authUrlArg = process.argv.find(arg => arg.startsWith('--auth-url='));
+      const codeChallengeArg = process.argv.find(arg => arg.startsWith('--code-challenge='));
       const COGNITO_AUTH_URL = authUrlArg ? decodeURIComponent(authUrlArg.split('=')[1]) : '';
+      const codeChallenge = codeChallengeArg
+        ? decodeURIComponent(codeChallengeArg.split('=')[1])
+        : '';
 
       function showState(stateId) {
         // Hide all states
@@ -117,7 +126,10 @@
 
       function openAuthPage() {
         console.log('Opening auth page with URL:', COGNITO_AUTH_URL);
-        shell.openExternal(COGNITO_AUTH_URL);
+        const url = new URL(COGNITO_AUTH_URL);
+        url.searchParams.append('code_challenge', codeChallenge);
+        url.searchParams.append('code_challenge_method', 'S256');
+        shell.openExternal(url.toString());
         showState('signing-in-state');
       }
 
