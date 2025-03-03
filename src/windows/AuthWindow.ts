@@ -32,11 +32,6 @@ export async function createAuthWindow() {
     center: true,
   });
 
-  // Load the HTML file using the utility function
-  await loadHtmlFile(authWindow, 'auth.html', {
-    logPrefix: 'auth window',
-  });
-
   authWindow.once('ready-to-show', () => {
     console.log('Auth window ready to show');
     if (authWindow) {
@@ -53,6 +48,11 @@ export async function createAuthWindow() {
   authWindow.on('closed', () => {
     console.log('Auth window closed');
     authWindow = null;
+  });
+
+  // Load the HTML file using the utility function
+  await loadHtmlFile(authWindow, 'auth.html', {
+    logPrefix: 'auth window',
   });
 
   return authWindow;
