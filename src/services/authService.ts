@@ -1,15 +1,21 @@
 import { UserManager, User } from 'oidc-client-ts';
 import { ipcRenderer } from 'electron';
-import { logToFile } from '../utils/logger';
 
 // Cognito configuration values
-// Replace these with your actual values from AWS Cognito
 const cognitoAuthConfig = {
-  authority: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_zflp836cb',
+  authority: 'https://us-east-1zflp836cb.auth.us-east-1.amazoncognito.com',
   client_id: '4lcdtqstur6sh47v85usf4c2i5',
   redirect_uri: 'screensense://callback',
   response_type: 'code',
   scope: 'openid email profile',
+  metadata: {
+    authorization_endpoint:
+      'https://us-east-1zflp836cb.auth.us-east-1.amazoncognito.com/oauth2/authorize',
+    token_endpoint: 'https://us-east-1zflp836cb.auth.us-east-1.amazoncognito.com/oauth2/token',
+    userinfo_endpoint:
+      'https://us-east-1zflp836cb.auth.us-east-1.amazoncognito.com/oauth2/userInfo',
+    end_session_endpoint: 'https://us-east-1zflp836cb.auth.us-east-1.amazoncognito.com/logout',
+  },
 };
 
 // Create a UserManager instance
@@ -20,6 +26,7 @@ export const userManager = new UserManager({
   silent_redirect_uri: 'screensense://silent-callback',
   filterProtocolClaims: true,
   loadUserInfo: true,
+  monitorSession: true,
 });
 
 /**
@@ -27,9 +34,19 @@ export const userManager = new UserManager({
  */
 export async function signIn(): Promise<void> {
   try {
+    console.log('Starting sign-in process...');
+    console.log(
+      `Using configuration: ${JSON.stringify({
+        authority: cognitoAuthConfig.authority,
+        client_id: cognitoAuthConfig.client_id,
+        redirect_uri: cognitoAuthConfig.redirect_uri,
+      })}`
+    );
+
     await userManager.signinRedirect();
+    console.log('Sign-in redirect initiated successfully');
   } catch (error) {
-    logToFile(`Sign-in error: ${error}`);
+    console.log(`Sign-in error: ${error}`);
     throw error;
   }
 }
@@ -43,7 +60,7 @@ export async function signOut(): Promise<void> {
       post_logout_redirect_uri: 'screensense://logout',
     });
   } catch (error) {
-    logToFile(`Sign-out error: ${error}`);
+    console.log(`Sign-out error: ${error}`);
     throw error;
   }
 }
@@ -53,31 +70,55 @@ export async function signOut(): Promise<void> {
  */
 export async function processCallback(url: string): Promise<User | null> {
   try {
-    logToFile(`Processing auth callback: ${url}`);
+    console.log('=== Auth Callback Processing ===');
+    console.log(`Received callback URL: ${url}`);
 
     // Extract the callback URL parameters
     const callbackUrl = new URL(url);
     const params = new URLSearchParams(callbackUrl.search);
-    const code = params.get('code');
+    console.log(
+      `URL Parameters: ${Array.from(params.entries())
+        .map(([k, v]) => `${k}=${v}`)
+        .join(', ')}`
+    );
 
-    if (!code) {
-      logToFile('No authorization code found in callback URL');
+    const code = params.get('code');
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
+
+    if (error) {
+      console.log(`Auth error received: ${error}, description: ${errorDescription}`);
       return null;
     }
 
+    if (!code) {
+      console.log('No authorization code found in callback URL');
+      return null;
+    }
+
+    console.log('Authorization code found, proceeding with signin callback...');
     // Process the callback and get the user
     const user = await userManager.signinCallback();
 
     if (user) {
-      logToFile('Authentication successful');
-      // Store user in localStorage or other secure storage if needed
+      console.log('Authentication successful');
+      console.log(
+        `User info: ${JSON.stringify({
+          email: user.profile.email,
+          name: user.profile.name,
+          expires_at: user.expires_at,
+        })}`
+      );
       return user;
     } else {
-      logToFile('Authentication failed - no user returned');
+      console.log('Authentication failed - no user returned');
       return null;
     }
   } catch (error) {
-    logToFile(`Error processing callback: ${error}`);
+    console.log(`Error processing callback: ${error}`);
+    if (error instanceof Error) {
+      console.log(`Error stack: ${error.stack}`);
+    }
     throw error;
   }
 }
@@ -87,6 +128,7 @@ export async function processCallback(url: string): Promise<User | null> {
  */
 export function initAuthListener(): void {
   ipcRenderer.on('auth-callback', async (_, url) => {
+    console.log('Received auth callback:', url);
     try {
       const user = await processCallback(url);
       if (user) {
@@ -100,7 +142,7 @@ export function initAuthListener(): void {
         );
       }
     } catch (error) {
-      logToFile(`Auth callback error: ${error}`);
+      console.log(`Auth callback error: ${error}`);
       window.dispatchEvent(new CustomEvent('auth-error', { detail: error }));
     }
   });
@@ -113,7 +155,7 @@ export async function getUser(): Promise<User | null> {
   try {
     return await userManager.getUser();
   } catch (error) {
-    logToFile(`Error getting user: ${error}`);
+    console.log(`Error getting user: ${error}`);
     return null;
   }
 }
@@ -138,7 +180,7 @@ export async function refreshToken(): Promise<User | null> {
     }
     return null;
   } catch (error) {
-    logToFile(`Error refreshing token: ${error}`);
+    console.log(`Error refreshing token: ${error}`);
     // If refresh fails, sign the user out
     await userManager.removeUser();
     return null;

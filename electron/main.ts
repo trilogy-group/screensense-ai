@@ -20,6 +20,7 @@ import {
   initializeSubtitleOverlay,
 } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
+import { initializeAuthWindow, createAuthWindow, closeAuthWindow } from '../src/windows/AuthWindow';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -73,47 +74,79 @@ async function initializeApp() {
   initializeSettingsWindow();
   initializeMarkdownPreviewWindow();
   initializeActionWindow();
+  initializeAuthWindow();
   initializeContext();
   initializeKBHandlers();
-
-  // Create windows
-  await createMainWindow();
-  createSubtitleOverlayWindow();
-  createControlWindow();
 
   // Register the custom protocol handler for authentication
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
+      console.log('Registering protocol handler for development');
       app.setAsDefaultProtocolClient('screensense', process.execPath, [process.argv[1]]);
     }
   } else {
+    console.log('Registering protocol handler for production');
     app.setAsDefaultProtocolClient('screensense');
   }
 
-  // Store the deeplink URL if the app is launched with it
-  let deeplinkingUrl: string | null = null;
+  // Create auth window first and wait for authentication
+  const authWindow = await createAuthWindow();
 
   // Handle protocol URL (for macOS)
   app.on('open-url', (event, url) => {
     event.preventDefault();
-    // If the app is already running, process the URL
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      mainWindow.webContents.send('auth-callback', url);
-    } else {
-      // Store URL to be processed after window is created
-      deeplinkingUrl = url;
+    console.log('Received open-url event with URL:', url);
+
+    // Process the auth callback immediately
+    if (url.startsWith('screensense://callback')) {
+      console.log('Processing auth callback URL');
+      authWindow?.webContents.send('auth-callback', url);
     }
   });
 
-  // Process any auth URL that was used to start the app
-  const mainWindow = getMainWindow();
-  if (deeplinkingUrl && mainWindow) {
-    mainWindow.webContents.send('auth-callback', deeplinkingUrl);
-    deeplinkingUrl = null;
-  }
+  // Handle Windows protocol activation
+  app.on('second-instance', (event, commandLine) => {
+    const url = commandLine.find(arg => arg.startsWith('screensense://'));
+    if (url && url.startsWith('screensense://callback')) {
+      console.log('Processing auth callback URL from second instance');
+      authWindow?.webContents.send('auth-callback', url);
+    }
+  });
 
-  // console.log('App is ready. Listening for global mouse events...');
+  // Wait for authentication before creating other windows
+  return new Promise(resolve => {
+    ipcMain.once('auth-status-response', async (_, isAuthenticated) => {
+      console.log('Initial auth status checked:', isAuthenticated);
+
+      if (!isAuthenticated) {
+        console.log('User not authenticated, keeping auth window open');
+        // Keep auth window open and wait for auth-success event
+        ipcMain.once('auth-success', async (event, user) => {
+          console.log('Authentication successful, user:', user);
+          // Create other windows before closing auth window
+          const appWindow = await createMainWindow();
+          await createSubtitleOverlayWindow();
+          await createControlWindow();
+          // Now we can safely close the auth window
+          closeAuthWindow();
+          resolve(appWindow);
+        });
+      } else {
+        console.log('User already authenticated, creating main windows');
+        // User is already authenticated, create windows immediately
+        const appWindow = await createMainWindow();
+        createSubtitleOverlayWindow();
+        createControlWindow();
+        resolve(appWindow);
+      }
+    });
+
+    // Check auth status immediately
+    authWindow.webContents.on('did-finish-load', () => {
+      console.log('Auth window loaded, checking auth status');
+      authWindow.webContents.send('get-auth-status');
+    });
+  });
 }
 
 // Call it after registering all handlers

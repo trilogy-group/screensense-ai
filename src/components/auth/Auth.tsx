@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { signIn, signOut, getUser, initAuthListener } from '../../services/authService';
+import { signOut, getUser, initAuthListener } from '../../services/authService';
 import { User } from 'oidc-client-ts';
 import './Auth.css';
+const { ipcRenderer } = window.require('electron');
 
 interface AuthProps {
   onAuthStateChanged?: (isAuthenticated: boolean, user: User | null) => void;
@@ -19,6 +20,11 @@ export const Auth: React.FC<AuthProps> = ({ onAuthStateChanged }) => {
     // Check if user is already authenticated
     const checkAuth = async () => {
       try {
+        // First check through IPC to ensure main process is aware of auth state
+        const isAuthenticatedFromMain = await ipcRenderer.invoke('check-auth-status');
+        console.log('Auth status from main process:', isAuthenticatedFromMain);
+        
+        // Then check local auth state
         const currentUser = await getUser();
         setUser(currentUser);
         
@@ -70,7 +76,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthStateChanged }) => {
     try {
       setLoading(true);
       setError(null);
-      await signIn();
+      ipcRenderer.send('show-auth');
     } catch (err) {
       setError('Failed to initiate sign-in');
       console.error(err);
@@ -99,31 +105,31 @@ export const Auth: React.FC<AuthProps> = ({ onAuthStateChanged }) => {
     return <div className="auth-loading">Loading authentication status...</div>;
   }
 
+  if (user && !user.expired) {
+    return (
+      <div className="auth-profile">
+        <h2>Welcome, {user.profile.name}</h2>
+        <p>Email: {user.profile.email}</p>
+        <button 
+          className="auth-button auth-signout-button" 
+          onClick={handleSignOut}
+        >
+          Sign Out
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-container">
       {error && <div className="auth-error">{error}</div>}
-      
-      {user ? (
-        <div className="auth-profile">
-          <div className="auth-user-info">
-            <p>Signed in as: {user.profile.email}</p>
-            {user.profile.name && <p>Name: {user.profile.name}</p>}
-          </div>
-          <button 
-            className="auth-button auth-signout-button" 
-            onClick={handleSignOut}
-          >
-            Sign Out
-          </button>
-        </div>
-      ) : (
-        <button 
-          className="auth-button auth-signin-button" 
-          onClick={handleSignIn}
-        >
-          Sign In with Google
-        </button>
-      )}
+      <button 
+        className="auth-button" 
+        onClick={handleSignIn}
+        disabled={loading}
+      >
+        {loading ? 'Signing in...' : 'Sign in with Google'}
+      </button>
     </div>
   );
 };
