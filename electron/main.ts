@@ -10,7 +10,11 @@ import { initializeKBHandlers } from '../src/utils/kb-utils';
 import { logToFile } from '../src/utils/logger';
 import { loadSession } from '../src/utils/patent-utils';
 import { initializeActionWindow } from '../src/windows/ActionWindow';
-import { createAuthWindow, initializeAuthWindow } from '../src/windows/AuthWindow';
+import {
+  createAuthWindow,
+  initializeAuthWindow,
+  sendAuthCallback,
+} from '../src/windows/AuthWindow';
 import { initializeControlWindow } from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
 import { initializeMainWindow } from '../src/windows/MainWindow';
@@ -87,7 +91,7 @@ async function initializeApp() {
   }
 
   // Create auth window first and wait for authentication
-  const authWindow = await createAuthWindow();
+  await createAuthWindow();
 
   // Handle protocol URL (for macOS)
   app.on('open-url', (event, url) => {
@@ -97,7 +101,7 @@ async function initializeApp() {
     // Process the auth callback immediately
     if (url.startsWith('screensense://callback')) {
       console.log('Processing auth callback URL');
-      authWindow?.webContents.send('auth-callback', url);
+      sendAuthCallback(url);
     }
   });
 
@@ -106,7 +110,7 @@ async function initializeApp() {
     const url = commandLine.find(arg => arg.startsWith('screensense://'));
     if (url && url.startsWith('screensense://callback')) {
       console.log('Processing auth callback URL from second instance');
-      authWindow?.webContents.send('auth-callback', url);
+      sendAuthCallback(url);
     }
   });
 }
@@ -258,10 +262,10 @@ ipcMain.handle('get-current-mode-and-is-session-active', () => {
 });
 
 // Add this with other IPC listeners
-ipcMain.on('update-current-mode', (event, mode) => {
+ipcMain.on('update-current-mode', (_, mode) => {
   currentAssistantMode = mode;
 });
 
-ipcMain.on('update-is-session-active', (event, active) => {
+ipcMain.on('update-is-session-active', (_, active) => {
   isSessionActive = active;
 });

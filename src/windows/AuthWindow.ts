@@ -69,6 +69,12 @@ export function getAuthWindow() {
   return authWindow;
 }
 
+export function sendAuthCallback(url: string) {
+  if (authWindow) {
+    authWindow.webContents.send('auth-callback', url);
+  }
+}
+
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
 
