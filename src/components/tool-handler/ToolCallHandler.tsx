@@ -6,6 +6,7 @@ import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
+import { invokeInsightAgent, sendImageToInsightAgent } from '../../agents/insight-orchestrator';
 
 const { ipcRenderer } = window.require('electron');
 
@@ -729,6 +730,131 @@ function ToolCallHandlerComponent({
               ]);
             } else {
               client.send([{ text: `Failed to save knowledge base document: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'create_insight_session': {
+            const result = await ipcRenderer.invoke('create_insight_session', (fc.args as any).topic);
+            if (result.success) {
+              client.send([
+                {
+                  text: "Created a new insight session. Tell the user this: I've started a new insight session. Let's explore your experience and extract valuable learnings from it.",
+                },
+              ]);
+            } else {
+              client.send([{ text: `Failed to create insight session: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'resume_insight_session': {
+            const result = await ipcRenderer.invoke('resume_insight_session');
+            if (result.success) {
+              client.send([
+                {
+                  text: "Resumed the insight session. Tell the user this: I've loaded your previous insight session. Would you like to continue documenting any particular aspect?",
+                },
+              ]);
+            } else {
+              client.send([{ text: `Failed to resume insight session: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'export_insight_pdf': {
+            const result = await ipcRenderer.invoke('export_insight_pdf');
+            if (result.success) {
+              client.send([
+                {
+                  text: "Exported the insight document as PDF. Tell the user this: I've exported your insight document as a PDF file.",
+                },
+              ]);
+            } else {
+              client.send([{ text: `Failed to export insight document: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'display_insight': {
+            const result = await ipcRenderer.invoke('display_insight');
+            if (result.success) {
+              client.send([
+                {
+                  text: "Opened the insight document. Tell the user this: I've opened the current version of the insight document for you to review.",
+                },
+              ]);
+            } else {
+              client.send([{ text: `Failed to open document: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'send_user_response': {
+            client.send([
+              {
+                text: `Tell the user this out loud that you will convey their message to the insight expert. Now wait for the expert to ask the next question, and do not invoke any other tool in the mean time. When the user replies again, use the send_user_response tool to send the response to the expert.`,
+              },
+            ]);
+
+            await invokeInsightAgent((fc.args as any).message);
+
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: {
+                    output: {
+                      success: true,
+                    },
+                  },
+                  id: fc.id,
+                },
+              ],
+            });
+            hasResponded = true;
+            break;
+          }
+          case 'add_insight_entry': {
+            const result = await ipcRenderer.invoke('add_insight_entry', {
+              content: (fc.args as any).content,
+              section: (fc.args as any).section,
+            });
+            if (result.success) {
+              client.send([
+                {
+                  text: `Added the content to the ${(fc.args as any).section} section.`,
+                },
+              ]);
+            } else {
+              client.send([{ text: `Failed to add content: ${result.error}` }]);
+            }
+            hasResponded = true;
+            break;
+          }
+          case 'capture_insight_screenshot': {
+            if (!onScreenshot) {
+              client.send([{ text: 'Screenshot functionality is not available.' }]);
+              hasResponded = true;
+              break;
+            }
+
+            const screenshotPath = onScreenshot();
+            if (!screenshotPath) {
+              client.send([{ text: 'Failed to capture screenshot.' }]);
+              hasResponded = true;
+              break;
+            }
+
+            const result = await sendImageToInsightAgent(
+              screenshotPath,
+              (fc.args as any).description,
+              (fc.args as any).context
+            );
+
+            if (result.messages) {
+              client.send([{ text: 'Screenshot captured and analyzed.' }]);
+            } else {
+              client.send([{ text: 'Failed to process screenshot.' }]);
             }
             hasResponded = true;
             break;

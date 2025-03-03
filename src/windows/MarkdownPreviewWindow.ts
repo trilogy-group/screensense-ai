@@ -15,6 +15,13 @@ import {
 } from '../utils/patent-utils';
 import { loadHtmlFile, loadUrl } from '../utils/window-utils';
 import { sendGeminiMessage } from './MainWindow';
+import {
+  createInsightSession,
+  readInsight,
+  addInsightEntry,
+  exportInsightAsPDF,
+  saveInsightImage,
+} from '../utils/insight-utils';
 
 let markdownPreviewWindow: BrowserWindow | null = null;
 let currentMarkdownFile: string | null = null;
@@ -173,4 +180,101 @@ export function initializeMarkdownPreviewWindow() {
   ipcMain.handle('export_patent_pdf', async () => exportToPdf());
 
   ipcMain.on('send-gemini-message', (event, data) => sendGeminiMessage(data));
+
+  ipcMain.handle('create_insight_session', async (event, topic) => {
+    try {
+      const success = await createInsightSession(topic);
+      if (success) {
+        const insight = await readInsight();
+        if (insight.success && insight.contents) {
+          const mdPath = path.join(getCurrentSession().path, 'main.md');
+          await createMarkdownPreviewWindow(mdPath);
+          sendMarkdownContent(insight.contents, getCurrentSession().path);
+          return { success: true };
+        }
+      }
+      return { success: false, error: 'Failed to create insight session' };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error creating insight session: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('resume_insight_session', async event => {
+    try {
+      const insight = await readInsight();
+      if (insight.success && insight.contents) {
+        const mdPath = path.join(getCurrentSession().path, 'main.md');
+        await createMarkdownPreviewWindow(mdPath);
+        sendMarkdownContent(insight.contents, getCurrentSession().path);
+        return { success: true };
+      }
+      return { success: false, error: 'Failed to read insight document' };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error resuming insight session: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('display_insight', async event => {
+    try {
+      const insight = await readInsight();
+      if (insight.success && insight.contents) {
+        const mdPath = path.join(getCurrentSession().path, 'main.md');
+        await createMarkdownPreviewWindow(mdPath);
+        sendMarkdownContent(insight.contents, getCurrentSession().path);
+        return { success: true };
+      }
+      return { success: false, error: 'Failed to read insight document' };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error displaying insight: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('add_insight_entry', async (event, { content, section }) => {
+    try {
+      const success = await addInsightEntry(content, section);
+      if (success) {
+        const insight = await readInsight();
+        if (insight.success && insight.contents) {
+          sendMarkdownContent(insight.contents, getCurrentSession().path);
+          return { success: true };
+        }
+      }
+      return { success: false, error: 'Failed to add insight entry' };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error adding insight entry: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('export_insight_pdf', async event => {
+    try {
+      const result = await exportInsightAsPDF();
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error exporting insight as PDF: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  ipcMain.handle('read_insight_image', async (event, imagePath) => {
+    try {
+      if (!fs.existsSync(imagePath)) {
+        return { success: false, error: 'Image file not found' };
+      }
+      const data = fs.readFileSync(imagePath).toString('base64');
+      return { success: true, data };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logToFile(`Error reading insight image: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  });
 }

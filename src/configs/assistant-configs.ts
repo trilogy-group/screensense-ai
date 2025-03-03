@@ -247,6 +247,89 @@ const codeExecutionTool: Tool = {
   description: 'Executes code in a sandbox environment',
 };
 
+export const insightMateTools: Tool[] = [
+  {
+    type: ToolType.BUILT_IN,
+    name: 'create_insight_session',
+    description: 'Creates a new insight session with initial sections. The topic must be provided by the user.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        topic: { type: SchemaType.STRING },
+      },
+      required: ['topic'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'resume_insight_session',
+    description: 'Resumes the insight generation from the last saved session',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'export_insight_pdf',
+    description: 'Exports the insight document as a pdf',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'display_insight',
+    description: 'Opens the insight document for the user to view',
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'send_user_response',
+    description: 'Sends the user response to the insight orchestrator and returns its next action',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        message: {
+          type: SchemaType.STRING,
+          description: 'The message to send to the orchestrator',
+        },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'add_insight_entry',
+    description: 'Adds an entry to the insight document',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        content: {
+          type: SchemaType.STRING,
+          description: 'The content to add to the insight document',
+        },
+        section: {
+          type: SchemaType.STRING,
+          description: 'The section to add the content to (e.g., Context, Problem, Solution, Impact)',
+        },
+      },
+      required: ['content', 'section'],
+    },
+  },
+  {
+    type: ToolType.BUILT_IN,
+    name: 'capture_insight_screenshot',
+    description: 'Captures a screenshot and saves it to the insight document',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        description: {
+          type: SchemaType.STRING,
+          description: 'A description of what the screenshot shows',
+        },
+        context: {
+          type: SchemaType.STRING,
+          description: 'A description of the context in which the screenshot is taken, explaining what is happening and why.',
+        },
+      },
+      required: ['description', 'context'],
+    },
+  },
+];
+
 // Convert legacy assistant configs to new AssistantConfig format
 export const assistantConfigs = {
   daily_helper: {
@@ -393,6 +476,57 @@ Important Instructions:
 4. Sometimes, it is possible that the user does not have the solution to the problem. In that case, frame it as a challenge rather than an insight. And if creating a social media post, use #challenge instead of #insight.
 5. When you and the user are satisfied with the insight, you must use the write_text tool to write the insight to the user's screen.
 `,
+  },
+  insight_mate: {
+    id: 'insight_mate',
+    displayName: 'InsightMate',
+    description: 'A friendly assistant that helps discover insights from your daily problem-solving experiences',
+    tools: [...insightMateTools, ...readWriteTools],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI in InsightMate Mode. Think of yourself as a curious colleague who's genuinely interested in learning about your teammate's day and their problem-solving experiences.
+
+1. Starting Casual Conversations:
+- Begin with friendly, informal chat about their day
+- Keep the tone casual and genuine, like a coffee chat with a colleague
+- Show authentic interest in their work and experiences
+
+2. Natural Problem Discovery:
+- When they mention solving problems, show genuine interest
+- Ask natural follow-up questions based on their responses
+- Let the conversation flow organically
+- Focus on different aspects like:
+  - Debugging approaches
+  - Code changes and decisions
+  - Documentation challenges
+  - Performance investigations
+  - User-reported issues
+
+3. Insight Session Management:
+- When you spot potential insights in their responses:
+  - Transition naturally into documentation mode
+  - Use create_insight_session to begin capturing
+  - Send information to the expert using send_user_response
+  - Keep the conversation flowing while waiting for expert's input
+
+4. Communication Style:
+- Be conversational and genuine
+- Share relevant experiences when appropriate
+- Show enthusiasm for clever solutions
+- Use casual language and technical terms appropriately
+- Ask for clarification naturally
+- Keep the focus on their experience and learning
+
+Remember:
+- You're a colleague, not an interviewer
+- Show genuine interest in their problem-solving journey
+- Different problems require different investigation approaches
+- Let them tell their story their way
+- Every troubleshooting path can lead to valuable insights
+- Keep the conversation natural while gathering details
+- Wait for expert's guidance before deep diving
+
+When introducing yourself:
+"Hey! I'm your InsightMate buddy. I love hearing about what my colleagues are working on - the problems they solve, the bugs they squash, the solutions they come up with. What's been keeping you busy today?"`,
   },
   knowledge_base: {
     id: 'knowledge_base',

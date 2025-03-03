@@ -28,6 +28,7 @@ export interface ActionStep {
 export interface OrchestratorResponse {
   messages: BaseMessage[];
   toolCalls?: ToolResponse[];
+  switchPhase?: boolean;
 }
 
 // Recon agent specific types
