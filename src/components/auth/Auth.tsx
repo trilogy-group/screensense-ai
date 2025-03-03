@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { signOut, getUser, initAuthListener } from '../../services/authService';
+import { signOut, getUser } from '../../services/authService';
 import { User } from 'oidc-client-ts';
 import './Auth.css';
 const { ipcRenderer } = window.require('electron');
@@ -14,9 +14,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthStateChanged }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initialize the auth listener for protocol redirects
-    initAuthListener();
-
     // Check if user is already authenticated
     const checkAuth = async () => {
       try {

@@ -112,21 +112,6 @@ async function initializeApp() {
       authWindow?.webContents.send('auth-callback', url);
     }
   });
-
-  // Wait for authentication before creating other windows
-  return new Promise(resolve => {
-    // Listen for auth success event
-    ipcMain.once('auth-success', async (event, user) => {
-      console.log('Authentication successful, user:', user);
-      // Create other windows before closing auth window
-      const appWindow = await createMainWindow();
-      await createSubtitleOverlayWindow();
-      await createControlWindow();
-      // Now we can safely close the auth window
-      closeAuthWindow();
-      resolve(appWindow);
-    });
-  });
 }
 
 // Call it after registering all handlers

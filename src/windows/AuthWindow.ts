@@ -85,7 +85,7 @@ export function initializeAuthWindow() {
 
     try {
       // Create main windows
-      const appWindow = await createMainWindow();
+      await createMainWindow();
       await createSubtitleOverlayWindow();
       await createControlWindow();
 

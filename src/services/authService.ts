@@ -124,31 +124,6 @@ export async function processCallback(url: string): Promise<User | null> {
 }
 
 /**
- * Initialize the authentication listener in the renderer process
- */
-export function initAuthListener(): void {
-  ipcRenderer.on('auth-callback', async (_, url) => {
-    console.log('Received auth callback:', url);
-    try {
-      const user = await processCallback(url);
-      if (user) {
-        // Dispatch an event that can be listened to by components
-        window.dispatchEvent(new CustomEvent('auth-success', { detail: user }));
-      } else {
-        window.dispatchEvent(
-          new CustomEvent('auth-error', {
-            detail: new Error('Authentication failed'),
-          })
-        );
-      }
-    } catch (error) {
-      console.log(`Auth callback error: ${error}`);
-      window.dispatchEvent(new CustomEvent('auth-error', { detail: error }));
-    }
-  });
-}
-
-/**
  * Get the current user from storage
  */
 export async function getUser(): Promise<User | null> {
