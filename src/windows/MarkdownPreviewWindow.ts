@@ -83,6 +83,12 @@ function markdownPreviewWindowExists() {
   return markdownPreviewWindow && !markdownPreviewWindow.isDestroyed();
 }
 
+export function closeMarkdownPreviewWindow() {
+  if (markdownPreviewWindowExists()) {
+    markdownPreviewWindow?.close();
+  }
+}
+
 export function sendMarkdownContent(content: string, basePath: string) {
   if (!markdownPreviewWindowExists()) return;
 

@@ -55,12 +55,12 @@ export async function createSettingsWindow() {
 }
 
 export function closeSettingsWindow() {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.close();
+  if (settingsWindowExists()) {
+    settingsWindow?.close();
   }
 }
 
-export function settingsWindowExists() {
+function settingsWindowExists() {
   return settingsWindow && !settingsWindow.isDestroyed();
 }
 

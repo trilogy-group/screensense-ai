@@ -51,9 +51,13 @@ export async function showErrorOverlay(errorMessage: string) {
   }
 }
 
+function errorOverlayWindowExists() {
+  return errorOverlayWindow && !errorOverlayWindow.isDestroyed();
+}
+
 export function hideErrorOverlay() {
-  if (errorOverlayWindow && !errorOverlayWindow.isDestroyed()) {
-    errorOverlayWindow.hide();
+  if (errorOverlayWindowExists()) {
+    errorOverlayWindow?.hide();
   }
 }
 

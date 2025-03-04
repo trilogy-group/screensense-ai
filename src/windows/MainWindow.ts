@@ -181,22 +181,22 @@ export function getMainWindow() {
 }
 
 export function showMainWindow() {
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
+  if (mainWindowExists()) {
+    mainWindow?.show();
+    mainWindow?.focus();
   }
 }
 
 export function hideMainWindow() {
-  if (mainWindow) {
-    mainWindow.hide();
+  if (mainWindowExists()) {
+    mainWindow?.hide();
   }
 }
 
 export function closeMainWindow() {
-  if (mainWindow) {
-    mainWindow.removeAllListeners('close');
-    mainWindow.close();
+  if (mainWindowExists()) {
+    mainWindow?.removeAllListeners('close');
+    mainWindow?.close();
   }
 }
 

@@ -1,17 +1,28 @@
 import { BrowserWindow, ipcMain } from 'electron';
-import { loadHtmlFile } from '../utils/window-utils';
-import { createMainWindow } from './MainWindow';
-import { createSubtitleOverlayWindow } from './SubtitleOverlay';
-import { createControlWindow } from './ControlWindow';
 import {
   COGNITO_AUTH_URL,
-  COGNITO_TOKEN_URL,
   COGNITO_CLIENT_ID,
   COGNITO_REDIRECT_URI,
+  COGNITO_TOKEN_URL,
 } from '../constants/constants';
-import { saveTokens, getTokens, isTokenExpired, refreshTokens } from '../services/tokenService';
+import {
+  clearTokens,
+  getTokens,
+  isTokenExpired,
+  refreshTokens,
+  saveTokens,
+} from '../services/tokenService';
 import { logToFile } from '../utils/logger';
-import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
+import { generateCodeChallenge, generateCodeVerifier } from '../utils/pkce';
+import { loadHtmlFile } from '../utils/window-utils';
+import { closeActionWindow } from './ActionWindow';
+import { closeControlWindow, createControlWindow } from './ControlWindow';
+import { hideErrorOverlay } from './ErrorOverlay';
+import { closeMainWindow, createMainWindow } from './MainWindow';
+import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
+import { closeSettingsWindow } from './SettingsWindow';
+import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
+import { closeUpdateWindow } from './UpdateWindow';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;
@@ -75,10 +86,14 @@ export async function createAuthWindow() {
   return authWindow;
 }
 
+export function authWindowExists() {
+  return authWindow && !authWindow.isDestroyed();
+}
+
 export function closeAuthWindow() {
-  if (authWindow && !authWindow.isDestroyed()) {
+  if (authWindowExists()) {
     console.log('Closing auth window');
-    authWindow.close();
+    authWindow?.close();
   }
 }
 
@@ -87,8 +102,8 @@ export function getAuthWindow() {
 }
 
 export function sendAuthCallback(url: string) {
-  if (authWindow) {
-    authWindow.webContents.send('auth-callback', url);
+  if (authWindowExists()) {
+    authWindow?.webContents.send('auth-callback', url);
   }
 }
 
@@ -102,6 +117,39 @@ async function launchScreenSense() {
 
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
+
+  // Handle sign out
+  ipcMain.handle('sign-out', async () => {
+    console.log('Sign out requested');
+    try {
+      // Close all windows
+      closeMainWindow();
+      closeSubtitleOverlayWindow();
+      closeControlWindow();
+      closeAuthWindow();
+      closeActionWindow();
+      hideErrorOverlay();
+      closeMarkdownPreviewWindow();
+      closeSettingsWindow();
+      closeUpdateWindow();
+
+      console.log('All windows closed');
+
+      // Clear all tokens
+      clearTokens();
+      console.log('Tokens cleared');
+
+      // Create new auth window
+      await createAuthWindow();
+      console.log('Auth window created');
+
+      return true;
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      logToFile(`Error during sign out: ${error}`);
+      return false;
+    }
+  });
 
   // Handle auth status check
   ipcMain.handle('check-auth-status', async () => {
