@@ -23,23 +23,21 @@ import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
 import { closeUpdateWindow } from './UpdateWindow';
+import { once } from 'events';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;
 
 export async function createAuthWindow() {
-  if (authWindow && !authWindow.isDestroyed()) {
-    authWindow.show();
-    authWindow.focus();
+  if (authWindowExists()) {
+    authWindow?.show();
+    authWindow?.focus();
     return authWindow;
   }
 
   // Generate PKCE values
   currentCodeVerifier = await generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(currentCodeVerifier);
-
-  // console.log('Code verifier:', currentCodeVerifier);
-  // console.log('Code challenge:', codeChallenge);
 
   console.log('Creating new auth window');
   authWindow = new BrowserWindow({
@@ -71,6 +69,7 @@ export async function createAuthWindow() {
   // Add error handler
   authWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
     console.error('Failed to load auth window:', errorCode, errorDescription);
+    logToFile(`Failed to load auth window: ${errorCode} - ${errorDescription}`);
   });
 
   authWindow.on('closed', () => {
@@ -112,7 +111,7 @@ async function launchScreenSense() {
   await createMainWindow();
   await createSubtitleOverlayWindow();
   await createControlWindow();
-  closeAuthWindow();
+  await closeAuthWindow();
 }
 
 export function initializeAuthWindow() {
@@ -139,7 +138,9 @@ export function initializeAuthWindow() {
       clearTokens();
       console.log('Tokens cleared');
 
-      // Create new auth window
+      // For some reason, we need a slight delay here, otherwise the auth window creation fails
+      // TODO: Figure out why this is happening
+      await new Promise(resolve => setTimeout(resolve, 100));
       await createAuthWindow();
       console.log('Auth window created');
 

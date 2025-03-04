@@ -142,18 +142,6 @@
         margin-left: var(--spacing-xs);
       }
 
-      .actions {
-        display: flex;
-        justify-content: flex-end;
-        height: 50px;
-        align-items: center;
-        justify-content: center;
-        gap: var(--spacing-md);
-        padding: var(--spacing-lg) var(--spacing-xl);
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-      }
-
       .btn {
         padding: 8px 16px;
         border: none;
@@ -185,6 +173,15 @@
 
       .btn-primary:hover:not(:disabled) {
         background: var(--primary-hover);
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover:not(:disabled) {
+        background: #c82333;
       }
 
       .version-info {
@@ -245,6 +242,26 @@
 
       .api-description.optional {
         color: var(--text-secondary);
+      }
+
+      .actions {
+        display: flex;
+        justify-content: space-between;
+        height: 50px;
+        align-items: center;
+        padding: var(--spacing-lg) var(--spacing-xl);
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+      }
+
+      .actions-left {
+        display: flex;
+        gap: var(--spacing-md);
+      }
+
+      .actions-right {
+        display: flex;
+        gap: var(--spacing-md);
       }
     </style>
   </head>
@@ -420,10 +437,15 @@
       </main>
 
       <footer class="actions">
-        <button type="button" id="cancel-button" class="btn btn-secondary">Cancel</button>
-        <button type="submit" id="save-button" form="settings-form" class="btn btn-primary">
-          Save Changes
-        </button>
+        <div class="actions-left">
+          <button type="button" id="sign-out-button" class="btn btn-danger">Sign Out</button>
+        </div>
+        <div class="actions-right">
+          <button type="button" id="cancel-button" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="save-button" form="settings-form" class="btn btn-primary">
+            Save Changes
+          </button>
+        </div>
       </footer>
     </div>
 
@@ -437,6 +459,7 @@
       const saveButton = document.getElementById('save-button');
       const cancelButton = document.getElementById('cancel-button');
       const versionText = document.getElementById('version-text');
+      const signOutButton = document.getElementById('sign-out-button');
 
       // Initialize with current API keys and version
       ipcRenderer.on(
@@ -480,6 +503,17 @@
       function checkForUpdates() {
         ipcRenderer.send('check-for-update');
       }
+
+      // Handle sign out
+      signOutButton.addEventListener('click', async () => {
+        const confirmed = confirm('Are you sure you want to sign out?');
+        if (confirmed) {
+          const success = await ipcRenderer.invoke('sign-out');
+          if (!success) {
+            alert('Failed to sign out. Please try again.');
+          }
+        }
+      });
     </script>
   </body>
 </html>

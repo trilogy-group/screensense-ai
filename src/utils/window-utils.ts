@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { logToFile } from './logger';
+import * as fs from 'fs';
 
 /**
  * Loads an HTML file into a BrowserWindow, handling both development and production paths
@@ -31,11 +32,23 @@ export async function loadHtmlFile(
 
   if (isDev) {
     // In development, load from public directory
-    htmlPath = path.join(app.getAppPath(), devPath, useHtmlDir ? 'html' : '', filename);
+    const appPath = app.getAppPath();
+    logToFile(`App path: ${appPath}`);
+    htmlPath = path.join(appPath, devPath, useHtmlDir ? 'html' : '', filename);
+    logToFile(`Development HTML path: ${htmlPath}`);
+
+    // Check if file exists
+    if (!fs.existsSync(htmlPath)) {
+      const error = `File does not exist at path: ${htmlPath}`;
+      logToFile(error);
+      throw new Error(error);
+    }
   } else {
     // In production, load from the build directory
     const basePath = app.getAppPath().replace('.asar', '.asar.unpacked');
+    logToFile(`Production base path: ${basePath}`);
     htmlPath = path.join(basePath, prodPath, useHtmlDir ? 'html' : '', filename);
+    logToFile(`Production HTML path: ${htmlPath}`);
   }
 
   logToFile(`Loading ${logPrefix} HTML from: ${htmlPath}`);
