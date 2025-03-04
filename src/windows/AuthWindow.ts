@@ -9,7 +9,7 @@ import {
   COGNITO_CLIENT_ID,
   COGNITO_REDIRECT_URI,
 } from '../constants/constants';
-import { saveTokens, getTokens, isTokenExpired } from '../services/tokenService';
+import { saveTokens, getTokens, isTokenExpired, refreshTokens } from '../services/tokenService';
 import { logToFile } from '../utils/logger';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
 
@@ -108,7 +108,19 @@ export function initializeAuthWindow() {
     console.log('Checking auth status');
     const tokens = getTokens();
     if (!tokens) return false;
-    return !isTokenExpired();
+
+    // If token is expired, try to refresh it
+    if (isTokenExpired()) {
+      console.log('Token expired, attempting refresh');
+      const refreshed = await refreshTokens();
+      if (!refreshed) {
+        console.log('Token refresh failed');
+        return false;
+      }
+      console.log('Token refreshed successfully');
+    }
+
+    return true;
   });
 
   // Handle auth success
