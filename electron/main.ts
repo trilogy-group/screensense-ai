@@ -22,7 +22,7 @@ import { initializeMarkdownPreviewWindow } from '../src/windows/MarkdownPreviewW
 import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
-import { COGNITO_REDIRECT_URI } from '../src/constants/constants';
+import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/constants/constants';
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -104,14 +104,31 @@ async function initializeApp() {
       console.log('Processing auth callback URL');
       sendAuthCallback(url);
     }
+    // Handle logout redirect
+    else if (url.startsWith(COGNITO_LOGOUT_REDIRECT_URI)) {
+      console.log('Received logout redirect - user has been logged out of Cognito');
+      // We don't need to do anything here, the app is already handling logout
+    }
   });
 
   // Handle Windows protocol activation
   app.on('second-instance', (event, commandLine) => {
-    const url = commandLine.find(arg => arg.startsWith(COGNITO_REDIRECT_URI));
-    if (url) {
+    // Check for auth callback
+    const callbackUrl = commandLine.find(arg => arg.startsWith(COGNITO_REDIRECT_URI));
+    if (callbackUrl) {
       console.log('Processing auth callback URL from second instance');
-      sendAuthCallback(url);
+      sendAuthCallback(callbackUrl);
+      return;
+    }
+
+    // Check for logout callback
+    const logoutUrl = commandLine.find(arg => arg.startsWith(COGNITO_LOGOUT_REDIRECT_URI));
+    if (logoutUrl) {
+      console.log(
+        'Received logout redirect from second instance - user has been logged out of Cognito'
+      );
+      // We don't need to do anything here, the app is already handling logout
+      return;
     }
   });
 }

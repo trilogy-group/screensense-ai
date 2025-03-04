@@ -1,9 +1,10 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, session, shell } from 'electron';
 import {
   COGNITO_AUTH_URL,
   COGNITO_CLIENT_ID,
   COGNITO_REDIRECT_URI,
   COGNITO_TOKEN_URL,
+  COGNITO_LOGOUT_URL,
 } from '../constants/constants';
 import {
   clearTokens,
@@ -114,6 +115,32 @@ async function launchScreenSense() {
   await closeAuthWindow();
 }
 
+export async function performCognitoLogout(): Promise<boolean> {
+  console.log('Performing complete Cognito logout');
+  try {
+    // Step 1: Clear all local cookies and session data to ensure local logout
+    await session.defaultSession.clearStorageData({
+      storages: ['cookies', 'localstorage', 'websql', 'cachestorage'],
+    });
+    console.log('Cleared local session storage and cookies');
+
+    // Step 2: Open the Cognito logout endpoint in the default browser
+    // According to AWS docs: https://docs.aws.amazon.com/cognito/latest/developerguide/logout-endpoint.html
+    // This will:
+    // 1. Sign the user out of their Cognito user session
+    // 2. Clear Cognito cookies and tokens
+    // 3. Redirect to the specified logout_uri (must be registered in Cognito)
+    console.log('Opening Cognito logout URL in default browser:', COGNITO_LOGOUT_URL);
+    await shell.openExternal(COGNITO_LOGOUT_URL);
+
+    return true;
+  } catch (error) {
+    console.error('Error during Cognito logout:', error);
+    logToFile(`Error during Cognito logout: ${error}`);
+    return false;
+  }
+}
+
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
 
@@ -134,7 +161,11 @@ export function initializeAuthWindow() {
 
       console.log('All windows closed');
 
-      // Clear all tokens
+      // First perform Cognito web logout
+      const cognitoLogoutSuccess = await performCognitoLogout();
+      console.log('Cognito logout result:', cognitoLogoutSuccess);
+
+      // Then clear local tokens
       clearTokens();
       console.log('Tokens cleared');
 

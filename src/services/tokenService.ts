@@ -49,6 +49,26 @@ export function isTokenExpired(): boolean {
   return Date.now() >= tokens.expires_at - 5 * 60 * 1000;
 }
 
+export function getUserInfo(): { name: string; email: string } | null {
+  const tokens = getTokens();
+  if (!tokens?.id_token) return null;
+
+  try {
+    // Parse the JWT without verification (we trust the token as it comes from Cognito)
+    const payload = JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64').toString());
+
+    console.log('payload', JSON.stringify(payload, null, 2));
+
+    return {
+      name: payload.name || payload.given_name || payload.email || 'User',
+      email: payload.email || '',
+    };
+  } catch (error) {
+    console.error('Error parsing ID token:', error);
+    return null;
+  }
+}
+
 export async function refreshTokens(): Promise<boolean> {
   const tokens = getTokens();
   if (!tokens?.refresh_token) return false;

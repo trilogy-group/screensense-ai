@@ -263,6 +263,22 @@
         display: flex;
         gap: var(--spacing-md);
       }
+
+      .user-info {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+      }
+
+      .user-name {
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .user-email {
+        color: var(--text-secondary);
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -432,6 +448,16 @@
                 </div>
               </div>
             </div>
+
+            <div class="settings-group">
+              <div class="form-group">
+                <label class="form-label">Account Information</label>
+                <div class="user-info">
+                  <span id="user-name" class="user-name">Signed in as: </span>
+                  <div id="user-email" class="user-email"></div>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
       </main>
@@ -460,16 +486,37 @@
       const cancelButton = document.getElementById('cancel-button');
       const versionText = document.getElementById('version-text');
       const signOutButton = document.getElementById('sign-out-button');
+      const userName = document.getElementById('user-name');
+      const userEmail = document.getElementById('user-email');
 
       // Initialize with current API keys and version
       ipcRenderer.on(
         'init-settings',
-        (event, { geminiApiKey, openaiApiKey, anthropicApiKey, appVersion }) => {
+        (
+          event,
+          {
+            geminiApiKey,
+            openaiApiKey,
+            anthropicApiKey,
+            appVersion,
+            userName: userNameValue,
+            userEmail: userEmailValue,
+          }
+        ) => {
           geminiApiKeyInput.value = geminiApiKey || '';
           openaiApiKeyInput.value = openaiApiKey || '';
           anthropicApiKeyInput.value = anthropicApiKey || '';
           saveButton.disabled = !geminiApiKey;
           versionText.textContent = `Version ${appVersion}`;
+
+          // Update user information
+          if (userNameValue) {
+            userName.textContent = `Signed in as: ${userNameValue}`;
+            userEmail.textContent = userEmailValue || '';
+          } else {
+            userName.textContent = 'Signed in as: User';
+            userEmail.textContent = '';
+          }
         }
       );
 
