@@ -247,6 +247,19 @@ const codeExecutionTool: Tool = {
   description: 'Executes code in a sandbox environment',
 };
 
+const mcpTool: Tool = {
+  type: ToolType.MCP,
+  name: 'mcp_add',
+  description: 'Tool to add two numbers together',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      a: { type: SchemaType.NUMBER },
+      b: { type: SchemaType.NUMBER },
+    },
+  },
+};
+
 // Convert legacy assistant configs to new AssistantConfig format
 export const assistantConfigs = {
   daily_helper: {
@@ -278,6 +291,18 @@ Your role:
    - If the user requests something more in-depth or complex, use the Google Search tool (if helpful), then provide a well-structured summary.  
 
 Your mission: Provide the best possible assistance for the user's daily tasks using all the resources and abilities at your disposal while respecting the guidelines above.`,
+  },
+  mcp: {
+    id: 'mcp',
+    displayName: 'MCP',
+    description: 'MCP tool',
+    tools: [mcpTool],
+    requiresDisplay: true,
+    systemInstruction: `You are ScreenSense AI, operating in MCP Mode.
+
+Your role:
+- You have only one task. To add two numbers together. never add the numbers yourself. Always use the add tool to add the numbers.
+  `,
   },
   author: {
     id: 'author',

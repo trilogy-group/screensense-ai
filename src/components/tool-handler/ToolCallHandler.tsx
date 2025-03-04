@@ -56,6 +56,13 @@ function ToolCallHandlerComponent({
 
   // Clean up timer on unmount, disconnect, or mode change
   useEffect(() => {
+    async function initializeMCP() {
+      await ipcRenderer.invoke('initialize-mcp');
+    }
+    initializeMCP();
+  }, []);
+
+  useEffect(() => {
     if (!connected || assistantMode !== 'knowledge_base' || !isKBSessionActive) {
       stopObservationTimer();
     } else if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
@@ -187,6 +194,26 @@ function ToolCallHandlerComponent({
           `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`
         );
 
+        const tool = tools.find(t => t.name === fc.name);
+        if (tool?.type === 'mcp') {
+          const result = await ipcRenderer.invoke('mcp-tool-call', {
+            name: fc.name,
+            arguments: fc.args
+          });
+          console.log('🔍 [mcp] Result:', result);
+          client.sendToolResponse({
+            functionResponses: [
+              {
+                response: {
+                  output: { success: true, result },
+                },
+                id: fc.id,
+              },
+            ],
+          });
+          hasResponded = true;
+          break;
+        }
         switch (fc.name) {
           case 'start_recording':
             ipcRenderer.send('start-capture-screen');
@@ -210,13 +237,16 @@ function ToolCallHandlerComponent({
             break;
           case 'render_subtitles':
             setSubtitles((fc.args as any).subtitles);
+            hasResponded = true;
             break;
           case 'remove_subtitles':
             setSubtitles('');
             ipcRenderer.send('remove-subtitles');
+            hasResponded = true;
             break;
           case 'write_text':
             ipcRenderer.send('write_text', (fc.args as any).content);
+            hasResponded = true;
             break;
           case 'read_text':
             const selectedText = await ipcRenderer.invoke('read_selection');

@@ -12,6 +12,7 @@
     "@langchain/anthropic": "^0.3.13",
     "@langchain/core": "^0.3.39",
     "@langchain/langgraph": "^0.2.46",
+    "@modelcontextprotocol/sdk": "^1.6.1",
     "@nut-tree-fork/nut-js": "^4.2.3",
     "@parcel/watcher": "^2.1.0",
     "@techstark/opencv-js": "^4.10.0-release.1",

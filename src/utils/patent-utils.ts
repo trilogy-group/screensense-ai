@@ -188,6 +188,7 @@ export async function updateContent(
   new_content: string,
   section: string
 ) {
+  console.log(new_content);
   const prompt = `You are a an expert at creating patents.
 Your task is to update an existing partial markdown document with new information.
 
@@ -201,6 +202,7 @@ Your task is to update an existing partial markdown document with new informatio
 - If the information gives rise to new questions, add them to the document.
 - Do not modify any sections that you are not updating.
 - ALWAYS return the entire updated markdown document. Even if a lot of the document is unchanged, you must return the entire document. NEVER say stuff like [Previous sections remain unchanged] or [same until here] or anything like that. ALWAYS return the entire document.
+- If the new information shared with you includes paths of images, remember to add all the images to the markdown patent document by mentioning their path while summarizing the background information using the recon_complete tool. Also, if the markdown document already has images, they need to persist in the updatedmarkdown document.
 </instructions>
 
 <existing_markdown>

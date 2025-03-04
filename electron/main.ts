@@ -20,6 +20,8 @@ import {
   initializeSubtitleOverlay,
 } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -32,6 +34,7 @@ if (!app.isPackaged) {
 // Add this near the top with other state variables
 let currentAssistantMode = 'daily_helper'; // Default mode
 let isSessionActive = false;
+let mcpClient: Client | null = null;
 
 function getFirstLaunchPath(machineId: string) {
   return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
@@ -236,4 +239,57 @@ ipcMain.on('update-current-mode', (event, mode) => {
 
 ipcMain.on('update-is-session-active', (event, active) => {
   isSessionActive = active;
+});
+
+// Add these IPC handlers before app.on('ready')
+ipcMain.handle('initialize-mcp', async () => {
+  try {
+    if (!mcpClient) {
+      const transport = new StdioClientTransport({
+        command: "node",
+        args: ["src/services/mcp_server.js"]
+      });
+
+      mcpClient = new Client(
+        {
+          name: "test-client",
+          version: "1.0.0"
+        },
+        {
+          capabilities: {
+            prompts: {},
+            resources: {},
+            tools: {}
+          }
+        }
+      );
+      
+      await mcpClient.connect(transport);
+      await mcpClient
+      const availableTools = await mcpClient.listTools();
+      console.log('MCP client initialized successfully. Available tools:', availableTools);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to initialize MCP client:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('mcp-tool-call', async (_, { name, arguments: args }) => {
+  try {
+    if (!mcpClient) {
+      throw new Error('MCP client not initialized');
+    }
+    
+    const result = await mcpClient.callTool({
+      name,
+      arguments: args
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('MCP tool call failed:', error);
+    throw error;
+  }
 });

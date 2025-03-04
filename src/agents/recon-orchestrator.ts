@@ -178,7 +178,7 @@ Identify the developer's inspiration, motivations, and key differentiators of th
 3. SCREEN SHARING REQUESTS
 When discussing user interfaces (UX), system architecture, workflows, technical implementations, visual design, or performance dashboards, ask:
 "Would you be willing to share your screen to show me what you just described?"
-You MUST make sure to document all visual demonstrations in the patent document without fail.
+You MUST make sure to document all visual demonstrations in the patent document without fail. Add all the images to the patent document by mentioning their path while summarizing the background information using the recon_complete tool.
 
 4. NATURAL CONVERSATION FLOW
 Follow the developer's lead and let the discussion flow naturally.
@@ -302,13 +302,15 @@ Follow these guidelines:
 - Identify key components and their relationships
 - Understand the technical approach
 - Document any unique aspects or innovations shown
-The image is located at: ${imagePath}`;
+The image is located at: ${imagePath}
+Remember to embed the imagepath in your summary whenever you call the recon_complete tool.`;
     } else {
       prompt = `The user shared a screenshot related to their invention.
 The description of the screenshot is: ${description}
 The context of the screenshot is: ${context}
-It is located at: ${imagePath}
-Analyze the image and description to better understand the invention.`;
+The image is located at: ${imagePath}
+Analyze the image and description to better understand the invention.
+Remember to embed the imagepath in your summary whenever you call the recon_complete tool.`;
     }
 
     const userMsg = {
