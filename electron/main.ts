@@ -22,7 +22,10 @@ import {
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { get } from 'http';
 dotenv.config();
+import { SchemaType } from '@google/generative-ai';
+import { ToolType } from '../src/configs/assistant-types';
 
 // Set environment variables for the packaged app
 if (!app.isPackaged) {
@@ -242,12 +245,16 @@ ipcMain.on('update-is-session-active', (event, active) => {
 });
 
 // Add these IPC handlers before app.on('ready')
-ipcMain.handle('initialize-mcp', async () => {
+ipcMain.handle('initialize-mcp', async (event, servers: string[]) => {
+  if(servers.length === 0) {
+    console.log("No servers provided")
+    return { success: false, error: 'No servers provided' };
+  }
   try {
     if (!mcpClient) {
       const transport = new StdioClientTransport({
         command: "node",
-        args: ["src/services/mcp_server.js"]
+        args: servers
       });
 
       mcpClient = new Client(
@@ -292,4 +299,82 @@ ipcMain.handle('mcp-tool-call', async (_, { name, arguments: args }) => {
     console.error('MCP tool call failed:', error);
     throw error;
   }
+});
+
+interface Parameters {
+  type: any;
+  properties?: Record<string, any>;
+  required?: string[];
+  items?: any;
+  enum?: any[];
+  description?: string;
+}
+
+function getParameters(parameters: any): Parameters | Record<string, Parameters> {
+  // If parameters is null or undefined, return empty object
+  if (!parameters) {
+    return {};
+  }
+  
+  // If it's an object with properties for each field
+  if (parameters && typeof parameters === 'object' && !parameters.type) {
+    const result: Record<string, Parameters> = {};
+    for (const key in parameters) {
+      result[key] = getParameters(parameters[key]) as Parameters;
+    }
+    return result;
+  }
+  
+  // Handle different parameter types
+  let parametersGemini: Parameters = { type: SchemaType.STRING }; // Default
+  
+  if (parameters.type === 'object') {
+    parametersGemini = {
+      type: SchemaType.OBJECT,
+      properties: getParameters(parameters.properties) as Record<string, Parameters>
+    };
+    
+    if (parameters.required) {
+      parametersGemini.required = parameters.required;
+    }
+  } else if (parameters.type === 'array') {
+    parametersGemini = {
+      type: SchemaType.ARRAY,
+      items: parameters.items ? getParameters(parameters.items) : undefined
+    };
+  } else if (parameters.type === 'string') {
+    parametersGemini = { type: SchemaType.STRING };
+    if (parameters.enum) {
+      parametersGemini.enum = parameters.enum;
+    }
+  } else if (parameters.type === 'number' || parameters.type === 'integer') {
+    parametersGemini = { type: SchemaType.NUMBER };
+  } else if (parameters.type === 'boolean') {
+    parametersGemini = { type: SchemaType.BOOLEAN };
+  }
+  
+  // Add description if available
+  if (parameters.description) {
+    parametersGemini.description = parameters.description;
+  }
+  
+  return parametersGemini;
+}
+
+ipcMain.handle('get-mcp-tools', async () => {
+  if (!mcpClient) {
+    throw new Error('MCP client not initialized');
+  }
+  const availableTools = await mcpClient.listTools();
+  console.log(availableTools);
+
+  const formattedTools = availableTools.tools.map((tool: any) => ({
+    type: ToolType.MCP,
+    name: tool.name,
+    parameters: getParameters(tool.inputSchema),
+    description: tool.description? tool.description : ''
+  }));
+  
+  
+  return formattedTools;
 });

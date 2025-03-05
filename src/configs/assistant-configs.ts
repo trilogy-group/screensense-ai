@@ -247,18 +247,6 @@ const codeExecutionTool: Tool = {
   description: 'Executes code in a sandbox environment',
 };
 
-const mcpTool: Tool = {
-  type: ToolType.MCP,
-  name: 'mcp_add',
-  description: 'Tool to add two numbers together',
-  parameters: {
-    type: SchemaType.OBJECT,
-    properties: {
-      a: { type: SchemaType.NUMBER },
-      b: { type: SchemaType.NUMBER },
-    },
-  },
-};
 
 // Convert legacy assistant configs to new AssistantConfig format
 export const assistantConfigs = {
@@ -268,6 +256,7 @@ export const assistantConfigs = {
     description: 'Helps with your daily tasks using Google Search when needed',
     tools: [googleSearchTool],
     requiresDisplay: true,
+    mcpServers: [],
     systemInstruction: `You are ScreenSense AI, operating in Daily Guide Mode.  
 
 Your role:  
@@ -296,12 +285,13 @@ Your mission: Provide the best possible assistance for the user's daily tasks us
     id: 'mcp',
     displayName: 'MCP',
     description: 'MCP tool',
-    tools: [mcpTool],
+    tools: [],
+    mcpServers: ['src/services/mcp_server.js', 'src/services/mcp_server_two.js'],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in MCP Mode.
 
 Your role:
-- You have only one task. To add two numbers together. never add the numbers yourself. Always use the add tool to add the numbers.
+- You have only one task. To perform the given operation. Do not perform any operation yourself. Always use the tools provided to you to perform the operation.
   `,
   },
   author: {
@@ -310,6 +300,7 @@ Your role:
     description: 'Helps with writing, editing, and text manipulation',
     tools: [...readWriteTools],
     requiresDisplay: false,
+    mcpServers: [],
     systemInstruction: `
 You are ScreenSense AI, operating in Document Expert Mode.
 
@@ -360,6 +351,7 @@ Your mission: Offer the best possible assistance for the user's writing and rewr
     description: 'Assists with creating patent documentation',
     tools: [...patentGeneratorTools],
     requiresDisplay: true,
+    mcpServers: [],
     systemInstruction: `You are ScreenSense AI, a communication interface between inventors and patent lawyers. You facilitate patent documentation by:
 
 1. Starting New Patents:
@@ -394,6 +386,7 @@ Key Points:
     description: 'Helps generate insights from text and data',
     tools: [...readWriteTools, googleSearchTool],
     requiresDisplay: false,
+    mcpServers: [],
     systemInstruction: `You are ScreenSense AI, operating in Insight Generator Mode.
 Your task is to help the user frame an insight they can share with their audience.
 
@@ -425,6 +418,7 @@ Important Instructions:
     description: 'Helps document and organize knowledge',
     tools: [...knowledgeBaseTools],
     requiresDisplay: true,
+    mcpServers: [],
     systemInstruction: `You are ScreenSense AI in Knowledge Curator Mode. Your sole role is to observe silently and document only when explicitly requested.
 
 - **Session Start:**  
@@ -460,6 +454,7 @@ Your mission: Be an invisible observer, reporting only when explicitly asked. Re
     description: 'Converts spoken content into English subtitles in real time',
     tools: translationTools,
     requiresDisplay: false,
+    mcpServers: [],
     systemInstruction: `You are ScreenSense AI in Translator Mode.
 
 Primary Purpose: Convert spoken content into English subtitles in real time.
@@ -480,6 +475,7 @@ Remember: Your only role is to silently provide accurate subtitles. Do not engag
     description: 'Helps with learning and education',
     tools: [...readWriteTools],
     requiresDisplay: true,
+    mcpServers: [],
     systemInstruction: `You are Screen Sense AI - a helpful assistant. You are running in tutor mode. 
 You are an intelligent tutor AI assistant designed to aid users in learning effectively by fostering critical thinking and problem-solving skills. Your key features include:
 
@@ -505,6 +501,7 @@ Your ultimate goal is to help users build a deeper understanding of the subject 
     description: 'Records screen actions for later playback',
     tools: [...screenCaptureTools],
     requiresDisplay: false,
+    mcpServers: [],
     systemInstruction: `
 You are ScreenSense AI, operating in Screen Capture Mode.
 
@@ -520,6 +517,7 @@ Give a confirmation message to the user after every message. Do not read the fun
     description: 'Plays back recorded screen actions',
     tools: [...screenCaptureTools],
     requiresDisplay: false,
+    mcpServers: [],
     systemInstruction: `
 You are ScreenSense AI, operating in Action Player Mode.
 

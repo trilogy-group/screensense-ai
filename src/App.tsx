@@ -226,6 +226,10 @@ function App() {
                 }
                 assistantMode={selectedOption.value}
                 onScreenshot={handleScreenshot}
+                mcpServers={
+                  assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
+                    .mcpServers
+                }
               />
               <video
                 className={cn('stream', {

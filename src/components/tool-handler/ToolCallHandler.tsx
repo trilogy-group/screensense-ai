@@ -6,6 +6,7 @@ import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
 import { trackEvent } from '../../shared/analytics';
 import { omniParser } from '../../services/omni-parser';
+import { ToolType } from '../../configs/assistant-types';
 
 const { ipcRenderer } = window.require('electron');
 
@@ -14,6 +15,7 @@ interface ToolCallHandlerProps {
   systemInstruction: string;
   assistantMode: string;
   onScreenshot?: () => string | null;
+  mcpServers: string[];
 }
 
 let play_action = true;
@@ -23,11 +25,13 @@ function ToolCallHandlerComponent({
   systemInstruction,
   assistantMode,
   onScreenshot,
+  mcpServers,
 }: ToolCallHandlerProps) {
   const [subtitles, setSubtitles] = useState<string>('');
   const { client, setConfig, connected } = useLiveAPIContext();
   const [isKBSessionActive, setIsKBSessionActive] = useState(false);
   const observationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [allTools, setAllTools] = useState<Tool[]>([]);
 
   // Function to start the observation timer
   const startObservationTimer = useCallback(() => {
@@ -55,12 +59,12 @@ function ToolCallHandlerComponent({
   }, []);
 
   // Clean up timer on unmount, disconnect, or mode change
-  useEffect(() => {
-    async function initializeMCP() {
-      await ipcRenderer.invoke('initialize-mcp');
-    }
-    initializeMCP();
-  }, []);
+  // useEffect(() => {
+  //   async function initializeMCP() {
+  //     await ipcRenderer.invoke('initialize-mcp', ['src/services/mcp_server.js']);
+  //   }
+  //   initializeMCP();
+  // }, []);
 
   useEffect(() => {
     if (!connected || assistantMode !== 'knowledge_base' || !isKBSessionActive) {
@@ -107,20 +111,33 @@ function ToolCallHandlerComponent({
     };
   }, []);
   useEffect(() => {
-    setConfig({
-      model: 'models/gemini-2.0-flash-exp',
-      generationConfig: {
-        responseModalities: 'audio',
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+    async function startClient() {
+      console.log('Initializing MCP');
+      const mcpInit = await ipcRenderer.invoke('initialize-mcp', mcpServers);
+      let client_tools = tools;
+      console.log('mcp initialized', mcpInit);
+      if (mcpInit.success) {
+        const mcp_tools = await ipcRenderer.invoke('get-mcp-tools');
+        console.log('mcp_tools', mcp_tools);
+        client_tools = [...client_tools, ...mcp_tools];
+      }
+      setAllTools(client_tools);
+      setConfig({
+        model: 'models/gemini-2.0-flash-exp',
+        generationConfig: {
+          responseModalities: 'audio',
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+          },
         },
-      },
-      systemInstruction: {
-        parts: [{ text: systemInstruction }],
-      },
-      tools: convertToolsToGoogleFormat(tools),
-    });
-  }, [setConfig, systemInstruction, tools, assistantMode]);
+        systemInstruction: {
+          parts: [{ text: systemInstruction }],
+        },
+        tools: convertToolsToGoogleFormat(client_tools),
+      });
+    }
+    startClient();
+  }, [setConfig, systemInstruction, tools, assistantMode, mcpServers]);
 
   useEffect(() => {
     async function get_opencv_coordinates(path: string, screenshot: any, type: string) {
@@ -194,8 +211,9 @@ function ToolCallHandlerComponent({
           `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`
         );
 
-        const tool = tools.find(t => t.name === fc.name);
-        if (tool?.type === 'mcp') {
+        const tool = allTools.find(t => t.name === fc.name);
+        if (tool?.type === ToolType.MCP) {
+          console.log('🔍 [mcp] Calling tool:', fc.name, fc.args);
           const result = await ipcRenderer.invoke('mcp-tool-call', {
             name: fc.name,
             arguments: fc.args

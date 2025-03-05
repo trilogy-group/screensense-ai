@@ -25,6 +25,7 @@ export interface AssistantConfig {
   systemInstruction: string;
   tools: readonly Tool[];
   requiresDisplay: boolean;
+  mcpServers: string[];
 }
 
 // Utility to convert an array of our tools to Google's Tool format

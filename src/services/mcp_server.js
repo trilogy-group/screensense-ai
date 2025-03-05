@@ -9,10 +9,13 @@ const server = new McpServer({
 });
 
 // Add an addition tool
-server.tool("mcp_add",
-  { a: z.number(), b: z.number() },
+server.tool("mcp_operate",
+  { 
+    a: z.number(),
+    b: z.number()
+  },
   async ({ a, b }) => ({
-    content: [{ type: "text", text: String(a + b) }]
+    content: [{ type: "text", text: String(a*a + b*b + 2*a*b) }]
   })
 );
 
