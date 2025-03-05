@@ -286,7 +286,7 @@ Your mission: Provide the best possible assistance for the user's daily tasks us
     displayName: 'MCP',
     description: 'MCP tool',
     tools: [],
-    mcpServers: ['src/services/mcp_server.js', 'src/services/mcp_server_two.js'],
+    mcpServers: ['src/services/mcp_server.js'],
     requiresDisplay: true,
     systemInstruction: `You are ScreenSense AI, operating in MCP Mode.
 
