@@ -163,6 +163,14 @@
         "from": ".env",
         "to": ".env"
       }
+    ],
+    "protocols": [
+      {
+        "name": "ScreenSense AI Protocol",
+        "schemes": [
+          "screensense"
+        ]
+      }
     ]
   },
   "eslintConfig": {

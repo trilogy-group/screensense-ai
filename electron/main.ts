@@ -23,6 +23,8 @@ import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/constants/constants';
+import { resolve } from 'path';
+
 dotenv.config();
 
 // Set environment variables for the packaged app
@@ -35,6 +37,85 @@ if (!app.isPackaged) {
 // Add this near the top with other state variables
 let currentAssistantMode = 'daily_helper'; // Default mode
 let isSessionActive = false;
+let mainWindow: BrowserWindow | null = null;
+let deeplinkingUrl: string | undefined;
+
+const isDev = process.env.NODE_ENV === 'development';
+
+// Move this before any app.on handlers
+if (isDev && process.platform === 'win32') {
+  // Set the path of electron.exe and your app.
+  // These two additional parameters are only available on windows.
+  app.setAsDefaultProtocolClient('screensense', process.execPath, [
+    resolve(process.argv[1])
+  ]);
+} else {
+  app.setAsDefaultProtocolClient('screensense');
+}
+
+// Force single application instance
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (e, argv) => {
+    if (process.platform !== 'darwin') {
+      // Check for auth callback first
+      const authCallback = argv.find(arg => arg.startsWith(COGNITO_REDIRECT_URI));
+      if (authCallback) {
+        console.log('Processing auth callback URL from second instance');
+        sendAuthCallback(authCallback);
+        return;
+      }
+
+      // Check for logout callback
+      const logoutUrl = argv.find(arg => arg.startsWith(COGNITO_LOGOUT_REDIRECT_URI));
+      if (logoutUrl) {
+        console.log('Received logout redirect from second instance');
+        return;
+      }
+
+      // Handle other deep links
+      deeplinkingUrl = argv.find((arg) => arg.startsWith('screensense://'));
+    }
+
+    // Focus existing window
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+
+      if (deeplinkingUrl) {
+        mainWindow.webContents.send('deep-link', deeplinkingUrl);
+      }
+    }
+  });
+}
+
+// Add auth URL handling to the open-url handler
+app.on('open-url', function (event, url) {
+  event.preventDefault();
+  deeplinkingUrl = url;
+  
+  // Handle auth callbacks
+  if (url.startsWith(COGNITO_REDIRECT_URI)) {
+    console.log('Processing auth callback URL');
+    sendAuthCallback(url);
+    return;
+  }
+  // Handle logout redirect
+  if (url.startsWith(COGNITO_LOGOUT_REDIRECT_URI)) {
+    console.log('Received logout redirect');
+    return;
+  }
+  
+  // Handle other deep links
+  const mainWindow = BrowserWindow.getAllWindows()[0];
+  if (mainWindow) {
+    mainWindow.webContents.send('deep-link', url);
+  }
+});
 
 function getFirstLaunchPath(machineId: string) {
   return path.join(app.getPath('userData'), `first_launch_${machineId}.txt`);
@@ -80,57 +161,20 @@ async function initializeApp() {
   initializeContext();
   initializeKBHandlers();
 
-  // Register the custom protocol handler for authentication
-  if (process.defaultApp) {
-    if (process.argv.length >= 2) {
-      console.log('Registering protocol handler for development');
-      app.setAsDefaultProtocolClient('screensense', process.execPath, [process.argv[1]]);
-    }
-  } else {
-    console.log('Registering protocol handler for production');
-    app.setAsDefaultProtocolClient('screensense');
-  }
-
   // Create auth window first and wait for authentication
   await createAuthWindow();
 
-  // Handle protocol URL (for macOS)
-  app.on('open-url', (event, url) => {
-    event.preventDefault();
-    console.log('Received open-url event with URL:', url);
-
-    // Process the auth callback immediately
-    if (url.startsWith(COGNITO_REDIRECT_URI)) {
-      console.log('Processing auth callback URL');
-      sendAuthCallback(url);
+  // Check if we have a deep link URL on startup
+  if (process.platform !== 'darwin') {
+    const deepLink = process.argv.find((arg) => arg.startsWith('screensense://'));
+    if (deepLink) {
+      deeplinkingUrl = deepLink;
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      if (mainWindow) {
+        mainWindow.webContents.send('deep-link', deepLink);
+      }
     }
-    // Handle logout redirect
-    else if (url.startsWith(COGNITO_LOGOUT_REDIRECT_URI)) {
-      console.log('Received logout redirect - user has been logged out of Cognito');
-      // We don't need to do anything here, the app is already handling logout
-    }
-  });
-
-  // Handle Windows protocol activation
-  app.on('second-instance', (event, commandLine) => {
-    // Check for auth callback
-    const callbackUrl = commandLine.find(arg => arg.startsWith(COGNITO_REDIRECT_URI));
-    if (callbackUrl) {
-      console.log('Processing auth callback URL from second instance');
-      sendAuthCallback(callbackUrl);
-      return;
-    }
-
-    // Check for logout callback
-    const logoutUrl = commandLine.find(arg => arg.startsWith(COGNITO_LOGOUT_REDIRECT_URI));
-    if (logoutUrl) {
-      console.log(
-        'Received logout redirect from second instance - user has been logged out of Cognito'
-      );
-      // We don't need to do anything here, the app is already handling logout
-      return;
-    }
-  });
+  }
 }
 
 // Call it after registering all handlers
