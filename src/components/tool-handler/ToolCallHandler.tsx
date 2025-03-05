@@ -58,14 +58,6 @@ function ToolCallHandlerComponent({
     }
   }, []);
 
-  // Clean up timer on unmount, disconnect, or mode change
-  // useEffect(() => {
-  //   async function initializeMCP() {
-  //     await ipcRenderer.invoke('initialize-mcp', ['src/services/mcp_server.js']);
-  //   }
-  //   initializeMCP();
-  // }, []);
-
   useEffect(() => {
     if (!connected || assistantMode !== 'knowledge_base' || !isKBSessionActive) {
       stopObservationTimer();
