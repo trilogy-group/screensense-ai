@@ -24,6 +24,7 @@ import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
 import { closeUpdateWindow } from './UpdateWindow';
+import { fetchUserData } from '../services/api';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;
@@ -111,7 +112,7 @@ async function launchScreenSense() {
   await createMainWindow();
   await createSubtitleOverlayWindow();
   await createControlWindow();
-  await closeAuthWindow();
+  closeAuthWindow();
 }
 
 export async function performCognitoLogout(): Promise<boolean> {
@@ -206,17 +207,30 @@ export function initializeAuthWindow() {
   ipcMain.handle('handle-auth-success', async (_, code: string) => {
     console.log('Auth success received, processing token');
 
-    // If code is 'already-authenticated', we have valid tokens
-    if (code === 'already-authenticated') {
+    // Common function to fetch user data and launch app
+    const fetchDataAndLaunch = async () => {
       try {
+        // Fetch user data to verify token works and get assistant configurations
+        console.log('Fetching user data...');
+        const userData = await fetchUserData();
+        console.log('User data fetched successfully:', JSON.stringify(userData, null, 2));
+
         // Create main windows
         await launchScreenSense();
         return true;
       } catch (error) {
-        console.error('Error creating windows:', error);
-        logToFile(`Error creating windows: ${error}`);
+        console.error('Error fetching user data or creating windows:', error);
+        logToFile(`Error fetching user data or creating windows: ${error}`);
+
+        // Clear tokens to force re-sign in
+        clearTokens();
         return false;
       }
+    };
+
+    // If code is 'already-authenticated', we have valid tokens
+    if (code === 'already-authenticated') {
+      return fetchDataAndLaunch();
     }
 
     // Otherwise, proceed with code exchange
@@ -258,13 +272,14 @@ export function initializeAuthWindow() {
         id_token: tokenData.id_token,
       });
 
-      // Create main windows
-      await launchScreenSense();
-
-      return true;
+      // Fetch user data and launch app
+      return fetchDataAndLaunch();
     } catch (error) {
       console.error('Error handling auth success:', error);
       logToFile(`Error handling auth success: ${error}`);
+
+      // Clear tokens to force re-sign in
+      clearTokens();
       return false;
     } finally {
       // Clear the code verifier after use

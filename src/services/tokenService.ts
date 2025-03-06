@@ -107,3 +107,11 @@ export async function refreshTokens(): Promise<boolean> {
     return false;
   }
 }
+
+export const getAuthToken = (): string => {
+  const tokens = getTokens();
+  if (!tokens || !tokens.access_token) {
+    throw new Error('Authentication token not available');
+  }
+  return tokens.access_token;
+};
