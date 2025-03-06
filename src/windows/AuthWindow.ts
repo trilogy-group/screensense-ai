@@ -24,7 +24,6 @@ import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
 import { closeUpdateWindow } from './UpdateWindow';
-import { once } from 'events';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;

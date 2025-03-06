@@ -40,15 +40,13 @@ let isSessionActive = false;
 let mainWindow: BrowserWindow | null = null;
 let deeplinkingUrl: string | undefined;
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = !app.isPackaged;
 
 // Move this before any app.on handlers
 if (isDev && process.platform === 'win32') {
   // Set the path of electron.exe and your app.
   // These two additional parameters are only available on windows.
-  app.setAsDefaultProtocolClient('screensense', process.execPath, [
-    resolve(process.argv[1])
-  ]);
+  app.setAsDefaultProtocolClient('screensense', process.execPath, [resolve(process.argv[1])]);
 } else {
   app.setAsDefaultProtocolClient('screensense');
 }
@@ -77,7 +75,7 @@ if (!gotTheLock) {
       }
 
       // Handle other deep links
-      deeplinkingUrl = argv.find((arg) => arg.startsWith('screensense://'));
+      deeplinkingUrl = argv.find(arg => arg.startsWith('screensense://'));
     }
 
     // Focus existing window
@@ -97,7 +95,7 @@ if (!gotTheLock) {
 app.on('open-url', function (event, url) {
   event.preventDefault();
   deeplinkingUrl = url;
-  
+
   // Handle auth callbacks
   if (url.startsWith(COGNITO_REDIRECT_URI)) {
     console.log('Processing auth callback URL');
@@ -109,7 +107,7 @@ app.on('open-url', function (event, url) {
     console.log('Received logout redirect');
     return;
   }
-  
+
   // Handle other deep links
   const mainWindow = BrowserWindow.getAllWindows()[0];
   if (mainWindow) {
@@ -166,7 +164,7 @@ async function initializeApp() {
 
   // Check if we have a deep link URL on startup
   if (process.platform !== 'darwin') {
-    const deepLink = process.argv.find((arg) => arg.startsWith('screensense://'));
+    const deepLink = process.argv.find(arg => arg.startsWith('screensense://'));
     if (deepLink) {
       deeplinkingUrl = deepLink;
       const mainWindow = BrowserWindow.getAllWindows()[0];
@@ -197,6 +195,11 @@ ipcMain.handle('get-sources', async () => {
     thumbnailSize: { width: 1920, height: 1080 },
   });
   return sources;
+});
+
+// Handler to check if app is in development mode
+ipcMain.handle('is-dev', () => {
+  return isDev;
 });
 
 async function getSelectedText() {
