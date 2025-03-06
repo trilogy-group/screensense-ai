@@ -36,9 +36,13 @@ export function getUpdateWindow() {
   return updateWindow;
 }
 
+function updateWindowExists() {
+  return updateWindow && !updateWindow.isDestroyed();
+}
+
 export function closeUpdateWindow() {
-  if (updateWindow && !updateWindow.isDestroyed()) {
-    updateWindow.close();
+  if (updateWindowExists()) {
+    updateWindow?.close();
   }
 }
 

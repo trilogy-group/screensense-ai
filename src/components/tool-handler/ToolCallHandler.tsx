@@ -4,7 +4,7 @@ import { invokePatentAgent, sendImageToPatentAgent } from '../../agents/patent-o
 import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
-import { trackEvent } from '../../shared/analytics';
+import { trackEvent } from '../../services/analytics';
 import { omniParser } from '../../services/omni-parser';
 
 const { ipcRenderer } = window.require('electron');

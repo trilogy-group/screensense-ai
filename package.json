@@ -25,6 +25,7 @@
     "lodash": "^4.17.21",
     "md-to-pdf": "^5.2.4",
     "node-global-key-listener": "^0.3.0",
+    "oidc-client-ts": "^3.1.0",
     "openai": "^4.81.0",
     "posthog-js": "^1.205.0",
     "react": "^18.3.1",
@@ -161,6 +162,14 @@
       {
         "from": ".env",
         "to": ".env"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "ScreenSense AI Protocol",
+        "schemes": [
+          "screensense"
+        ]
       }
     ]
   },

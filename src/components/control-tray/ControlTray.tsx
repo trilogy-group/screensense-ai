@@ -34,7 +34,7 @@ import { AudioRecorder } from '../../lib/audio-recorder';
 import AudioPulse from '../audio-pulse/AudioPulse';
 import './control-tray.scss';
 import { assistantConfigs } from '../../configs/assistant-configs';
-import { trackEvent } from '../../shared/analytics';
+import { trackEvent } from '../../services/analytics';
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {

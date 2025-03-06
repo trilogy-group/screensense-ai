@@ -1,12 +1,12 @@
-import { useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
+import cn from 'classnames';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import './App.scss';
-import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
-import { ToolCallHandler } from './components/tool-handler/ToolCallHandler';
 import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
-import cn from 'classnames';
+import { ToolCallHandler } from './components/tool-handler/ToolCallHandler';
 import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
-import { initAnalytics, trackEvent } from './shared/analytics';
+import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
+import { initAnalytics, trackEvent } from './services/analytics';
 const { ipcRenderer } = window.require('electron');
 
 const host = 'generativelanguage.googleapis.com';
@@ -124,7 +124,6 @@ function App() {
     const loadSavedSettings = async () => {
       try {
         const savedSettings = await ipcRenderer.invoke('get-saved-settings');
-        // console.log('Loaded saved settings:', savedSettings);
         if (savedSettings?.geminiApiKey) {
           setGeminiApiKey(savedSettings.geminiApiKey);
         }
@@ -138,7 +137,6 @@ function App() {
   // Handle settings-related IPC messages
   useEffect(() => {
     const handleGetSettings = () => {
-      // console.log('Sending current settings:', { geminiApiKey });
       ipcRenderer.send('settings-data', { geminiApiKey });
     };
 
@@ -187,7 +185,7 @@ function App() {
     return videoCanvasRef.current?.captureScreenshot() || null;
   }, []);
 
-  // Check if we're in markdown preview mode
+  // Check if we're in markdown preview or auth mode
   const isMarkdownPreview = window.location.hash === '#/markdown-preview';
 
   if (isMarkdownPreview) {

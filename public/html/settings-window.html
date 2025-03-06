@@ -142,18 +142,6 @@
         margin-left: var(--spacing-xs);
       }
 
-      .actions {
-        display: flex;
-        justify-content: flex-end;
-        height: 50px;
-        align-items: center;
-        justify-content: center;
-        gap: var(--spacing-md);
-        padding: var(--spacing-lg) var(--spacing-xl);
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-      }
-
       .btn {
         padding: 8px 16px;
         border: none;
@@ -185,6 +173,15 @@
 
       .btn-primary:hover:not(:disabled) {
         background: var(--primary-hover);
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover:not(:disabled) {
+        background: #c82333;
       }
 
       .version-info {
@@ -245,6 +242,42 @@
 
       .api-description.optional {
         color: var(--text-secondary);
+      }
+
+      .actions {
+        display: flex;
+        justify-content: space-between;
+        height: 50px;
+        align-items: center;
+        padding: var(--spacing-lg) var(--spacing-xl);
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+      }
+
+      .actions-left {
+        display: flex;
+        gap: var(--spacing-md);
+      }
+
+      .actions-right {
+        display: flex;
+        gap: var(--spacing-md);
+      }
+
+      .user-info {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+      }
+
+      .user-name {
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .user-email {
+        color: var(--text-secondary);
+        font-size: 12px;
       }
     </style>
   </head>
@@ -415,15 +448,30 @@
                 </div>
               </div>
             </div>
+
+            <div class="settings-group">
+              <div class="form-group">
+                <label class="form-label">Account Information</label>
+                <div class="user-info">
+                  <span id="user-name" class="user-name">Signed in as: </span>
+                  <div id="user-email" class="user-email"></div>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
       </main>
 
       <footer class="actions">
-        <button type="button" id="cancel-button" class="btn btn-secondary">Cancel</button>
-        <button type="submit" id="save-button" form="settings-form" class="btn btn-primary">
-          Save Changes
-        </button>
+        <div class="actions-left">
+          <button type="button" id="sign-out-button" class="btn btn-danger">Sign Out</button>
+        </div>
+        <div class="actions-right">
+          <button type="button" id="cancel-button" class="btn btn-secondary">Cancel</button>
+          <button type="submit" id="save-button" form="settings-form" class="btn btn-primary">
+            Save Changes
+          </button>
+        </div>
       </footer>
     </div>
 
@@ -437,16 +485,38 @@
       const saveButton = document.getElementById('save-button');
       const cancelButton = document.getElementById('cancel-button');
       const versionText = document.getElementById('version-text');
+      const signOutButton = document.getElementById('sign-out-button');
+      const userName = document.getElementById('user-name');
+      const userEmail = document.getElementById('user-email');
 
       // Initialize with current API keys and version
       ipcRenderer.on(
         'init-settings',
-        (event, { geminiApiKey, openaiApiKey, anthropicApiKey, appVersion }) => {
+        (
+          event,
+          {
+            geminiApiKey,
+            openaiApiKey,
+            anthropicApiKey,
+            appVersion,
+            userName: userNameValue,
+            userEmail: userEmailValue,
+          }
+        ) => {
           geminiApiKeyInput.value = geminiApiKey || '';
           openaiApiKeyInput.value = openaiApiKey || '';
           anthropicApiKeyInput.value = anthropicApiKey || '';
           saveButton.disabled = !geminiApiKey;
           versionText.textContent = `Version ${appVersion}`;
+
+          // Update user information
+          if (userNameValue) {
+            userName.textContent = `Signed in as: ${userNameValue}`;
+            userEmail.textContent = userEmailValue || '';
+          } else {
+            userName.textContent = 'Signed in as: User';
+            userEmail.textContent = '';
+          }
         }
       );
 
@@ -480,6 +550,17 @@
       function checkForUpdates() {
         ipcRenderer.send('check-for-update');
       }
+
+      // Handle sign out
+      signOutButton.addEventListener('click', async () => {
+        const confirmed = confirm('Are you sure you want to sign out?');
+        if (confirmed) {
+          const success = await ipcRenderer.invoke('sign-out');
+          if (!success) {
+            alert('Failed to sign out. Please try again.');
+          }
+        }
+      });
     </script>
   </body>
 </html>

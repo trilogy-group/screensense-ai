@@ -1,4 +1,4 @@
-import { type Tool as GoogleTool, Schema, SchemaType } from '@google/generative-ai';
+import { type Tool as GoogleTool, Schema } from '@google/generative-ai';
 
 // Enum to distinguish between built-in and MCP tools
 export enum ToolType {

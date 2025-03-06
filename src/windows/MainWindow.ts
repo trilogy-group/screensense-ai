@@ -6,12 +6,9 @@ import { closeControlWindow } from './ControlWindow';
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile, loadUrl } from '../utils/window-utils';
 import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
+import { getSettingsPath } from '../utils/settings-utils';
 
 let mainWindow: BrowserWindow | null = null;
-
-function getSettingsPath() {
-  return path.join(app.getPath('userData'), 'settings.json');
-}
 
 function loadSettings() {
   try {
@@ -184,22 +181,22 @@ export function getMainWindow() {
 }
 
 export function showMainWindow() {
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
+  if (mainWindowExists()) {
+    mainWindow?.show();
+    mainWindow?.focus();
   }
 }
 
 export function hideMainWindow() {
-  if (mainWindow) {
-    mainWindow.hide();
+  if (mainWindowExists()) {
+    mainWindow?.hide();
   }
 }
 
 export function closeMainWindow() {
-  if (mainWindow) {
-    mainWindow.removeAllListeners('close');
-    mainWindow.close();
+  if (mainWindowExists()) {
+    mainWindow?.removeAllListeners('close');
+    mainWindow?.close();
   }
 }
 

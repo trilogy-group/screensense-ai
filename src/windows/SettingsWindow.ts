@@ -3,6 +3,7 @@ import { loadSettings, saveSettings } from '../utils/settings-utils';
 import { loadHtmlFile } from '../utils/window-utils';
 import { sendSettingsUpdate } from './ControlWindow';
 import { updateSettings } from './MainWindow';
+import { getUserInfo } from '../services/tokenService';
 
 let settingsWindow: BrowserWindow | null = null;
 
@@ -30,9 +31,12 @@ export async function createSettingsWindow() {
       settingsWindow.show();
       // Initialize settings with saved data
       const savedSettings = loadSettings();
+      const userInfo = getUserInfo();
       settingsWindow.webContents.send('init-settings', {
         ...savedSettings,
         appVersion: app.getVersion(),
+        userName: userInfo?.name || '',
+        userEmail: userInfo?.email || '',
       });
     }
   });
@@ -55,12 +59,12 @@ export async function createSettingsWindow() {
 }
 
 export function closeSettingsWindow() {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.close();
+  if (settingsWindowExists()) {
+    settingsWindow?.close();
   }
 }
 
-export function settingsWindowExists() {
+function settingsWindowExists() {
   return settingsWindow && !settingsWindow.isDestroyed();
 }
 

@@ -1,5 +1,5 @@
 import { SchemaType } from '@google/generative-ai';
-import { Tool, ToolType, AssistantConfig, convertToolsToGoogleFormat } from './assistant-types';
+import { Tool, ToolType, AssistantConfig } from './assistant-types';
 
 // Tool configurations
 const translationTools: Tool[] = [
@@ -241,6 +241,7 @@ const googleSearchTool: Tool = {
 };
 
 // Code Execution tool - special case
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const codeExecutionTool: Tool = {
   type: ToolType.CODE_EXECUTION,
   name: 'code_execution',

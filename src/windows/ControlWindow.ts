@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { logToFile } from '../utils/logger';
 import { loadHtmlFile } from '../utils/window-utils';
-import { closeMainWindow, hideMainWindow, mainWindowExists, requestModeUpdate } from './MainWindow';
+import { closeMainWindow, hideMainWindow, requestModeUpdate } from './MainWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
 
@@ -135,7 +135,7 @@ export function initializeControlWindow() {
       if (controlWindow && !controlWindow.isDestroyed()) {
         controlWindow.webContents.send('screen-share-result', success);
         // If screen sharing failed, hide the main window
-        if (!success && mainWindowExists()) {
+        if (!success) {
           hideMainWindow();
         }
       }
