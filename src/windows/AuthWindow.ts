@@ -19,7 +19,7 @@ import { loadHtmlFile } from '../utils/window-utils';
 import { closeActionWindow } from './ActionWindow';
 import { closeControlWindow, createControlWindow } from './ControlWindow';
 import { hideErrorOverlay } from './ErrorOverlay';
-import { closeMainWindow, createMainWindow } from './MainWindow';
+import { closeMainWindow, createMainWindow, sendAssistantsRefreshed } from './MainWindow';
 import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
@@ -145,8 +145,39 @@ export async function performCognitoLogout(): Promise<boolean> {
   }
 }
 
+// Function to refresh assistants list
+export async function refreshAssistantsList() {
+  console.log('Refreshing assistants list...');
+  try {
+    const userData = await fetchUserData();
+    storeAssistants(userData.assistants);
+    console.log('Assistants list refreshed successfully');
+
+    // Notify all renderer processes about the assistants refresh
+    sendAssistantsRefreshed();
+
+    return true;
+  } catch (error) {
+    console.error('Error refreshing assistants list:', error);
+    logToFile(`Error refreshing assistants list: ${error}`);
+    return false;
+  }
+}
+
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
+
+  // Set up hourly assistant list refresh
+  setInterval(
+    () => {
+      console.log('Scheduled assistants list refresh');
+      refreshAssistantsList().catch(err => {
+        console.error('Error in scheduled assistants refresh:', err);
+        logToFile(`Error in scheduled assistants refresh: ${err}`);
+      });
+    },
+    60 * 60 * 1000 // Refresh every hour (60 minutes * 60 seconds * 1000 milliseconds)
+  );
 
   // Handle sign out
   ipcMain.handle('sign-out', async () => {

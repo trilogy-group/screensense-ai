@@ -105,7 +105,7 @@ function AppContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoCanvasRef = useRef<VideoCanvasHandle>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const { assistants, assistantsList, isLoading, error } = useAssistants();
+  const { assistants, assistantsList, isLoading, error, refresh } = useAssistants();
   
   // Generate modes from assistants list using useMemo to prevent recreation on every render
   // console.log('AppContent rendering, creating modes array');
@@ -119,6 +119,22 @@ function AppContent() {
   
   // Initialize selectedOption with first assistant when available
   const [selectedOption, setSelectedOption] = useState<ModeOption>({ value: '' });
+  
+  // Listen for assistant refreshes from the main process
+  useEffect(() => {
+    const handleAssistantsRefreshed = () => {
+      // console.log('Received assistants-refreshed event from main process');
+      refresh(); // Call the refresh function from assistants context
+    };
+
+    // Register the event listener
+    ipcRenderer.on('assistants-refreshed', handleAssistantsRefreshed);
+
+    // Clean up the event listener on unmount
+    return () => {
+      ipcRenderer.removeListener('assistants-refreshed', handleAssistantsRefreshed);
+    };
+  }, [refresh]); // Add refresh as a dependency
   
   // // Log when selectedOption changes
   // useEffect(() => {

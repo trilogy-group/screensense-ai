@@ -7,7 +7,7 @@ import { logToFile } from '../utils/logger';
 import { loadHtmlFile, loadUrl } from '../utils/window-utils';
 import { closeSubtitleOverlayWindow } from './SubtitleOverlay';
 import { getSettingsPath } from '../utils/settings-utils';
-
+import { refreshAssistantsList } from './AuthWindow';
 let mainWindow: BrowserWindow | null = null;
 
 function loadSettings() {
@@ -247,6 +247,12 @@ export function sendGeminiMessage({ message }: { message: string }) {
   }
 }
 
+export function sendAssistantsRefreshed() {
+  if (mainWindowExists()) {
+    mainWindow?.webContents.send('assistants-refreshed');
+  }
+}
+
 // export function reinitializePatentAgent() {
 //   if (mainWindowExists()) {
 //     mainWindow?.webContents.send('reinitialize-patent-agent');
@@ -314,6 +320,23 @@ export function initializeMainWindow() {
       event.reply('control-action-error', {
         error: 'Failed to process control action',
       });
+    }
+  });
+
+  // Handler for manually refreshing assistants list
+  ipcMain.handle('refresh-assistants', async () => {
+    try {
+      console.log('Manual refresh of assistants requested');
+
+      // Refresh assistants list and get result
+      const result = await refreshAssistantsList();
+
+      // The refreshAssistantsList function already calls sendAssistantsRefreshed
+      // but we'll return the result for handling in the renderer
+      return { success: result };
+    } catch (error: any) {
+      console.error('Error in refresh-assistants handler:', error);
+      return { success: false, error: error.message };
     }
   });
 
