@@ -26,6 +26,7 @@ import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/consta
 import { resolve } from 'path';
 import { clearUpdateCheckInterval } from './updater';
 import { clearAssistantsRefreshInterval } from '../src/windows/AuthWindow';
+import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js';
 
 dotenv.config();
 
@@ -147,6 +148,7 @@ ipcMain.on('log-to-file', (event, message) => {
 
 // Initialize app with saved settings
 async function initializeApp() {
+  const transport = new SSEClientTransport(new URL('http://localhost:3000/sse'));
   // Initialize window modules
   initializeMainWindow();
   initializeControlWindow();
