@@ -24,6 +24,7 @@ export interface AssistantConfig {
   description: string;
   systemInstruction: string;
   tools: readonly Tool[];
+  mcpEndpoints: string[]; // Array of MCP server URLs
   requiresDisplay: boolean;
 }
 
