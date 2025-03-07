@@ -250,37 +250,29 @@ ipcMain.handle('initialize-mcp', async (event, servers: string[]) => {
     console.log("No servers provided")
     return { success: false, error: 'No servers provided' };
   }
-  try {
-    if (!mcpClient) {
-      const transport = new StdioClientTransport({
-        command: "node",
-        args: servers
-      });
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: servers
+  });
 
-      mcpClient = new Client(
-        {
-          name: "test-client",
-          version: "1.0.0"
-        },
-        {
-          capabilities: {
-            prompts: {},
-            resources: {},
-            tools: {}
-          }
-        }
-      );
-      
-      await mcpClient.connect(transport);
-      await mcpClient
-      const availableTools = await mcpClient.listTools();
-      console.log('MCP client initialized successfully. Available tools:', availableTools);
+  mcpClient = new Client(
+    {
+      name: "test-client",
+      version: "1.0.0"
+    },
+    {
+      capabilities: {
+        prompts: {},
+        resources: {},
+        tools: {}
+      }
     }
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to initialize MCP client:', error);
-    throw error;
-  }
+  );
+  
+  await mcpClient.connect(transport);
+  const availableTools = await mcpClient.listTools();
+  console.log('MCP client initialized successfully. Available tools:', availableTools);
+return { success: true };
 });
 
 ipcMain.handle('mcp-tool-call', async (_, { name, arguments: args }) => {
@@ -368,12 +360,24 @@ ipcMain.handle('get-mcp-tools', async () => {
   const availableTools = await mcpClient.listTools();
   console.log(availableTools);
 
-  const formattedTools = availableTools.tools.map((tool: any) => ({
-    type: ToolType.MCP,
-    name: tool.name,
-    parameters: getParameters(tool.inputSchema),
-    description: tool.description? tool.description : ''
-  }));
+  const formattedTools = availableTools.tools.map((tool: any) => {
+    const param = tool.inputSchema.properties;
+    if (Object.keys(param).length > 0) {
+      return {
+        type: ToolType.MCP,
+        name: tool.name,
+        parameters: getParameters(tool.inputSchema),
+        description: tool.description? tool.description : ''
+      }
+    }
+    else{
+      return {
+        type: ToolType.MCP,
+        name: tool.name,
+        description: tool.description? tool.description : ''
+      }
+    }
+  });
   
   
   return formattedTools;
