@@ -52,92 +52,6 @@ export class McpClient {
   }
 
   /**
-   * Convert JSON Schema to Google AI SDK compatible format
-   * This simplifies complex JSON Schema structures into a format Google AI SDK can understand
-   */
-  private convertJsonSchemaToParameters(schema: any): any {
-    // If schema is null or undefined, return empty object
-    if (!schema) return {};
-
-    // Handle root schema object
-    if (schema.type === 'object' && schema.properties) {
-      const convertedProperties: Record<string, any> = {};
-
-      // Process each property
-      for (const [propName, propSchema] of Object.entries<any>(schema.properties)) {
-        // Extract type information
-        let type: string | string[] = 'string'; // Default type
-        let description = propSchema.description || '';
-        let enumValues: string[] | undefined;
-
-        // Handle anyOf - usually means optional or union types
-        if (propSchema.anyOf) {
-          // Extract possible types from anyOf
-          const types = propSchema.anyOf
-            .filter((item: any) => item.type)
-            .map((item: any) => item.type);
-
-          // If one type is null, it's optional
-          if (types.includes('null')) {
-            // It's an optional field, but we don't need to do anything special here
-            // Google's format doesn't have explicit optional markers
-            // Just use the non-null type
-            type = types.filter((t: string) => t !== 'null')[0] || 'string';
-          } else if (types.length > 0) {
-            // Union type
-            type = types;
-          }
-
-          // Check for references in anyOf
-          for (const item of propSchema.anyOf) {
-            if (item.$ref && item.$ref.startsWith('#/$defs/')) {
-              // This is a reference to a complex object - for simplicity
-              // just mark as object type with the referenced type in description
-              type = 'object';
-              const refName = item.$ref.split('/').pop();
-              description += ` (Type: ${refName})`;
-              break;
-            }
-          }
-        } else if (propSchema.type) {
-          // Simple type
-          type = propSchema.type;
-        }
-
-        // Handle array type with items
-        if (type === 'array' && propSchema.items) {
-          if (propSchema.items.type) {
-            type = `array<${propSchema.items.type}>`;
-          } else if (propSchema.items.$ref) {
-            // Reference to complex type
-            const refName = propSchema.items.$ref.split('/').pop();
-            type = `array<object>`;
-            description += ` (Items type: ${refName})`;
-          }
-        }
-
-        // Handle enum values
-        if (propSchema.enum) {
-          enumValues = propSchema.enum;
-        }
-
-        // Create simplified property definition
-        convertedProperties[propName] = {
-          type: type,
-          description: description,
-          ...(enumValues && { enum: enumValues }),
-          ...(propSchema.default !== undefined && { default: propSchema.default }),
-        };
-      }
-
-      return convertedProperties;
-    }
-
-    // If not an object schema or doesn't have properties, return empty object
-    return {};
-  }
-
-  /**
    * List available tools from the MCP endpoint
    */
   public async listTools(): Promise<Tool[]> {
@@ -152,13 +66,148 @@ export class McpClient {
         throw new Error(result.error || 'Failed to list tools');
       }
 
+      // Convert MCP inputSchema to Google Schema format
+      const convertToGoogleSchema = (inputSchema: any): any => {
+        // If schema is null or undefined, return empty object
+        if (!inputSchema) return {};
+
+        // Store definitions for reference resolution
+        const definitions: Record<string, any> = {};
+
+        // Extract all definitions from $defs if present
+        if (inputSchema.$defs) {
+          Object.entries(inputSchema.$defs).forEach(([key, def]) => {
+            definitions[`#/$defs/${key}`] = def;
+          });
+        }
+
+        // Handle $ref resolution with cycle detection
+        const resolveRef = (ref: string, visitedRefs: Set<string> = new Set()): any => {
+          // Prevent infinite recursion
+          if (visitedRefs.has(ref)) {
+            return { type: 'OBJECT' }; // Default for circular references
+          }
+
+          visitedRefs.add(ref);
+
+          // Find the definition
+          const def = definitions[ref];
+          if (!def) {
+            console.warn(`Reference "${ref}" not found in definitions`);
+            return { type: 'OBJECT' };
+          }
+
+          // Convert the resolved reference
+          return convertSchema(def, visitedRefs);
+        };
+
+        // Main schema conversion function (recursive)
+        const convertSchema = (schema: any, visitedRefs: Set<string> = new Set()): any => {
+          // Handle reference first
+          if (schema.$ref) {
+            return resolveRef(schema.$ref, visitedRefs);
+          }
+
+          // Handle direct schema
+          const result: any = {};
+
+          // Convert type
+          if (schema.type) {
+            result.type =
+              schema.type === 'object'
+                ? 'OBJECT'
+                : schema.type === 'string'
+                  ? 'STRING'
+                  : schema.type === 'number'
+                    ? 'NUMBER'
+                    : schema.type === 'integer'
+                      ? 'INTEGER'
+                      : schema.type === 'boolean'
+                        ? 'BOOLEAN'
+                        : schema.type === 'array'
+                          ? 'ARRAY'
+                          : schema.type.toUpperCase();
+          } else {
+            // Default to OBJECT if no type
+            result.type = 'OBJECT';
+          }
+
+          // Copy description
+          if (schema.description) {
+            result.description = schema.description;
+          }
+
+          // Copy format
+          if (schema.format) {
+            result.format = schema.format;
+          }
+
+          // Handle anyOf pattern (common for nullable fields)
+          if (schema.anyOf) {
+            const nonNullType = schema.anyOf.find((t: any) => t.type !== 'null');
+            if (nonNullType) {
+              // Recursively convert the non-null option
+              const converted = convertSchema(nonNullType, visitedRefs);
+              Object.assign(result, converted);
+              // Explicitly set nullable if we found a null option
+              result.nullable = true;
+            }
+          }
+
+          // Handle array items
+          if (schema.items) {
+            result.items = convertSchema(schema.items, visitedRefs);
+          }
+
+          // Handle properties for objects
+          if (schema.properties) {
+            result.properties = {};
+            Object.entries(schema.properties).forEach(([propName, propSchema]: [string, any]) => {
+              result.properties[propName] = convertSchema(propSchema, visitedRefs);
+            });
+
+            // Include required array if present
+            if (schema.required && schema.required.length > 0) {
+              result.required = schema.required;
+            }
+          } else if (result.type === 'OBJECT') {
+            // Handle free-form objects (objects without defined properties)
+            result.properties = {
+              // Add an example property to satisfy Google's Schema requirements
+              key: {
+                type: 'STRING',
+                description: 'Example property. You can specify any property names and values.',
+              },
+            };
+
+            // Update description to make it clear that any properties are allowed
+            if (result.description) {
+              if (
+                !result.description.includes('arbitrary') &&
+                !result.description.includes('any properties')
+              ) {
+                result.description +=
+                  ' This is a free-form object that accepts arbitrary key-value pairs.';
+              }
+            } else {
+              result.description = 'A free-form object that accepts arbitrary key-value pairs.';
+            }
+          }
+
+          return result;
+        };
+
+        // Start the conversion with the main schema
+        return convertSchema(inputSchema);
+      };
+
       // Convert the tools to our Tool type
       return result.tools.map((tool: any) => ({
         name: tool.name,
         description: tool.description || '',
         type: ToolType.MCP,
         mcpEndpoint: this.url,
-        parameters: tool.inputSchema ? this.convertJsonSchemaToParameters(tool.inputSchema) : {},
+        parameters: tool.inputSchema ? convertToGoogleSchema(tool.inputSchema) : {},
       }));
     } catch (error) {
       console.error('Failed to list tools:', error);
