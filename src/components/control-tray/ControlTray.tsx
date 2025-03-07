@@ -503,8 +503,9 @@ function ControlTray({
           tools: convertToolsToGoogleFormat(allTools),
         };
         
-        // Set the config using the setConfig method from context
+        // Still update the state for future reference
         setConfig(configWithMcpTools);
+        console.log(`Config is ${JSON.stringify(configWithMcpTools, null, 2)}`);
         
         // Start recording session
         setIsRecordingSession(true);
@@ -519,8 +520,8 @@ function ControlTray({
           mcp_tools_count: mcpToolsList.length,
         });
         
-        // Connect to the assistant
-        connect();
+        // Connect to the assistant with the config directly
+        connect(configWithMcpTools);
       } catch (error) {
         console.error('Failed to initialize assistant:', error);
         ipcRenderer.send(

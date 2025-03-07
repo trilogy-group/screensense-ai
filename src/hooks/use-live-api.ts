@@ -51,7 +51,7 @@ export type UseLiveAPIResults = {
   setConfig: (config: LiveConfig) => void;
   config: LiveConfig;
   connected: boolean;
-  connect: () => Promise<void>;
+  connect: (customConfig?: LiveConfig) => Promise<void>;
   disconnect: () => Promise<void>;
   volume: number;
 };
@@ -82,16 +82,20 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
     }
   }, [audioStreamerRef]);
 
-  const connect = useCallback(async () => {
-    // console.log('Going to connect');
-    // console.log(JSON.stringify(config));
-    if (!config) {
-      throw new Error('config has not been set');
-    }
-    client.disconnect();
-    await client.connect(config);
-    setConnected(true);
-  }, [client, setConnected, config]);
+  const connect = useCallback(
+    async (customConfig?: LiveConfig) => {
+      // Use customConfig if provided, otherwise use the current config state
+      const configToUse = customConfig || config;
+      console.log(`Going to connect with config: ${JSON.stringify(configToUse, null, 2)}`);
+      if (!configToUse) {
+        throw new Error('config has not been set');
+      }
+      client.disconnect();
+      await client.connect(configToUse);
+      setConnected(true);
+    },
+    [client, setConnected, config]
+  );
 
   const disconnect = useCallback(async () => {
     client.disconnect();
@@ -110,7 +114,7 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
       setConnected(false);
 
       // Handle deadline exceeded error (1011) or protocol error (1007) with one retry
-      if (ev.code === 1011 || ev.code === 1007) {
+      if (ev.code === 1011 || (ev.code === 1007 && ev.reason.toLowerCase().includes('tokens'))) {
         console.log(
           `[LiveAPI] 🔌 Temporary disconnect detected: code=${ev.code}, reason=${ev.reason}`
         );

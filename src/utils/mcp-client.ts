@@ -1,3 +1,4 @@
+import { Schema, SchemaType } from '@google/generative-ai';
 import { Tool, ToolType } from '../configs/assistant-types';
 import { ipcRenderer } from 'electron';
 
@@ -70,8 +71,10 @@ export class McpClient {
         name: tool.name,
         description: tool.description || '',
         type: ToolType.MCP,
-        parameters: tool.inputSchema || {},
         mcpEndpoint: this.url,
+        ...(tool.inputSchema && {
+          parameters: tool.inputSchema,
+        }),
       }));
     } catch (error) {
       console.error('Failed to list tools:', error);
