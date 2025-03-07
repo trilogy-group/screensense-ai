@@ -63,6 +63,47 @@ export PYTHON="$(pwd)/.venv/bin/python"
 npm install
 ```
 
+## Module Compatibility Workaround
+
+This project uses a bundling approach to resolve compatibility issues between ES Modules (ESM) and CommonJS modules in Electron's main process.
+
+### The Problem
+
+Some modern dependencies (like `@modelcontextprotocol/sdk`) use ES Modules or mixed module formats, which can cause runtime errors when loaded with `require()` in a CommonJS context. While TypeScript allows you to write imports using ES Module syntax (`import X from 'Y'`), the compiled CommonJS output uses `require()`, which cannot directly load ES Modules.
+
+### The Solution
+
+We implemented a two-part solution:
+
+1. **Bundle the main process code** with esbuild:
+
+   ```javascript
+   // build-main.js
+   require('esbuild').build({
+     entryPoints: ['electron/main.ts'],
+     bundle: true,
+     platform: 'node',
+     target: 'node16',
+     format: 'cjs',
+     external: ['electron', '@nut-tree-fork/*', '@modelcontextprotocol/*', 'pkce-challenge'],
+     // ... other settings
+   });
+   ```
+
+2. **Create compatibility shims** for problematic ESM packages:
+   ```bash
+   npm run build:main
+   # This runs esbuild and copies necessary native modules and creates compatibility shims
+   ```
+
+This approach allows us to:
+
+- Write modern TypeScript code with ES Module syntax
+- Ensure runtime compatibility with Electron's CommonJS environment
+- Avoid ESM/CommonJS conflicts without major code refactoring
+
+If you're adding new dependencies that use ES Modules, you may need to update the bundling configuration to handle them properly.
+
 ## Building the electron app
 
 _Note: I had to install `xcode` to get this to work, since it required the `unordered_map` cpp header file. The xcode-select cli tool was not enough._
