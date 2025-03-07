@@ -2,7 +2,7 @@ import { Key, keyboard } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 import * as dotenv from 'dotenv';
-import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain, screen, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { initializeContext } from '../src/utils/context-utils';
@@ -26,6 +26,7 @@ import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/consta
 import { resolve } from 'path';
 import { clearUpdateCheckInterval } from './updater';
 import { clearAssistantsRefreshInterval } from '../src/windows/AuthWindow';
+import { initializeMcpHandler } from './mcp-handler';
 // import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js';
 
 dotenv.config();
@@ -161,6 +162,9 @@ async function initializeApp() {
   initializeAuthWindow();
   initializeContext();
   initializeKBHandlers();
+
+  // Initialize MCP handler
+  initializeMcpHandler();
 
   // Create auth window first and wait for authentication
   await createAuthWindow();

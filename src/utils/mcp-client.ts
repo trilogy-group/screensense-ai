@@ -1,13 +1,11 @@
 import { Tool, ToolType } from '../configs/assistant-types';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { ipcRenderer } from 'electron';
 
 /**
  * Client for interacting with MCP (Machine Capability Protocol) endpoints
  */
 export class McpClient {
   private url: string;
-  private client: Client | null = null;
   private connected: boolean = false;
 
   constructor(url: string) {
@@ -19,28 +17,15 @@ export class McpClient {
    */
   public async initialize(): Promise<void> {
     try {
-      // Create the SSE transport with URL object
-      const transport = new SSEClientTransport(new URL(this.url));
+      const result = await ipcRenderer.invoke('mcp:create', this.url);
 
-      // Create the MCP client
-      this.client = new Client(
-        {
-          name: 'screensense-ai',
-          version: '1.0.0',
-        },
-        {
-          capabilities: {
-            tools: {},
-          },
-        }
-      );
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to initialize MCP client');
+      }
 
-      // Connect to the MCP endpoint
-      await this.client.connect(transport);
       this.connected = true;
-      console.log(`MCP connection opened to ${this.url}`);
     } catch (error) {
-      console.error(`Failed to connect to MCP endpoint: ${this.url}`, error);
+      console.error('Failed to initialize MCP client:', error);
       throw error;
     }
   }
@@ -49,70 +34,88 @@ export class McpClient {
    * Close the connection to the MCP endpoint
    */
   public async close(): Promise<void> {
-    if (this.client) {
+    if (this.connected) {
       try {
-        // Since no disconnect method exists, we'll just nullify our reference
-        this.client = null;
+        const result = await ipcRenderer.invoke('mcp:close', this.url);
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to close MCP client');
+        }
+
         this.connected = false;
       } catch (error) {
-        console.error(`Error disconnecting from MCP endpoint: ${this.url}`, error);
+        console.error('Failed to close MCP client:', error);
+        throw error;
       }
     }
   }
 
   /**
-   * List all available tools from the MCP endpoint
+   * List available tools from the MCP endpoint
    */
   public async listTools(): Promise<Tool[]> {
-    if (!this.client || !this.connected) {
-      throw new Error('MCP client not connected');
+    if (!this.connected) {
+      throw new Error('Client not connected');
     }
 
     try {
-      // List tools from the MCP endpoint
-      const mcpTools = await this.client.listTools();
+      const result = await ipcRenderer.invoke('mcp:listTools', this.url);
 
-      console.log(`MCP tools: ${JSON.stringify(mcpTools, null, 2)}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to list tools');
+      }
 
-      // Convert MCP tools to our Tool format
-      return (mcpTools as unknown as any[]).map((tool: any) => ({
-        type: ToolType.MCP,
+      // Convert the tools to our Tool type
+      return result.tools.map((tool: any) => ({
         name: tool.name,
-        description: tool.description || '', // Provide a default empty string if description is not available
-        parameters: tool.parameters || {}, // Provide a default empty object if parameters is not available
+        description: tool.description || '',
+        type: ToolType.MCP,
+        parameters: tool.inputSchema || {},
         mcpEndpoint: this.url,
       }));
     } catch (error) {
-      console.error(`Failed to list tools from MCP endpoint: ${this.url}`, error);
+      console.error('Failed to list tools:', error);
       throw error;
     }
   }
 
   /**
-   * Execute a tool with the given name and arguments
+   * Determine the tool type from the tool metadata
+   */
+  private getToolType(tool: any): ToolType {
+    // Logic to determine tool type based on the tool
+    // This might need to be adjusted based on the actual data
+    if (tool.type) {
+      return tool.type as ToolType;
+    }
+    return 'function' as ToolType;
+  }
+
+  /**
+   * Execute a tool on the MCP endpoint
    */
   public async executeTool(name: string, args: any): Promise<any> {
-    if (!this.client || !this.connected) {
-      throw new Error('MCP client not connected');
+    if (!this.connected) {
+      throw new Error('Client not connected');
     }
 
     try {
-      // Call the tool via the MCP client
-      const result = await this.client.callTool({
-        name,
-        arguments: args,
-      });
+      const result = await ipcRenderer.invoke('mcp:executeTool', this.url, name, args);
 
-      return result;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to execute tool');
+      }
+
+      return result.result;
     } catch (error) {
-      console.error(`Failed to execute tool ${name} from MCP endpoint: ${this.url}`, error);
+      console.error(`Failed to execute tool ${name}:`, error);
       throw error;
     }
   }
 }
 
 /**
- * Utility function to create an MCP client and initialize it
+ * Create and initialize an MCP client
  */
 export async function createMcpClient(url: string): Promise<McpClient> {
   const client = new McpClient(url);

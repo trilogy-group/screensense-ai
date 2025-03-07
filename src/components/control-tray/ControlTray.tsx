@@ -35,7 +35,7 @@ import AudioPulse from '../audio-pulse/AudioPulse';
 import './control-tray.scss';
 import { trackEvent } from '../../services/analytics';
 import { useAssistants } from '../../contexts/AssistantContext';
-import { Tool, ToolType, convertToolsToGoogleFormat } from '../../configs/assistant-types';
+import { Tool, convertToolsToGoogleFormat } from '../../configs/assistant-types';
 import { McpClient, createMcpClient } from '../../utils/mcp-client';
 const { ipcRenderer } = window.require('electron');
 
@@ -106,7 +106,6 @@ function ControlTray({
   const isInitialConnection = useRef<boolean>(true);
   const [isLoading, setIsLoading] = useState(false);
   const [mcpClients, setMcpClients] = useState<Record<string, McpClient>>({});
-  const [mcpTools, setMcpTools] = useState<Tool[]>([]);
 
   const { client, connected, connect, disconnect, volume, setConfig } = useLiveAPIContext();
   const { assistants } = useAssistants();
@@ -398,14 +397,15 @@ function ControlTray({
     };
   }, [isRecordingSession, saveRecordings]);
 
-  // Function to load MCP tools
+  // Modified handleConnect to load MCP tools before connecting
+  const handleConnect = useCallback(async () => {
+    // Function to load MCP tools
   const loadMcpTools = async (assistantId: string) => {
     // Clear previous MCP state
     Object.values(mcpClients).forEach(client => {
       client.close();
     });
     setMcpClients({});
-    setMcpTools([]);
 
     const assistant = assistants[assistantId];
     if (!assistant || !assistant.mcpEndpoints?.length) {
@@ -426,6 +426,8 @@ function ControlTray({
           
           clients[endpoint] = client;
           fetchedTools.push(...tools);
+
+          console.log(`Tools are ${tools.map(t => t.name)}`);
           
           console.log(`Loaded ${tools.length} tools from MCP endpoint: ${endpoint}`);
         } catch (error) {
@@ -434,7 +436,6 @@ function ControlTray({
       }));
       
       setMcpClients(clients);
-      setMcpTools(fetchedTools);
       
       console.log(`Total MCP tools loaded: ${fetchedTools.length}`);
       return fetchedTools;
@@ -443,9 +444,6 @@ function ControlTray({
       return [];
     }
   };
-
-  // Modified handleConnect to load MCP tools before connecting
-  const handleConnect = useCallback(async () => {
     if (!connected) {
       setIsLoading(true);
       
@@ -542,7 +540,6 @@ function ControlTray({
         client.close();
       });
       setMcpClients({});
-      setMcpTools([]);
       
       // Disconnect from the assistant
       disconnect();
@@ -556,7 +553,7 @@ function ControlTray({
     saveRecordings, 
     setConfig, 
     assistants, 
-    loadMcpTools
+    mcpClients,
   ]);
 
   // Clean up MCP clients on unmount
