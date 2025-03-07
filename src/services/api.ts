@@ -6,7 +6,7 @@ import { getAuthToken, getTokens } from './tokenService';
  */
 const API_ENDPOINTS = {
   development: 'https://qxdq7uk8wf.execute-api.us-east-1.amazonaws.com/dev',
-  production: 'https://api.screensense.ai/v1', // Replace with production API endpoint
+  production: 'https://qxdq7uk8wf.execute-api.us-east-1.amazonaws.com/dev', // Replace with production API endpoint
 };
 
 /**

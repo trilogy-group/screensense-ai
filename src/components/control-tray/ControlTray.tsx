@@ -35,6 +35,8 @@ import AudioPulse from '../audio-pulse/AudioPulse';
 import './control-tray.scss';
 import { trackEvent } from '../../services/analytics';
 import { useAssistants } from '../../contexts/AssistantContext';
+import { Tool, ToolType, convertToolsToGoogleFormat } from '../../configs/assistant-types';
+import { McpClient, createMcpClient } from '../../utils/mcp-client';
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
@@ -102,8 +104,11 @@ function ControlTray({
   const lastAssistantTimestamp = useRef<number>(0);
   const autoSaveInterval = useRef<number | null>(null);
   const isInitialConnection = useRef<boolean>(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [mcpClients, setMcpClients] = useState<Record<string, McpClient>>({});
+  const [mcpTools, setMcpTools] = useState<Tool[]>([]);
 
-  const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
+  const { client, connected, connect, disconnect, volume, setConfig } = useLiveAPIContext();
   const { assistants } = useAssistants();
 
   useEffect(() => {
@@ -393,8 +398,57 @@ function ControlTray({
     };
   }, [isRecordingSession, saveRecordings]);
 
+  // Function to load MCP tools
+  const loadMcpTools = async (assistantId: string) => {
+    // Clear previous MCP state
+    Object.values(mcpClients).forEach(client => {
+      client.close();
+    });
+    setMcpClients({});
+    setMcpTools([]);
+
+    const assistant = assistants[assistantId];
+    if (!assistant || !assistant.mcpEndpoints?.length) {
+      return [];
+    }
+
+    console.log(`Loading MCP tools for assistant ${assistant.displayName} from ${assistant.mcpEndpoints.length} endpoints`);
+    
+    const clients: Record<string, McpClient> = {};
+    const fetchedTools: Tool[] = [];
+    
+    try {
+      await Promise.all(assistant.mcpEndpoints.map(async (endpoint) => {
+        try {
+          console.log(`Connecting to MCP endpoint: ${endpoint}`);
+          const client = await createMcpClient(endpoint);
+          const tools = await client.listTools();
+          
+          clients[endpoint] = client;
+          fetchedTools.push(...tools);
+          
+          console.log(`Loaded ${tools.length} tools from MCP endpoint: ${endpoint}`);
+        } catch (error) {
+          console.error(`Failed to connect to MCP endpoint: ${endpoint}`, error);
+        }
+      }));
+      
+      setMcpClients(clients);
+      setMcpTools(fetchedTools);
+      
+      console.log(`Total MCP tools loaded: ${fetchedTools.length}`);
+      return fetchedTools;
+    } catch (error) {
+      console.error('Error loading MCP tools:', error);
+      return [];
+    }
+  };
+
+  // Modified handleConnect to load MCP tools before connecting
   const handleConnect = useCallback(async () => {
     if (!connected) {
+      setIsLoading(true);
+      
       // Check for required API keys for all modes
       const settings = await ipcRenderer.invoke('get-saved-settings');
       if (!settings.geminiApiKey) {
@@ -405,6 +459,7 @@ function ControlTray({
           'session-error',
           'You need to set up your Gemini API key to start a session.'
         );
+        setIsLoading(false);
         return;
       }
 
@@ -421,29 +476,97 @@ function ControlTray({
           'session-error',
           'You need to set up your Anthropic API key for patent generation and knowledge curator capabilities.'
         );
+        setIsLoading(false);
         return;
       }
 
-      // console.log('[ControlTray] Initiating connection...');
-      setIsRecordingSession(true);
-      userAudioChunks.current = [];
-      assistantAudioChunks.current = [];
-      sessionStartTime.current = performance.now();
-      lastAssistantTimestamp.current = 0;
-      trackEvent('chat_started', {
-        assistant_mode: selectedOption.value,
-      });
-      connect();
+      try {
+        // Load MCP tools before connecting
+        const mcpToolsList = await loadMcpTools(selectedOption.value);
+        
+        // Get the current assistant config
+        const assistantConfig = assistants[selectedOption.value];
+        
+        // Combine built-in tools with MCP tools for the model
+        const allTools = [...assistantConfig.tools, ...mcpToolsList];
+        
+        // Set the config with all tools
+        const configWithMcpTools = {
+          model: 'models/gemini-2.0-flash-exp',
+          systemInstruction: {
+            parts: [{ text: assistantConfig.systemInstruction }],
+          },
+          generationConfig: {
+            responseModalities: 'audio' as const,
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+            },
+          },
+          tools: convertToolsToGoogleFormat(allTools),
+        };
+        
+        // Set the config using the setConfig method from context
+        setConfig(configWithMcpTools);
+        
+        // Start recording session
+        setIsRecordingSession(true);
+        userAudioChunks.current = [];
+        assistantAudioChunks.current = [];
+        sessionStartTime.current = performance.now();
+        lastAssistantTimestamp.current = 0;
+        
+        // Track the event
+        trackEvent('chat_started', {
+          assistant_mode: selectedOption.value,
+          mcp_tools_count: mcpToolsList.length,
+        });
+        
+        // Connect to the assistant
+        connect();
+      } catch (error) {
+        console.error('Failed to initialize assistant:', error);
+        ipcRenderer.send(
+          'session-error',
+          'Failed to initialize assistant. Please try again.'
+        );
+      } finally {
+        setIsLoading(false);
+      }
     } else {
-      // console.log('[ControlTray] Initiating explicit disconnection...');
+      // Disconnection logic
       setIsRecordingSession(false);
-      // console.log(`[ControlTray] Going to save recordings`);
       saveRecordings(false);
-      // Let the permanent disconnect effect handle stream cleanup
+      
+      // Close all MCP clients
+      Object.values(mcpClients).forEach(client => {
+        client.close();
+      });
+      setMcpClients({});
+      setMcpTools([]);
+      
+      // Disconnect from the assistant
       disconnect();
       ipcRenderer.send('stop-capture-screen');
     }
-  }, [connected, connect, disconnect, selectedOption.value, saveRecordings]);
+  }, [
+    connected, 
+    connect, 
+    disconnect, 
+    selectedOption.value, 
+    saveRecordings, 
+    setConfig, 
+    assistants, 
+    loadMcpTools
+  ]);
+
+  // Clean up MCP clients on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(mcpClients).forEach(client => {
+        client.close();
+      });
+    };
+  }, [mcpClients]);
 
   // Handle carousel actions from control window
   useEffect(() => {
@@ -699,19 +822,21 @@ function ControlTray({
           <div className="connection-button-container">
             <button
               ref={connectButtonRef}
-              className={cn('action-button connect-toggle', { connected })}
+              className={cn('action-button connect-toggle', { connected, loading: isLoading })}
               onClick={() => {
-                ipcRenderer.send('session-start');
-                // console.log('Session started');
-                handleConnect();
+                if (!isLoading) {
+                  ipcRenderer.send('session-start');
+                  handleConnect();
+                }
               }}
+              disabled={isLoading}
             >
               <span className="material-symbols-outlined filled">
-                {connected ? 'pause' : 'play_arrow'}
+                {isLoading ? 'sync' : connected ? 'pause' : 'play_arrow'}
               </span>
             </button>
           </div>
-          <span className="text-indicator">Streaming</span>
+          <span className="text-indicator">{isLoading ? 'Loading...' : 'Streaming'}</span>
         </div>
       </section>
     </>
