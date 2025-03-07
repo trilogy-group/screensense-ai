@@ -35,6 +35,7 @@ import AudioPulse from '../audio-pulse/AudioPulse';
 import './control-tray.scss';
 import { assistantConfigs } from '../../configs/assistant-configs';
 import { trackEvent } from '../../services/analytics';
+import { useAssistants } from '../../contexts/AssistantContext';
 const { ipcRenderer } = window.require('electron');
 
 export type ControlTrayProps = {
@@ -104,6 +105,7 @@ function ControlTray({
   const isInitialConnection = useRef<boolean>(true);
 
   const { client, connected, connect, disconnect, volume } = useLiveAPIContext();
+  const { assistants } = useAssistants();
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
@@ -208,21 +210,25 @@ function ControlTray({
   );
 
   useEffect(() => {
+    console.log('ControlTray useEffect running - carouselIndex:', carouselIndex);
+    console.log('Modes reference changed:', modes);
+    console.log('Current assistants keys:', Object.keys(assistants));
+    
     setSelectedOption(modes[carouselIndex]);
     // Send carousel update to control window
-    const mode = modes[carouselIndex].value as keyof typeof assistantConfigs;
-    const modeName = assistantConfigs[mode].displayName;
-    const requiresDisplay = assistantConfigs[mode].requiresDisplay;
+    const mode = modes[carouselIndex].value;
+    const modeName = assistants[mode].displayName;
+    const requiresDisplay = assistants[mode].requiresDisplay;
     ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
-  }, [carouselIndex, modes, setSelectedOption]);
+  }, [carouselIndex, modes, setSelectedOption, assistants]);
 
   // Send initial mode's requiresDisplay setting
   useEffect(() => {
-    const initialMode = modes[0].value as keyof typeof assistantConfigs;
-    const modeName = assistantConfigs[initialMode].displayName;
-    const requiresDisplay = assistantConfigs[initialMode].requiresDisplay;
+    const initialMode = modes[0].value;
+    const modeName = assistants[initialMode].displayName;
+    const requiresDisplay = assistants[initialMode].requiresDisplay;
     ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
-  }, [modes]);
+  }, [modes, assistants]);
 
   const handleCarouselChange = useCallback(
     (direction: 'next' | 'prev') => {
@@ -576,13 +582,13 @@ function ControlTray({
 
   // Add effect to handle stopping streams when switching modes
   useEffect(() => {
-    if (!assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].requiresDisplay) {
+    if (!assistants[selectedOption.value].requiresDisplay) {
       if (screenCapture.isStreaming || webcam.isStreaming) {
         changeStreams()();
         ipcRenderer.send('hide-main-window');
       }
     }
-  }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams]);
+  }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams, assistants]);
 
   // Add effect to capture assistant audio
   useEffect(() => {
@@ -644,8 +650,7 @@ function ControlTray({
             </div>
 
             {supportsVideo &&
-              assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
-                .requiresDisplay && (
+              assistants[selectedOption.value].requiresDisplay && (
                 <>
                   <MediaStreamButton
                     isStreaming={screenCapture.isStreaming}
@@ -677,10 +682,7 @@ function ControlTray({
             <div className="carousel-content">
               <div className="carousel-slide">
                 <span className="carousel-text">
-                  {
-                    assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
-                      .displayName
-                  }
+                  {assistants[selectedOption.value].displayName}
                 </span>
               </div>
             </div>

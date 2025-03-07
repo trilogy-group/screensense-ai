@@ -1,5 +1,5 @@
 import cn from 'classnames';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo } from 'react';
 import './App.scss';
 import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
@@ -108,11 +108,23 @@ function AppContent() {
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const { assistants, assistantsList, isLoading, error } = useAssistants();
   
-  // Generate modes from assistants list
-  const modes = assistantsList.map(assistant => ({ value: assistant.id }));
+  // Generate modes from assistants list using useMemo to prevent recreation on every render
+  console.log('AppContent rendering, creating modes array');
+  const modes = useMemo(() => {
+    console.log('Creating memoized modes array');
+    return assistantsList.map(assistant => ({ value: assistant.id }));
+  }, [assistantsList]); // Only recreate when assistantsList changes
+  
+  console.log(`Assistants: ${assistantsList.map(assistant => assistant.displayName)}`);
+  console.log('Modes array created:', modes);
   
   // Initialize selectedOption with first assistant when available
   const [selectedOption, setSelectedOption] = useState<ModeOption>({ value: '' });
+  
+  // Log when selectedOption changes
+  useEffect(() => {
+    console.log('selectedOption changed to:', selectedOption);
+  }, [selectedOption]);
   
   // Update selectedOption when assistants load
   useEffect(() => {
@@ -235,7 +247,10 @@ function AppContent() {
             modes={modes}
             selectedOption={selectedOption}
             setSelectedOption={(option: { value: string }) => {
+              console.log('setSelectedOption called from ControlTray with option:', option);
+              const previousOption = selectedOption;
               setSelectedOption(option as ModeOption);
+              console.log('selectedOption changed from', previousOption, 'to', option);
               // Notify main process of mode change
               ipcRenderer.send('update-current-mode', option.value);
             }}

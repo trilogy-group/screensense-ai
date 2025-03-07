@@ -6,6 +6,7 @@ import { ToolCall } from '../../multimodal-live-types';
 import { opencvService } from '../../services/opencv-service';
 import { trackEvent } from '../../services/analytics';
 import { omniParser } from '../../services/omni-parser';
+import { useAssistants } from '../../contexts/AssistantContext';
 
 const { ipcRenderer } = window.require('electron');
 
@@ -24,6 +25,7 @@ function ToolCallHandlerComponent({
   assistantMode,
   onScreenshot,
 }: ToolCallHandlerProps) {
+  const { assistants } = useAssistants();
   const [subtitles, setSubtitles] = useState<string>('');
   const { client, setConfig, connected } = useLiveAPIContext();
   const [isKBSessionActive, setIsKBSessionActive] = useState(false);
@@ -34,7 +36,7 @@ function ToolCallHandlerComponent({
     if (observationTimerRef.current) {
       clearInterval(observationTimerRef.current);
     }
-    if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
+    if (isKBSessionActive && connected && assistants[assistantMode].displayName === 'Knowledge Curator') {
       observationTimerRef.current = setInterval(() => {
         console.log('Asking for updates');
         client?.send([
@@ -44,7 +46,7 @@ function ToolCallHandlerComponent({
         ]);
       }, 10000);
     }
-  }, [client, isKBSessionActive, connected, assistantMode]);
+  }, [client, isKBSessionActive, connected, assistantMode, assistants]);
 
   // Function to stop the observation timer
   const stopObservationTimer = useCallback(() => {
@@ -56,13 +58,13 @@ function ToolCallHandlerComponent({
 
   // Clean up timer on unmount, disconnect, or mode change
   useEffect(() => {
-    if (!connected || assistantMode !== 'knowledge_base' || !isKBSessionActive) {
+    if (!connected || assistants[assistantMode].displayName !== 'Knowledge Curator' || !isKBSessionActive) {
       stopObservationTimer();
-    } else if (isKBSessionActive && connected && assistantMode === 'knowledge_base') {
+    } else if (isKBSessionActive && connected && assistants[assistantMode].displayName === 'Knowledge Curator') {
       startObservationTimer();
     }
     return () => stopObservationTimer();
-  }, [connected, assistantMode, isKBSessionActive, startObservationTimer, stopObservationTimer]);
+  }, [connected, assistantMode, isKBSessionActive, startObservationTimer, stopObservationTimer, assistants]);
 
   useEffect(() => {
     const processClick = async (event: any, data: any) => {
@@ -792,24 +794,6 @@ function ToolCallHandlerComponent({
       // console.log('🔍 [handlePatentQuestion] Removed listener');
     };
   }, [client]);
-
-  // // Add effect to listen for patent agent reinitialization
-  // useEffect(() => {
-  //   const handlePatentAgentReinitialization = async () => {
-  //     try {
-  //       await initializePatentAgent();
-  //       console.log('✅ Patent agent reinitialized with new settings');
-  //     } catch (error) {
-  //       console.error('❌ Failed to reinitialize patent agent:', error);
-  //     }
-  //   };
-
-  //   ipcRenderer.on('reinitialize-patent-agent', handlePatentAgentReinitialization);
-  //   return () => {
-  //     ipcRenderer.removeListener('reinitialize-patent-agent', handlePatentAgentReinitialization);
-  //   };
-  // }, []);
-
   return <></>;
 }
 
