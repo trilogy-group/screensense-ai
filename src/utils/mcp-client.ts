@@ -52,6 +52,92 @@ export class McpClient {
   }
 
   /**
+   * Convert JSON Schema to Google AI SDK compatible format
+   * This simplifies complex JSON Schema structures into a format Google AI SDK can understand
+   */
+  private convertJsonSchemaToParameters(schema: any): any {
+    // If schema is null or undefined, return empty object
+    if (!schema) return {};
+
+    // Handle root schema object
+    if (schema.type === 'object' && schema.properties) {
+      const convertedProperties: Record<string, any> = {};
+
+      // Process each property
+      for (const [propName, propSchema] of Object.entries<any>(schema.properties)) {
+        // Extract type information
+        let type: string | string[] = 'string'; // Default type
+        let description = propSchema.description || '';
+        let enumValues: string[] | undefined;
+
+        // Handle anyOf - usually means optional or union types
+        if (propSchema.anyOf) {
+          // Extract possible types from anyOf
+          const types = propSchema.anyOf
+            .filter((item: any) => item.type)
+            .map((item: any) => item.type);
+
+          // If one type is null, it's optional
+          if (types.includes('null')) {
+            // It's an optional field, but we don't need to do anything special here
+            // Google's format doesn't have explicit optional markers
+            // Just use the non-null type
+            type = types.filter((t: string) => t !== 'null')[0] || 'string';
+          } else if (types.length > 0) {
+            // Union type
+            type = types;
+          }
+
+          // Check for references in anyOf
+          for (const item of propSchema.anyOf) {
+            if (item.$ref && item.$ref.startsWith('#/$defs/')) {
+              // This is a reference to a complex object - for simplicity
+              // just mark as object type with the referenced type in description
+              type = 'object';
+              const refName = item.$ref.split('/').pop();
+              description += ` (Type: ${refName})`;
+              break;
+            }
+          }
+        } else if (propSchema.type) {
+          // Simple type
+          type = propSchema.type;
+        }
+
+        // Handle array type with items
+        if (type === 'array' && propSchema.items) {
+          if (propSchema.items.type) {
+            type = `array<${propSchema.items.type}>`;
+          } else if (propSchema.items.$ref) {
+            // Reference to complex type
+            const refName = propSchema.items.$ref.split('/').pop();
+            type = `array<object>`;
+            description += ` (Items type: ${refName})`;
+          }
+        }
+
+        // Handle enum values
+        if (propSchema.enum) {
+          enumValues = propSchema.enum;
+        }
+
+        // Create simplified property definition
+        convertedProperties[propName] = {
+          type: type,
+          description: description,
+          ...(enumValues && { enum: enumValues }),
+          ...(propSchema.default !== undefined && { default: propSchema.default }),
+        };
+      }
+
+      return convertedProperties;
+    }
+
+    // If not an object schema or doesn't have properties, return empty object
+    return {};
+  }
+
+  /**
    * List available tools from the MCP endpoint
    */
   public async listTools(): Promise<Tool[]> {
@@ -72,26 +158,12 @@ export class McpClient {
         description: tool.description || '',
         type: ToolType.MCP,
         mcpEndpoint: this.url,
-        ...(tool.inputSchema && {
-          parameters: tool.inputSchema,
-        }),
+        parameters: tool.inputSchema ? this.convertJsonSchemaToParameters(tool.inputSchema) : {},
       }));
     } catch (error) {
       console.error('Failed to list tools:', error);
       throw error;
     }
-  }
-
-  /**
-   * Determine the tool type from the tool metadata
-   */
-  private getToolType(tool: any): ToolType {
-    // Logic to determine tool type based on the tool
-    // This might need to be adjusted based on the actual data
-    if (tool.type) {
-      return tool.type as ToolType;
-    }
-    return 'function' as ToolType;
   }
 
   /**
