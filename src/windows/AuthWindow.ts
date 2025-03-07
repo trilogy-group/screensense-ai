@@ -32,6 +32,7 @@ import { fetchUserData } from '../services/api';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;
+let assistantsRefreshInterval: NodeJS.Timeout | null = null;
 
 export async function createAuthWindow() {
   if (authWindowExists()) {
@@ -134,7 +135,7 @@ export async function performCognitoLogout(): Promise<boolean> {
     // 1. Sign the user out of their Cognito user session
     // 2. Clear Cognito cookies and tokens
     // 3. Redirect to the specified logout_uri (must be registered in Cognito)
-    console.log('Opening Cognito logout URL in default browser:', COGNITO_LOGOUT_URL);
+    // console.log('Opening Cognito logout URL in default browser:', COGNITO_LOGOUT_URL);
     await shell.openExternal(COGNITO_LOGOUT_URL);
 
     return true;
@@ -164,11 +165,20 @@ export async function refreshAssistantsList() {
   }
 }
 
+// Function to clear the assistants refresh interval
+export function clearAssistantsRefreshInterval() {
+  if (assistantsRefreshInterval) {
+    clearInterval(assistantsRefreshInterval);
+    assistantsRefreshInterval = null;
+    console.log('Assistants refresh interval cleared');
+  }
+}
+
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
 
   // Set up hourly assistant list refresh
-  setInterval(
+  assistantsRefreshInterval = setInterval(
     () => {
       console.log('Scheduled assistants list refresh');
       refreshAssistantsList().catch(err => {
@@ -195,6 +205,20 @@ export function initializeAuthWindow() {
       closeUpdateWindow();
 
       console.log('All windows closed');
+
+      // Clear stored assistants
+      clearStoredAssistants();
+
+      // Clear the intervals to prevent accessing destroyed objects
+      clearAssistantsRefreshInterval();
+
+      // Import and clear the update check interval
+      try {
+        const { clearUpdateCheckInterval } = require('../../electron/updater');
+        clearUpdateCheckInterval();
+      } catch (error) {
+        console.error('Error clearing update check interval:', error);
+      }
 
       // First perform Cognito web logout
       const cognitoLogoutSuccess = await performCognitoLogout();

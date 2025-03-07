@@ -24,6 +24,8 @@ import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/constants/constants';
 import { resolve } from 'path';
+import { clearUpdateCheckInterval } from './updater';
+import { clearAssistantsRefreshInterval } from '../src/windows/AuthWindow';
 
 dotenv.config();
 
@@ -177,8 +179,30 @@ async function initializeApp() {
 // Call it after registering all handlers
 app.whenReady().then(initializeApp);
 
+// Handle window close
 app.on('window-all-closed', () => {
-  app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+// Clean up resources before app quits
+app.on('will-quit', () => {
+  console.log('App is quitting, cleaning up resources...');
+
+  // Clean up assistants refresh interval
+  try {
+    clearAssistantsRefreshInterval();
+  } catch (error) {
+    console.error('Error clearing assistants refresh interval:', error);
+  }
+
+  // Clean up update check interval
+  try {
+    clearUpdateCheckInterval();
+  } catch (error) {
+    console.error('Error clearing update check interval:', error);
+  }
 });
 
 app.on('activate', () => {

@@ -5,6 +5,7 @@ import { app } from 'electron';
 import { createUpdateWindow } from '../src/windows/UpdateWindow';
 
 let updateWindow: BrowserWindow | null = null;
+let updateCheckInterval: NodeJS.Timeout | null = null;
 
 async function showUpdateWindow() {
   try {
@@ -28,6 +29,15 @@ async function showUpdateWindow() {
     console.error('Error in showUpdateWindow:', error);
     log.error('Error in showUpdateWindow:', error);
     return null;
+  }
+}
+
+// Function to clear the update check interval
+export function clearUpdateCheckInterval() {
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
+    console.log('Update check interval cleared');
   }
 }
 
@@ -165,7 +175,7 @@ export function initializeAutoUpdater(mainWindow: BrowserWindow) {
     });
 
     // Check for updates every hour
-    setInterval(
+    updateCheckInterval = setInterval(
       () => {
         // console.log('Scheduled update check');
         // log.info('Scheduled update check');

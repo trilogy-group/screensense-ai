@@ -57,7 +57,7 @@ export function getUserInfo(): { name: string; email: string } | null {
     // Parse the JWT without verification (we trust the token as it comes from Cognito)
     const payload = JSON.parse(Buffer.from(tokens.id_token.split('.')[1], 'base64').toString());
 
-    console.log('payload', JSON.stringify(payload, null, 2));
+    // console.log('payload', JSON.stringify(payload, null, 2));
 
     return {
       name: payload.name || payload.given_name || payload.email || 'User',
