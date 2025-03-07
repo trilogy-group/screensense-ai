@@ -4,22 +4,18 @@ import './App.scss';
 import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
 import { ToolCallHandler } from './components/tool-handler/ToolCallHandler';
-import { assistantConfigs, type AssistantConfigMode } from './configs/assistant-configs';
 import { LiveAPIProvider, useLiveAPIContext } from './contexts/LiveAPIContext';
+import { AssistantProvider, useAssistants } from './contexts/AssistantContext';
 import { initAnalytics, trackEvent } from './services/analytics';
+import { AssistantConfig } from './configs/assistant-types';
 const { ipcRenderer } = window.require('electron');
 
 const host = 'generativelanguage.googleapis.com';
 const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
 
 type ModeOption = {
-  value: AssistantConfigMode;
+  value: string;
 };
-
-// Ensure daily_helper is first in the modes array
-const modes: ModeOption[] = Object.keys(assistantConfigs).map(key => ({
-  value: key as AssistantConfigMode,
-}));
 
 export interface VideoCanvasHandle {
   captureScreenshot: () => string | null;
@@ -31,8 +27,9 @@ const VideoCanvas = forwardRef<
     videoRef: React.RefObject<HTMLVideoElement>;
     videoStream: MediaStream | null;
     selectedOption: { value: string };
+    assistants: Record<string, AssistantConfig>;
   }
->(({ videoRef, videoStream, selectedOption }, ref) => {
+>(({ videoRef, videoStream, selectedOption, assistants }, ref) => {
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const { client, connected } = useLiveAPIContext();
 
@@ -82,8 +79,14 @@ const VideoCanvas = forwardRef<
         client.sendRealtimeInput([{ mimeType: 'image/jpeg', data }]);
       }
       if (connected) {
-        // Adjust capture rate based on assistant mode
-        const captureRate = selectedOption.value === 'knowledge_base' ? 1 : 0.5; // KB mode: 1 second between frames, others: 2 seconds
+        // Get the current assistant
+        const currentAssistant = assistants[selectedOption.value];
+        
+        // Adjust capture rate based on assistant display name
+        // Knowledge Curator: 1 second between frames, others: 2 seconds
+        const captureRate = currentAssistant && 
+                           currentAssistant.displayName === 'Knowledge Curator' ? 1 : 0.5;
+        
         timeoutId = window.setTimeout(sendVideoFrame, 1000 / captureRate);
       }
     }
@@ -93,17 +96,30 @@ const VideoCanvas = forwardRef<
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [videoStream, connected, client, videoRef, selectedOption]);
+  }, [videoStream, connected, client, videoRef, selectedOption, assistants]);
 
   return <canvas style={{ display: 'none' }} ref={renderCanvasRef} />;
 });
 
-function App() {
+// Create a separate component for the app content to use hooks inside
+function AppContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoCanvasRef = useRef<VideoCanvasHandle>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
-  const [selectedOption, setSelectedOption] = useState<ModeOption>(modes[0]);
+  const { assistants, assistantsList, isLoading, error } = useAssistants();
+  
+  // Generate modes from assistants list
+  const modes = assistantsList.map(assistant => ({ value: assistant.id }));
+  
+  // Initialize selectedOption with first assistant when available
+  const [selectedOption, setSelectedOption] = useState<ModeOption>({ value: '' });
+  
+  // Update selectedOption when assistants load
+  useEffect(() => {
+    if (assistantsList.length > 0 && !selectedOption.value) {
+      setSelectedOption({ value: assistantsList[0].id });
+    }
+  }, [assistantsList, selectedOption.value]);
 
   // Initialize PostHog
   useEffect(() => {
@@ -118,6 +134,122 @@ function App() {
 
     initAnalyticsWithMachineId();
   }, []);
+
+  // Handle mode update requests
+  useEffect(() => {
+    const handleModeUpdateRequest = () => {
+      // Only use assistants from context, no fallback
+      const assistantConfig = assistants[selectedOption.value];
+      
+      // Only proceed if we have a valid assistant
+      if (assistantConfig) {
+        const modeName = assistantConfig.displayName;
+        const requiresDisplay = assistantConfig.requiresDisplay;
+        
+        ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
+      }
+    };
+
+    ipcRenderer.on('request-mode-update', handleModeUpdateRequest);
+    return () => {
+      ipcRenderer.removeListener('request-mode-update', handleModeUpdateRequest);
+    };
+  }, [selectedOption, assistants]);
+
+  const handleScreenshot = useCallback(() => {
+    return videoCanvasRef.current?.captureScreenshot() || null;
+  }, []);
+
+  // Check if we're in markdown preview mode
+  const isMarkdownPreview = window.location.hash === '#/markdown-preview';
+
+  if (isMarkdownPreview) {
+    return <MarkdownPreview />;
+  }
+
+  // Show loading state while assistants are being fetched
+  if (isLoading) {
+    return <div className="loading-assistants">Loading assistant configurations...</div>;
+  }
+
+  // Show error if there was an issue loading assistants
+  if (error) {
+    return <div className="error-assistants">Error: {error}</div>;
+  }
+  
+  // Show message if no assistants are available
+  if (assistantsList.length === 0) {
+    return <div className="no-assistants">No assistant configurations available.</div>;
+  }
+
+  // Get the current assistant from the context (no fallback)
+  const assistantConfig = assistants[selectedOption.value];
+  
+  // If no assistant is selected or the selected assistant doesn't exist, show a message
+  if (!assistantConfig) {
+    return <div className="invalid-assistant">Please select a valid assistant.</div>;
+  }
+
+  return (
+    <div className="streaming-console">
+      <VideoCanvas
+        ref={videoCanvasRef}
+        videoRef={videoRef}
+        videoStream={videoStream}
+        selectedOption={selectedOption}
+        assistants={assistants}
+      />
+      <button
+        className="action-button settings-button"
+        onClick={() => {
+          ipcRenderer.send('show-settings');
+        }}
+        title="Settings"
+      >
+        <span className="material-symbols-outlined">settings</span>
+      </button>
+
+      <main>
+        <div className="main-app-area">
+          <ToolCallHandler
+            tools={[...assistantConfig.tools]}
+            systemInstruction={assistantConfig.systemInstruction}
+            assistantMode={selectedOption.value}
+            onScreenshot={handleScreenshot}
+          />
+          <video
+            className={cn('stream', {
+              hidden: !videoRef.current || !videoStream,
+            })}
+            ref={videoRef}
+            autoPlay
+            playsInline
+          />
+        </div>
+
+        <div style={{ display: 'none' }}>
+          <ControlTray
+            videoRef={videoRef}
+            supportsVideo={true}
+            onVideoStreamChange={setVideoStream}
+            modes={modes}
+            selectedOption={selectedOption}
+            setSelectedOption={(option: { value: string }) => {
+              setSelectedOption(option as ModeOption);
+              // Notify main process of mode change
+              ipcRenderer.send('update-current-mode', option.value);
+            }}
+          ></ControlTray>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  // Check if we're in markdown preview or auth mode
+  const isMarkdownPreview = window.location.hash === '#/markdown-preview';
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
 
   // Load saved settings when app starts
   useEffect(() => {
@@ -136,10 +268,6 @@ function App() {
 
   // Handle settings-related IPC messages
   useEffect(() => {
-    const handleGetSettings = () => {
-      ipcRenderer.send('settings-data', { geminiApiKey });
-    };
-
     const handleUpdateSettings = (event: any, settings: { geminiApiKey: string }) => {
       console.log('Received settings update:', settings);
       if (settings?.geminiApiKey) {
@@ -155,38 +283,14 @@ function App() {
       }
     };
 
-    ipcRenderer.on('get-settings', handleGetSettings);
     ipcRenderer.on('update-settings', handleUpdateSettings);
     ipcRenderer.on('init-saved-settings', handleInitSavedSettings);
 
     return () => {
-      ipcRenderer.removeListener('get-settings', handleGetSettings);
       ipcRenderer.removeListener('update-settings', handleUpdateSettings);
       ipcRenderer.removeListener('init-saved-settings', handleInitSavedSettings);
     };
-  }, [geminiApiKey]);
-
-  // Handle mode update requests
-  useEffect(() => {
-    const handleModeUpdateRequest = () => {
-      const mode = selectedOption.value as keyof typeof assistantConfigs;
-      const modeName = assistantConfigs[mode].displayName;
-      const requiresDisplay = assistantConfigs[mode].requiresDisplay;
-      ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
-    };
-
-    ipcRenderer.on('request-mode-update', handleModeUpdateRequest);
-    return () => {
-      ipcRenderer.removeListener('request-mode-update', handleModeUpdateRequest);
-    };
-  }, [selectedOption]);
-
-  const handleScreenshot = useCallback(() => {
-    return videoCanvasRef.current?.captureScreenshot() || null;
   }, []);
-
-  // Check if we're in markdown preview or auth mode
-  const isMarkdownPreview = window.location.hash === '#/markdown-preview';
 
   if (isMarkdownPreview) {
     return <MarkdownPreview />;
@@ -194,66 +298,14 @@ function App() {
 
   return (
     <div className="App">
-      <LiveAPIProvider url={uri} apiKey={geminiApiKey}>
-        <div className="streaming-console">
-          <VideoCanvas
-            ref={videoCanvasRef}
-            videoRef={videoRef}
-            videoStream={videoStream}
-            selectedOption={selectedOption}
-          />
-          <button
-            className="action-button settings-button"
-            onClick={() => {
-              ipcRenderer.send('show-settings');
-            }}
-            title="Settings"
-          >
-            <span className="material-symbols-outlined">settings</span>
-          </button>
-
-          <main>
-            <div className="main-app-area">
-              <ToolCallHandler
-                tools={[
-                  ...assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].tools,
-                ]}
-                systemInstruction={
-                  assistantConfigs[selectedOption.value as keyof typeof assistantConfigs]
-                    .systemInstruction
-                }
-                assistantMode={selectedOption.value}
-                onScreenshot={handleScreenshot}
-              />
-              <video
-                className={cn('stream', {
-                  hidden: !videoRef.current || !videoStream,
-                })}
-                ref={videoRef}
-                autoPlay
-                playsInline
-              />
-            </div>
-
-            <div style={{ display: 'none' }}>
-              <ControlTray
-                videoRef={videoRef}
-                supportsVideo={true}
-                onVideoStreamChange={setVideoStream}
-                modes={modes}
-                selectedOption={selectedOption}
-                setSelectedOption={(option: { value: string }) => {
-                  setSelectedOption(option as ModeOption);
-                  // Notify main process of mode change
-                  ipcRenderer.send('update-current-mode', option.value);
-                }}
-              ></ControlTray>
-            </div>
-          </main>
-        </div>
-      </LiveAPIProvider>
+      <AssistantProvider>
+        <LiveAPIProvider url={uri} apiKey={geminiApiKey}>
+          <AppContent />
+        </LiveAPIProvider>
+      </AssistantProvider>
     </div>
   );
 }
 
 export default App;
+  

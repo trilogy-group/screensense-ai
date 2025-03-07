@@ -24,6 +24,10 @@ import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
 import { closeUpdateWindow } from './UpdateWindow';
+// import { fetchUserData } from '../services/apiMain';
+import { storeAssistants, clearStoredAssistants } from '../services/assistantStore';
+
+// Use require for apiMain to avoid TypeScript build issues
 import { fetchUserData } from '../services/api';
 
 let authWindow: BrowserWindow | null = null;
@@ -213,7 +217,10 @@ export function initializeAuthWindow() {
         // Fetch user data to verify token works and get assistant configurations
         console.log('Fetching user data...');
         const userData = await fetchUserData();
-        console.log('User data fetched successfully:', JSON.stringify(userData, null, 2));
+        // console.log('User data fetched successfully:', JSON.stringify(userData, null, 2));
+
+        // Store the assistants in memory
+        storeAssistants(userData.assistants);
 
         // Create main windows
         await launchScreenSense();

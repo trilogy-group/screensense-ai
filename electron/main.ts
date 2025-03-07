@@ -37,7 +37,6 @@ if (!app.isPackaged) {
 // Add this near the top with other state variables
 let currentAssistantMode = 'daily_helper'; // Default mode
 let isSessionActive = false;
-let mainWindow: BrowserWindow | null = null;
 let deeplinkingUrl: string | undefined;
 
 const isDev = !app.isPackaged;
@@ -200,6 +199,25 @@ ipcMain.handle('get-sources', async () => {
 // Handler to check if app is in development mode
 ipcMain.handle('is-dev', () => {
   return isDev;
+});
+
+// Handler to get stored assistant configurations
+ipcMain.handle('get-user-assistants', () => {
+  try {
+    // Import dynamically to avoid circular dependencies
+    const { getStoredAssistants } = require('../src/services/assistantStore');
+    const assistants = getStoredAssistants();
+
+    if (!assistants) {
+      console.log('No assistants found in store');
+      return [];
+    }
+
+    return assistants;
+  } catch (error) {
+    console.error('Error retrieving assistants:', error);
+    return [];
+  }
 });
 
 async function getSelectedText() {
