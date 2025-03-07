@@ -456,6 +456,24 @@
                   <span id="user-name" class="user-name">Signed in as: </span>
                   <div id="user-email" class="user-email"></div>
                 </div>
+                <div
+                  style="
+                    margin-top: 16px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                  "
+                >
+                  <span class="version-text">Assistants</span>
+                  <button
+                    type="button"
+                    class="check-update-btn"
+                    id="refresh-assistants-btn"
+                    onclick="refreshAssistants()"
+                  >
+                    Refresh Assistants
+                  </button>
+                </div>
               </div>
             </div>
           </form>
@@ -561,6 +579,46 @@
           }
         }
       });
+
+      // Handle refresh assistants
+      async function refreshAssistants() {
+        const refreshButton = document.getElementById('refresh-assistants-btn');
+        const originalText = refreshButton.textContent;
+
+        try {
+          // Show loading state
+          refreshButton.textContent = 'Refreshing...';
+          refreshButton.disabled = true;
+
+          // Call the refresh-assistants IPC handler
+          const result = await ipcRenderer.invoke('refresh-assistants');
+
+          // Show success or error message
+          if (result.success) {
+            refreshButton.textContent = 'Success!';
+            setTimeout(() => {
+              refreshButton.textContent = originalText;
+              refreshButton.disabled = false;
+            }, 1500);
+          } else {
+            refreshButton.textContent = 'Failed';
+            setTimeout(() => {
+              refreshButton.textContent = originalText;
+              refreshButton.disabled = false;
+            }, 1500);
+            if (result.error) {
+              console.error('Error refreshing assistants:', result.error);
+            }
+          }
+        } catch (error) {
+          refreshButton.textContent = 'Error';
+          setTimeout(() => {
+            refreshButton.textContent = originalText;
+            refreshButton.disabled = false;
+          }, 1500);
+          console.error('Error refreshing assistants:', error);
+        }
+      }
     </script>
   </body>
 </html>

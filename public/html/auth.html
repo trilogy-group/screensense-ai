@@ -125,7 +125,7 @@
       }
 
       function openAuthPage() {
-        console.log('Opening auth page with URL:', COGNITO_AUTH_URL);
+        // console.log('Opening auth page with URL:', COGNITO_AUTH_URL);
         const url = new URL(COGNITO_AUTH_URL);
         url.searchParams.append('code_challenge', codeChallenge);
         url.searchParams.append('code_challenge_method', 'S256');
@@ -163,7 +163,14 @@
           const isAuthenticated = await ipcRenderer.invoke('check-auth-status');
           if (isAuthenticated) {
             showState('success-state');
-            await ipcRenderer.invoke('handle-auth-success', 'already-authenticated');
+            const success = await ipcRenderer.invoke(
+              'handle-auth-success',
+              'already-authenticated'
+            );
+            if (!success) {
+              console.error('Failed to create windows');
+              showState('initial-state');
+            }
           }
         } catch (error) {
           console.error('Error checking auth status:', error);

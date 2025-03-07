@@ -19,15 +19,20 @@ import { loadHtmlFile } from '../utils/window-utils';
 import { closeActionWindow } from './ActionWindow';
 import { closeControlWindow, createControlWindow } from './ControlWindow';
 import { hideErrorOverlay } from './ErrorOverlay';
-import { closeMainWindow, createMainWindow } from './MainWindow';
+import { closeMainWindow, createMainWindow, sendAssistantsRefreshed } from './MainWindow';
 import { closeMarkdownPreviewWindow } from './MarkdownPreviewWindow';
 import { closeSettingsWindow } from './SettingsWindow';
 import { closeSubtitleOverlayWindow, createSubtitleOverlayWindow } from './SubtitleOverlay';
 import { closeUpdateWindow } from './UpdateWindow';
-import { once } from 'events';
+// import { fetchUserData } from '../services/apiMain';
+import { storeAssistants, clearStoredAssistants } from '../services/assistantStore';
+
+// Use require for apiMain to avoid TypeScript build issues
+import { fetchUserData } from '../services/api';
 
 let authWindow: BrowserWindow | null = null;
 let currentCodeVerifier: string | null = null;
+let assistantsRefreshInterval: NodeJS.Timeout | null = null;
 
 export async function createAuthWindow() {
   if (authWindowExists()) {
@@ -112,7 +117,7 @@ async function launchScreenSense() {
   await createMainWindow();
   await createSubtitleOverlayWindow();
   await createControlWindow();
-  await closeAuthWindow();
+  closeAuthWindow();
 }
 
 export async function performCognitoLogout(): Promise<boolean> {
@@ -130,7 +135,7 @@ export async function performCognitoLogout(): Promise<boolean> {
     // 1. Sign the user out of their Cognito user session
     // 2. Clear Cognito cookies and tokens
     // 3. Redirect to the specified logout_uri (must be registered in Cognito)
-    console.log('Opening Cognito logout URL in default browser:', COGNITO_LOGOUT_URL);
+    // console.log('Opening Cognito logout URL in default browser:', COGNITO_LOGOUT_URL);
     await shell.openExternal(COGNITO_LOGOUT_URL);
 
     return true;
@@ -141,8 +146,48 @@ export async function performCognitoLogout(): Promise<boolean> {
   }
 }
 
+// Function to refresh assistants list
+export async function refreshAssistantsList() {
+  console.log('Refreshing assistants list...');
+  try {
+    const userData = await fetchUserData();
+    storeAssistants(userData.assistants);
+    console.log('Assistants list refreshed successfully');
+
+    // Notify all renderer processes about the assistants refresh
+    sendAssistantsRefreshed();
+
+    return true;
+  } catch (error) {
+    console.error('Error refreshing assistants list:', error);
+    logToFile(`Error refreshing assistants list: ${error}`);
+    return false;
+  }
+}
+
+// Function to clear the assistants refresh interval
+export function clearAssistantsRefreshInterval() {
+  if (assistantsRefreshInterval) {
+    clearInterval(assistantsRefreshInterval);
+    assistantsRefreshInterval = null;
+    console.log('Assistants refresh interval cleared');
+  }
+}
+
 export function initializeAuthWindow() {
   console.log('Initializing auth window module');
+
+  // Set up hourly assistant list refresh
+  assistantsRefreshInterval = setInterval(
+    () => {
+      console.log('Scheduled assistants list refresh');
+      refreshAssistantsList().catch(err => {
+        console.error('Error in scheduled assistants refresh:', err);
+        logToFile(`Error in scheduled assistants refresh: ${err}`);
+      });
+    },
+    60 * 60 * 1000 // Refresh every hour (60 minutes * 60 seconds * 1000 milliseconds)
+  );
 
   // Handle sign out
   ipcMain.handle('sign-out', async () => {
@@ -160,6 +205,20 @@ export function initializeAuthWindow() {
       closeUpdateWindow();
 
       console.log('All windows closed');
+
+      // Clear stored assistants
+      clearStoredAssistants();
+
+      // Clear the intervals to prevent accessing destroyed objects
+      clearAssistantsRefreshInterval();
+
+      // Import and clear the update check interval
+      try {
+        const { clearUpdateCheckInterval } = require('../../electron/updater');
+        clearUpdateCheckInterval();
+      } catch (error) {
+        console.error('Error clearing update check interval:', error);
+      }
 
       // First perform Cognito web logout
       const cognitoLogoutSuccess = await performCognitoLogout();
@@ -207,17 +266,33 @@ export function initializeAuthWindow() {
   ipcMain.handle('handle-auth-success', async (_, code: string) => {
     console.log('Auth success received, processing token');
 
-    // If code is 'already-authenticated', we have valid tokens
-    if (code === 'already-authenticated') {
+    // Common function to fetch user data and launch app
+    const fetchDataAndLaunch = async () => {
       try {
+        // Fetch user data to verify token works and get assistant configurations
+        console.log('Fetching user data...');
+        const userData = await fetchUserData();
+        // console.log('User data fetched successfully:', JSON.stringify(userData, null, 2));
+
+        // Store the assistants in memory
+        storeAssistants(userData.assistants);
+
         // Create main windows
         await launchScreenSense();
         return true;
       } catch (error) {
-        console.error('Error creating windows:', error);
-        logToFile(`Error creating windows: ${error}`);
+        console.error('Error fetching user data or creating windows:', error);
+        logToFile(`Error fetching user data or creating windows: ${error}`);
+
+        // Clear tokens to force re-sign in
+        clearTokens();
         return false;
       }
+    };
+
+    // If code is 'already-authenticated', we have valid tokens
+    if (code === 'already-authenticated') {
+      return fetchDataAndLaunch();
     }
 
     // Otherwise, proceed with code exchange
@@ -259,13 +334,14 @@ export function initializeAuthWindow() {
         id_token: tokenData.id_token,
       });
 
-      // Create main windows
-      await launchScreenSense();
-
-      return true;
+      // Fetch user data and launch app
+      return fetchDataAndLaunch();
     } catch (error) {
       console.error('Error handling auth success:', error);
       logToFile(`Error handling auth success: ${error}`);
+
+      // Clear tokens to force re-sign in
+      clearTokens();
       return false;
     } finally {
       // Clear the code verifier after use

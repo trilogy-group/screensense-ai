@@ -24,6 +24,8 @@ import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
 import { initializeUpdateWindow } from '../src/windows/UpdateWindow';
 import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/constants/constants';
 import { resolve } from 'path';
+import { clearUpdateCheckInterval } from './updater';
+import { clearAssistantsRefreshInterval } from '../src/windows/AuthWindow';
 
 dotenv.config();
 
@@ -37,18 +39,15 @@ if (!app.isPackaged) {
 // Add this near the top with other state variables
 let currentAssistantMode = 'daily_helper'; // Default mode
 let isSessionActive = false;
-let mainWindow: BrowserWindow | null = null;
 let deeplinkingUrl: string | undefined;
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = !app.isPackaged;
 
 // Move this before any app.on handlers
 if (isDev && process.platform === 'win32') {
   // Set the path of electron.exe and your app.
   // These two additional parameters are only available on windows.
-  app.setAsDefaultProtocolClient('screensense', process.execPath, [
-    resolve(process.argv[1])
-  ]);
+  app.setAsDefaultProtocolClient('screensense', process.execPath, [resolve(process.argv[1])]);
 } else {
   app.setAsDefaultProtocolClient('screensense');
 }
@@ -77,7 +76,7 @@ if (!gotTheLock) {
       }
 
       // Handle other deep links
-      deeplinkingUrl = argv.find((arg) => arg.startsWith('screensense://'));
+      deeplinkingUrl = argv.find(arg => arg.startsWith('screensense://'));
     }
 
     // Focus existing window
@@ -97,7 +96,7 @@ if (!gotTheLock) {
 app.on('open-url', function (event, url) {
   event.preventDefault();
   deeplinkingUrl = url;
-  
+
   // Handle auth callbacks
   if (url.startsWith(COGNITO_REDIRECT_URI)) {
     console.log('Processing auth callback URL');
@@ -109,7 +108,7 @@ app.on('open-url', function (event, url) {
     console.log('Received logout redirect');
     return;
   }
-  
+
   // Handle other deep links
   const mainWindow = BrowserWindow.getAllWindows()[0];
   if (mainWindow) {
@@ -166,7 +165,7 @@ async function initializeApp() {
 
   // Check if we have a deep link URL on startup
   if (process.platform !== 'darwin') {
-    const deepLink = process.argv.find((arg) => arg.startsWith('screensense://'));
+    const deepLink = process.argv.find(arg => arg.startsWith('screensense://'));
     if (deepLink) {
       deeplinkingUrl = deepLink;
       const mainWindow = BrowserWindow.getAllWindows()[0];
@@ -180,8 +179,30 @@ async function initializeApp() {
 // Call it after registering all handlers
 app.whenReady().then(initializeApp);
 
+// Handle window close
 app.on('window-all-closed', () => {
-  app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+// Clean up resources before app quits
+app.on('will-quit', () => {
+  console.log('App is quitting, cleaning up resources...');
+
+  // Clean up assistants refresh interval
+  try {
+    clearAssistantsRefreshInterval();
+  } catch (error) {
+    console.error('Error clearing assistants refresh interval:', error);
+  }
+
+  // Clean up update check interval
+  try {
+    clearUpdateCheckInterval();
+  } catch (error) {
+    console.error('Error clearing update check interval:', error);
+  }
 });
 
 app.on('activate', () => {
@@ -197,6 +218,30 @@ ipcMain.handle('get-sources', async () => {
     thumbnailSize: { width: 1920, height: 1080 },
   });
   return sources;
+});
+
+// Handler to check if app is in development mode
+ipcMain.handle('is-dev', () => {
+  return isDev;
+});
+
+// Handler to get stored assistant configurations
+ipcMain.handle('get-user-assistants', () => {
+  try {
+    // Import dynamically to avoid circular dependencies
+    const { getStoredAssistants } = require('../src/services/assistantStore');
+    const assistants = getStoredAssistants();
+
+    if (!assistants) {
+      console.log('No assistants found in store');
+      return [];
+    }
+
+    return assistants;
+  } catch (error) {
+    console.error('Error retrieving assistants:', error);
+    return [];
+  }
 });
 
 async function getSelectedText() {
