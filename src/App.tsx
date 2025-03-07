@@ -86,7 +86,6 @@ const VideoCanvas = forwardRef<
         // Knowledge Curator: 1 second between frames, others: 2 seconds
         const captureRate = currentAssistant && 
                            currentAssistant.displayName === 'Knowledge Curator' ? 1 : 0.5;
-        
         timeoutId = window.setTimeout(sendVideoFrame, 1000 / captureRate);
       }
     }
@@ -109,22 +108,22 @@ function AppContent() {
   const { assistants, assistantsList, isLoading, error } = useAssistants();
   
   // Generate modes from assistants list using useMemo to prevent recreation on every render
-  console.log('AppContent rendering, creating modes array');
+  // console.log('AppContent rendering, creating modes array');
   const modes = useMemo(() => {
-    console.log('Creating memoized modes array');
+    // console.log('Creating memoized modes array');
     return assistantsList.map(assistant => ({ value: assistant.id }));
   }, [assistantsList]); // Only recreate when assistantsList changes
   
-  console.log(`Assistants: ${assistantsList.map(assistant => assistant.displayName)}`);
-  console.log('Modes array created:', modes);
+  // console.log(`Assistants: ${assistantsList.map(assistant => assistant.displayName)}`);
+  // console.log('Modes array created:', modes);
   
   // Initialize selectedOption with first assistant when available
   const [selectedOption, setSelectedOption] = useState<ModeOption>({ value: '' });
   
-  // Log when selectedOption changes
-  useEffect(() => {
-    console.log('selectedOption changed to:', selectedOption);
-  }, [selectedOption]);
+  // // Log when selectedOption changes
+  // useEffect(() => {
+  //   console.log('selectedOption changed to:', selectedOption);
+  // }, [selectedOption]);
   
   // Update selectedOption when assistants load
   useEffect(() => {
@@ -247,10 +246,10 @@ function AppContent() {
             modes={modes}
             selectedOption={selectedOption}
             setSelectedOption={(option: { value: string }) => {
-              console.log('setSelectedOption called from ControlTray with option:', option);
-              const previousOption = selectedOption;
+              // console.log('setSelectedOption called from ControlTray with option:', option);
+              // const previousOption = selectedOption;
               setSelectedOption(option as ModeOption);
-              console.log('selectedOption changed from', previousOption, 'to', option);
+              // console.log('selectedOption changed from', previousOption, 'to', option);
               // Notify main process of mode change
               ipcRenderer.send('update-current-mode', option.value);
             }}

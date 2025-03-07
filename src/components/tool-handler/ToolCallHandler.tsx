@@ -102,6 +102,8 @@ function ToolCallHandlerComponent({
     };
   }, []);
   useEffect(() => {
+    // console.log(`Tools are ${JSON.stringify(tools, null, 2)}`)
+    // console.log(`Converted tools are ${JSON.stringify(convertToolsToGoogleFormat(tools), null, 2)}`)
     setConfig({
       model: 'models/gemini-2.0-flash-exp',
       generationConfig: {

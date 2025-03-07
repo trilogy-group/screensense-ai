@@ -33,7 +33,6 @@ import { useWebcam } from '../../hooks/use-webcam';
 import { AudioRecorder } from '../../lib/audio-recorder';
 import AudioPulse from '../audio-pulse/AudioPulse';
 import './control-tray.scss';
-import { assistantConfigs } from '../../configs/assistant-configs';
 import { trackEvent } from '../../services/analytics';
 import { useAssistants } from '../../contexts/AssistantContext';
 const { ipcRenderer } = window.require('electron');
@@ -210,9 +209,9 @@ function ControlTray({
   );
 
   useEffect(() => {
-    console.log('ControlTray useEffect running - carouselIndex:', carouselIndex);
-    console.log('Modes reference changed:', modes);
-    console.log('Current assistants keys:', Object.keys(assistants));
+    // console.log('ControlTray useEffect running - carouselIndex:', carouselIndex);
+    // console.log('Modes reference changed:', modes);
+    // console.log('Current assistants keys:', Object.keys(assistants));
     
     setSelectedOption(modes[carouselIndex]);
     // Send carousel update to control window
@@ -356,7 +355,7 @@ function ControlTray({
       // Trigger merging of the conversation
       ipcRenderer.send('merge-conversation-audio', {
         assistantDisplayName:
-          assistantConfigs[selectedOption.value as keyof typeof assistantConfigs].displayName,
+          assistants[selectedOption.value].displayName,
       });
 
       // Reset audio chunks and timestamps if requested
@@ -368,7 +367,7 @@ function ControlTray({
         lastAssistantTimestamp.current = 0;
       }
     },
-    [selectedOption.value]
+    [selectedOption.value, assistants]
   );
 
   // Add effect to handle auto-saving

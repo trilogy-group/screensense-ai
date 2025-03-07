@@ -60,9 +60,9 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({ children }
     setError(null);
 
     try {
-      console.log('Fetching assistants from main process...');
+      // console.log('Fetching assistants from main process...');
       const apiAssistants = await ipcRenderer.invoke('get-user-assistants') as ApiAssistant[];
-      console.log(`Received ${apiAssistants.length} assistants from main process`);
+      // console.log(`Received ${apiAssistants.length} assistants from main process`);
 
       if (apiAssistants.length === 0) {
         setError('No assistant configurations available.');
@@ -74,7 +74,7 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({ children }
       const assistantsRecord = convertApiAssistantsToRecord(apiAssistants);
       const assistantsList = Object.values(assistantsRecord);
 
-      console.log(`Processed ${assistantsList.length} assistants`);
+      // console.log(`Processed ${assistantsList.length} assistants`);
       setAssistants(assistantsRecord);
       setAssistantsList(assistantsList);
       setIsLoading(false);
