@@ -1,4 +1,3 @@
-import { Schema, SchemaType } from '@google/generative-ai';
 import { Tool, ToolType } from '../configs/assistant-types';
 import { ipcRenderer } from 'electron';
 
@@ -71,6 +70,8 @@ export class McpClient {
       if (!result.success) {
         throw new Error(result.error || 'Failed to list tools');
       }
+
+      console.log(`Tool names: ${result.tools.map((tool: any) => tool.name)}`);
 
       // Convert the tools to our Tool type
       const tools: Tool[] = result.tools.map((tool: any) => ({
