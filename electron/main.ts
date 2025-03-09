@@ -17,7 +17,7 @@ import {
 } from '../src/windows/AuthWindow';
 import { initializeControlWindow } from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
-import { initializeMainWindow } from '../src/windows/MainWindow';
+import { getMainWindow, initializeMainWindow } from '../src/windows/MainWindow';
 import { initializeMarkdownPreviewWindow } from '../src/windows/MarkdownPreviewWindow';
 import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
@@ -82,7 +82,7 @@ if (!gotTheLock) {
     }
 
     // Focus existing window
-    const mainWindow = BrowserWindow.getAllWindows()[0];
+    const mainWindow = getMainWindow();
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -112,7 +112,7 @@ app.on('open-url', function (event, url) {
   }
 
   // Handle other deep links
-  const mainWindow = BrowserWindow.getAllWindows()[0];
+  const mainWindow = getMainWindow();
   if (mainWindow) {
     mainWindow.webContents.send('deep-link', url);
   }
@@ -174,7 +174,7 @@ async function initializeApp() {
     const deepLink = process.argv.find(arg => arg.startsWith('screensense://'));
     if (deepLink) {
       deeplinkingUrl = deepLink;
-      const mainWindow = BrowserWindow.getAllWindows()[0];
+      const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.webContents.send('deep-link', deepLink);
       }

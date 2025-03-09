@@ -161,7 +161,7 @@ export function initializeMcpHandler() {
         throw new Error(`No client found for ${url}`);
       }
       const tools = await client.listTools();
-      return { success: true, tools: tools.slice(0, 1) };
+      return { success: true, tools };
     } catch (error) {
       logToFile(
         `Failed to list tools from ${url}: ${error instanceof Error ? error.message : String(error)}`
