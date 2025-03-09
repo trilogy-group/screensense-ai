@@ -2,7 +2,7 @@ import { Key, keyboard } from '@nut-tree-fork/nut-js';
 import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 import * as dotenv from 'dotenv';
-import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain, screen, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { initializeContext } from '../src/utils/context-utils';
@@ -17,7 +17,7 @@ import {
 } from '../src/windows/AuthWindow';
 import { initializeControlWindow } from '../src/windows/ControlWindow';
 import { initializeErrorOverlay } from '../src/windows/ErrorOverlay';
-import { initializeMainWindow } from '../src/windows/MainWindow';
+import { getMainWindow, initializeMainWindow } from '../src/windows/MainWindow';
 import { initializeMarkdownPreviewWindow } from '../src/windows/MarkdownPreviewWindow';
 import { initializeSettingsWindow } from '../src/windows/SettingsWindow';
 import { initializeSubtitleOverlay } from '../src/windows/SubtitleOverlay';
@@ -26,6 +26,7 @@ import { COGNITO_REDIRECT_URI, COGNITO_LOGOUT_REDIRECT_URI } from '../src/consta
 import { resolve } from 'path';
 import { clearUpdateCheckInterval } from './updater';
 import { clearAssistantsRefreshInterval } from '../src/windows/AuthWindow';
+import { initializeMcpHandler } from './mcp-handler';
 // import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js';
 
 dotenv.config();
@@ -81,7 +82,7 @@ if (!gotTheLock) {
     }
 
     // Focus existing window
-    const mainWindow = BrowserWindow.getAllWindows()[0];
+    const mainWindow = getMainWindow();
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -111,7 +112,7 @@ app.on('open-url', function (event, url) {
   }
 
   // Handle other deep links
-  const mainWindow = BrowserWindow.getAllWindows()[0];
+  const mainWindow = getMainWindow();
   if (mainWindow) {
     mainWindow.webContents.send('deep-link', url);
   }
@@ -162,6 +163,9 @@ async function initializeApp() {
   initializeContext();
   initializeKBHandlers();
 
+  // Initialize MCP handler
+  initializeMcpHandler();
+
   // Create auth window first and wait for authentication
   await createAuthWindow();
 
@@ -170,7 +174,7 @@ async function initializeApp() {
     const deepLink = process.argv.find(arg => arg.startsWith('screensense://'));
     if (deepLink) {
       deeplinkingUrl = deepLink;
-      const mainWindow = BrowserWindow.getAllWindows()[0];
+      const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.webContents.send('deep-link', deepLink);
       }

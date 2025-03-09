@@ -7,8 +7,8 @@ import { AssistantConfig } from '../configs/assistant-types';
  * Interface for the AssistantContext value
  */
 interface AssistantContextValue {
-  assistants: Record<string, AssistantConfig>;  // Lookup by ID
-  assistantsList: AssistantConfig[];            // List for easier iteration
+  assistants: Record<string, AssistantConfig>; // Lookup by ID
+  assistantsList: AssistantConfig[]; // List for easier iteration
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -22,7 +22,7 @@ const defaultContextValue: AssistantContextValue = {
   assistantsList: [],
   isLoading: true,
   error: null,
-  refresh: async () => {}
+  refresh: async () => {},
 };
 
 /**
@@ -61,7 +61,7 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({ children }
 
     try {
       // console.log('Fetching assistants from main process...');
-      const apiAssistants = await ipcRenderer.invoke('get-user-assistants') as ApiAssistant[];
+      const apiAssistants = (await ipcRenderer.invoke('get-user-assistants')) as ApiAssistant[];
       // console.log(`Received ${apiAssistants.length} assistants from main process`);
 
       if (apiAssistants.length === 0) {
@@ -96,12 +96,8 @@ export const AssistantProvider: React.FC<AssistantProviderProps> = ({ children }
     assistantsList,
     isLoading,
     error,
-    refresh: loadAssistants
+    refresh: loadAssistants,
   };
 
-  return (
-    <AssistantContext.Provider value={contextValue}>
-      {children}
-    </AssistantContext.Provider>
-  );
-}; 
+  return <AssistantContext.Provider value={contextValue}>{children}</AssistantContext.Provider>;
+};

@@ -7,6 +7,7 @@ import { opencvService } from '../../services/opencv-service';
 import { trackEvent } from '../../services/analytics';
 import { omniParser } from '../../services/omni-parser';
 import { useAssistants } from '../../contexts/AssistantContext';
+import { getMcpTools } from '../../utils/mcp-client';
 
 const { ipcRenderer } = window.require('electron');
 
@@ -36,7 +37,11 @@ function ToolCallHandlerComponent({
     if (observationTimerRef.current) {
       clearInterval(observationTimerRef.current);
     }
-    if (isKBSessionActive && connected && assistants[assistantMode].displayName === 'Knowledge Curator') {
+    if (
+      isKBSessionActive &&
+      connected &&
+      assistants[assistantMode].displayName === 'Knowledge Curator'
+    ) {
       observationTimerRef.current = setInterval(() => {
         console.log('Asking for updates');
         client?.send([
@@ -58,13 +63,28 @@ function ToolCallHandlerComponent({
 
   // Clean up timer on unmount, disconnect, or mode change
   useEffect(() => {
-    if (!connected || assistants[assistantMode].displayName !== 'Knowledge Curator' || !isKBSessionActive) {
+    if (
+      !connected ||
+      assistants[assistantMode].displayName !== 'Knowledge Curator' ||
+      !isKBSessionActive
+    ) {
       stopObservationTimer();
-    } else if (isKBSessionActive && connected && assistants[assistantMode].displayName === 'Knowledge Curator') {
+    } else if (
+      isKBSessionActive &&
+      connected &&
+      assistants[assistantMode].displayName === 'Knowledge Curator'
+    ) {
       startObservationTimer();
     }
     return () => stopObservationTimer();
-  }, [connected, assistantMode, isKBSessionActive, startObservationTimer, stopObservationTimer, assistants]);
+  }, [
+    connected,
+    assistantMode,
+    isKBSessionActive,
+    startObservationTimer,
+    stopObservationTimer,
+    assistants,
+  ]);
 
   useEffect(() => {
     const processClick = async (event: any, data: any) => {
@@ -191,6 +211,42 @@ function ToolCallHandlerComponent({
           `Tool used: ${fc.name} with args: ${JSON.stringify(fc.args)}`
         );
 
+        try {
+          // First check in our known props.tools
+          let mcpTool: Tool | undefined;
+          mcpTool = getMcpTools().find(tool => tool.name === fc.name);
+
+          // If we found an MCP tool, execute it
+          if (mcpTool && mcpTool.mcpEndpoint) {
+            console.log(`Executing MCP tool ${fc.name} on endpoint ${mcpTool.mcpEndpoint}`);
+
+            // Execute the tool using IPC
+            const result = await ipcRenderer.invoke('mcp:executeTool', mcpTool.mcpEndpoint, fc.name, fc.args);
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to execute MCP tool');
+            }
+
+            // Send the tool response back to the model
+            client.sendToolResponse({
+              functionResponses: [
+                {
+                  response: { output: result.result },
+                  id: fc.id,
+                },
+              ],
+            });
+
+            hasResponded = true;
+            continue; // Skip the switch statement for MCP tools
+          }
+        } catch (error) {
+          console.error(`Error handling potential MCP tool ${fc.name}:`, error);
+
+          // Continue to normal tool handling - it might be a built-in tool that happens
+          // to have the same name as an MCP tool
+        }
+
+        // Handle built-in tools via switch statement
         switch (fc.name) {
           case 'start_recording':
             ipcRenderer.send('start-capture-screen');

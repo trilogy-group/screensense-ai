@@ -26,6 +26,7 @@ export interface ApiAssistant {
   systemInstruction: string;
   requiresDisplay: boolean;
   tools: ApiTool[];
+  mcpEndpoints: string[];
   createdAt: string;
   updatedAt: string;
   isFavorite: boolean;
@@ -77,6 +78,7 @@ export function convertApiAssistantToAssistantConfig(apiAssistant: ApiAssistant)
     description: apiAssistant.description,
     systemInstruction: apiAssistant.systemInstruction,
     tools,
+    mcpEndpoints: apiAssistant.mcpEndpoints,
     requiresDisplay: apiAssistant.requiresDisplay,
   };
 }

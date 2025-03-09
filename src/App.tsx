@@ -1,5 +1,13 @@
 import cn from 'classnames';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, useMemo } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  useMemo,
+} from 'react';
 import './App.scss';
 import ControlTray from './components/control-tray/ControlTray';
 import MarkdownPreview from './components/markdown/MarkdownPreview';
@@ -81,11 +89,11 @@ const VideoCanvas = forwardRef<
       if (connected) {
         // Get the current assistant
         const currentAssistant = assistants[selectedOption.value];
-        
+
         // Adjust capture rate based on assistant display name
         // Knowledge Curator: 1 second between frames, others: 2 seconds
-        const captureRate = currentAssistant && 
-                           currentAssistant.displayName === 'Knowledge Curator' ? 1 : 0.5;
+        const captureRate =
+          currentAssistant && currentAssistant.displayName === 'Knowledge Curator' ? 1 : 0.5;
         timeoutId = window.setTimeout(sendVideoFrame, 1000 / captureRate);
       }
     }
@@ -106,20 +114,20 @@ function AppContent() {
   const videoCanvasRef = useRef<VideoCanvasHandle>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const { assistants, assistantsList, isLoading, error, refresh } = useAssistants();
-  
+
   // Generate modes from assistants list using useMemo to prevent recreation on every render
   // console.log('AppContent rendering, creating modes array');
   const modes = useMemo(() => {
     // console.log('Creating memoized modes array');
     return assistantsList.map(assistant => ({ value: assistant.id }));
   }, [assistantsList]); // Only recreate when assistantsList changes
-  
+
   // console.log(`Assistants: ${assistantsList.map(assistant => assistant.displayName)}`);
   // console.log('Modes array created:', modes);
-  
+
   // Initialize selectedOption with first assistant when available
   const [selectedOption, setSelectedOption] = useState<ModeOption>({ value: '' });
-  
+
   // Listen for assistant refreshes from the main process
   useEffect(() => {
     const handleAssistantsRefreshed = () => {
@@ -135,12 +143,12 @@ function AppContent() {
       ipcRenderer.removeListener('assistants-refreshed', handleAssistantsRefreshed);
     };
   }, [refresh]); // Add refresh as a dependency
-  
+
   // // Log when selectedOption changes
   // useEffect(() => {
   //   console.log('selectedOption changed to:', selectedOption);
   // }, [selectedOption]);
-  
+
   // Update selectedOption when assistants load
   useEffect(() => {
     if (assistantsList.length > 0 && !selectedOption.value) {
@@ -167,12 +175,12 @@ function AppContent() {
     const handleModeUpdateRequest = () => {
       // Only use assistants from context, no fallback
       const assistantConfig = assistants[selectedOption.value];
-      
+
       // Only proceed if we have a valid assistant
       if (assistantConfig) {
         const modeName = assistantConfig.displayName;
         const requiresDisplay = assistantConfig.requiresDisplay;
-        
+
         ipcRenderer.send('update-carousel', { modeName, requiresDisplay });
       }
     };
@@ -203,7 +211,7 @@ function AppContent() {
   if (error) {
     return <div className="error-assistants">Error: {error}</div>;
   }
-  
+
   // Show message if no assistants are available
   if (assistantsList.length === 0) {
     return <div className="no-assistants">No assistant configurations available.</div>;
@@ -211,7 +219,7 @@ function AppContent() {
 
   // Get the current assistant from the context (no fallback)
   const assistantConfig = assistants[selectedOption.value];
-  
+
   // If no assistant is selected or the selected assistant doesn't exist, show a message
   if (!assistantConfig) {
     return <div className="invalid-assistant">Please select a valid assistant.</div>;
@@ -338,4 +346,3 @@ function App() {
 }
 
 export default App;
-  
