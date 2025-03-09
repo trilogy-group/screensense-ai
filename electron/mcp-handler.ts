@@ -100,10 +100,12 @@ class McpClientWrapper {
 
     try {
       // Call the tool via the MCP client
+      console.log(`Executing tool ${name} with args ${JSON.stringify(args)}`);
       const result = await this.client.callTool({
         name,
         arguments: args,
       });
+      console.log(`Tool ${name} executed with result ${JSON.stringify(result)}`);
 
       return result;
     } catch (error) {

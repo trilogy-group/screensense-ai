@@ -216,7 +216,7 @@ function ControlTray({
     // console.log('ControlTray useEffect running - carouselIndex:', carouselIndex);
     // console.log('Modes reference changed:', modes);
     // console.log('Current assistants keys:', Object.keys(assistants));
-    
+
     setSelectedOption(modes[carouselIndex]);
     // Send carousel update to control window
     const mode = modes[carouselIndex].value;
@@ -358,8 +358,7 @@ function ControlTray({
 
       // Trigger merging of the conversation
       ipcRenderer.send('merge-conversation-audio', {
-        assistantDisplayName:
-          assistants[selectedOption.value].displayName,
+        assistantDisplayName: assistants[selectedOption.value].displayName,
       });
 
       // Reset audio chunks and timestamps if requested
@@ -400,53 +399,57 @@ function ControlTray({
   // Modified handleConnect to load MCP tools before connecting
   const handleConnect = useCallback(async () => {
     // Function to load MCP tools
-  const loadMcpTools = async (assistantId: string) => {
-    // Clear previous MCP state
-    Object.values(mcpClients).forEach(client => {
-      client.close();
-    });
-    setMcpClients({});
+    const loadMcpTools = async (assistantId: string) => {
+      // Clear previous MCP state
+      Object.values(mcpClients).forEach(client => {
+        client.close();
+      });
+      setMcpClients({});
 
-    const assistant = assistants[assistantId];
-    if (!assistant || !assistant.mcpEndpoints?.length) {
-      return [];
-    }
+      const assistant = assistants[assistantId];
+      if (!assistant || !assistant.mcpEndpoints?.length) {
+        return [];
+      }
 
-    console.log(`Loading MCP tools for assistant ${assistant.displayName} from ${assistant.mcpEndpoints.length} endpoints`);
-    
-    const clients: Record<string, McpClient> = {};
-    const fetchedTools: Tool[] = [];
-    
-    try {
-      await Promise.all(assistant.mcpEndpoints.map(async (endpoint) => {
-        try {
-          console.log(`Connecting to MCP endpoint: ${endpoint}`);
-          const client = await createMcpClient(endpoint);
-          const tools = await client.listTools();
-          
-          clients[endpoint] = client;
-          fetchedTools.push(...tools);
+      console.log(
+        `Loading MCP tools for assistant ${assistant.displayName} from ${assistant.mcpEndpoints.length} endpoints`
+      );
 
-          console.log(`Tools are ${tools.map(t => t.name)}`);
-          
-          console.log(`Loaded ${tools.length} tools from MCP endpoint: ${endpoint}`);
-        } catch (error) {
-          console.error(`Failed to connect to MCP endpoint: ${endpoint}`, error);
-        }
-      }));
-      
-      setMcpClients(clients);
-      
-      console.log(`Total MCP tools loaded: ${fetchedTools.length}`);
-      return fetchedTools;
-    } catch (error) {
-      console.error('Error loading MCP tools:', error);
-      return [];
-    }
-  };
+      const clients: Record<string, McpClient> = {};
+      const fetchedTools: Tool[] = [];
+
+      try {
+        await Promise.all(
+          assistant.mcpEndpoints.map(async endpoint => {
+            try {
+              console.log(`Connecting to MCP endpoint: ${endpoint}`);
+              const client = await createMcpClient(endpoint);
+              const tools = await client.listTools();
+
+              clients[endpoint] = client;
+              fetchedTools.push(...tools);
+
+              console.log(`Tools are ${tools.map(t => t.name)}`);
+
+              console.log(`Loaded ${tools.length} tools from MCP endpoint: ${endpoint}`);
+            } catch (error) {
+              console.error(`Failed to connect to MCP endpoint: ${endpoint}`, error);
+            }
+          })
+        );
+
+        setMcpClients(clients);
+
+        console.log(`Total MCP tools loaded: ${fetchedTools.length}`);
+        return fetchedTools;
+      } catch (error) {
+        console.error('Error loading MCP tools:', error);
+        return [];
+      }
+    };
     if (!connected) {
       setIsLoading(true);
-      
+
       // Check for required API keys for all modes
       const settings = await ipcRenderer.invoke('get-saved-settings');
       if (!settings.geminiApiKey) {
@@ -481,13 +484,13 @@ function ControlTray({
       try {
         // Load MCP tools before connecting
         const mcpToolsList = await loadMcpTools(selectedOption.value);
-        
+
         // Get the current assistant config
         const assistantConfig = assistants[selectedOption.value];
-        
+
         // Combine built-in tools with MCP tools for the model
         const allTools = [...assistantConfig.tools, ...mcpToolsList];
-        
+
         // Set the config with all tools
         const configWithMcpTools = {
           model: 'models/gemini-2.0-flash-exp',
@@ -502,32 +505,29 @@ function ControlTray({
           },
           tools: convertToolsToGoogleFormat(allTools),
         };
-        
+
         // Still update the state for future reference
         setConfig(configWithMcpTools);
-        console.log(`Config is ${JSON.stringify(configWithMcpTools, null, 2)}`);
-        
+        // console.log(`Config is ${JSON.stringify(configWithMcpTools, null, 2)}`);
+
         // Start recording session
         setIsRecordingSession(true);
         userAudioChunks.current = [];
         assistantAudioChunks.current = [];
         sessionStartTime.current = performance.now();
         lastAssistantTimestamp.current = 0;
-        
+
         // Track the event
         trackEvent('chat_started', {
           assistant_mode: selectedOption.value,
           mcp_tools_count: mcpToolsList.length,
         });
-        
+
         // Connect to the assistant with the config directly
         connect(configWithMcpTools);
       } catch (error) {
         console.error('Failed to initialize assistant:', error);
-        ipcRenderer.send(
-          'session-error',
-          'Failed to initialize assistant. Please try again.'
-        );
+        ipcRenderer.send('session-error', 'Failed to initialize assistant. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -535,25 +535,25 @@ function ControlTray({
       // Disconnection logic
       setIsRecordingSession(false);
       saveRecordings(false);
-      
+
       // Close all MCP clients
       Object.values(mcpClients).forEach(client => {
         client.close();
       });
       setMcpClients({});
-      
+
       // Disconnect from the assistant
       disconnect();
       ipcRenderer.send('stop-capture-screen');
     }
   }, [
-    connected, 
-    connect, 
-    disconnect, 
-    selectedOption.value, 
-    saveRecordings, 
-    setConfig, 
-    assistants, 
+    connected,
+    connect,
+    disconnect,
+    selectedOption.value,
+    saveRecordings,
+    setConfig,
+    assistants,
     mcpClients,
   ]);
 
@@ -708,7 +708,13 @@ function ControlTray({
         ipcRenderer.send('hide-main-window');
       }
     }
-  }, [selectedOption.value, screenCapture.isStreaming, webcam.isStreaming, changeStreams, assistants]);
+  }, [
+    selectedOption.value,
+    screenCapture.isStreaming,
+    webcam.isStreaming,
+    changeStreams,
+    assistants,
+  ]);
 
   // Add effect to capture assistant audio
   useEffect(() => {
@@ -769,25 +775,24 @@ function ControlTray({
               <AudioPulse volume={volume} active={connected} hover={false} />
             </div>
 
-            {supportsVideo &&
-              assistants[selectedOption.value].requiresDisplay && (
-                <>
-                  <MediaStreamButton
-                    isStreaming={screenCapture.isStreaming}
-                    start={changeStreams(screenCapture)}
-                    stop={changeStreams()}
-                    onIcon="cancel_presentation"
-                    offIcon="present_to_all"
-                  />
-                  <MediaStreamButton
-                    isStreaming={webcam.isStreaming}
-                    start={changeStreams(webcam)}
-                    stop={changeStreams()}
-                    onIcon="videocam_off"
-                    offIcon="videocam"
-                  />
-                </>
-              )}
+            {supportsVideo && assistants[selectedOption.value].requiresDisplay && (
+              <>
+                <MediaStreamButton
+                  isStreaming={screenCapture.isStreaming}
+                  start={changeStreams(screenCapture)}
+                  stop={changeStreams()}
+                  onIcon="cancel_presentation"
+                  offIcon="present_to_all"
+                />
+                <MediaStreamButton
+                  isStreaming={webcam.isStreaming}
+                  start={changeStreams(webcam)}
+                  stop={changeStreams()}
+                  onIcon="videocam_off"
+                  offIcon="videocam"
+                />
+              </>
+            )}
             {children}
           </nav>
 

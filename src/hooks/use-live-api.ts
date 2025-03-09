@@ -86,7 +86,7 @@ export function useLiveAPI({ url, apiKey }: MultimodalLiveAPIClientConnection): 
     async (customConfig?: LiveConfig) => {
       // Use customConfig if provided, otherwise use the current config state
       const configToUse = customConfig || config;
-      console.log(`Going to connect with config: ${JSON.stringify(configToUse, null, 2)}`);
+      // console.log(`Going to connect with config: ${JSON.stringify(configToUse, null, 2)}`);
       if (!configToUse) {
         throw new Error('config has not been set');
       }
